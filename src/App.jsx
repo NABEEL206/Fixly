@@ -32,7 +32,12 @@ import Bill from "./pages/Purchases/Bill";
 export default function App() {
   return (
     <>
-      <Toaster position="top-center" reverseOrder={false} />
+      <Toaster
+        position="top-center"
+        toastOptions={{
+          duration: 3000,
+        }}
+      />
 
       <Routes>
         {/* PUBLIC ROUTES */}

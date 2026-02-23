@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import {
@@ -15,6 +15,7 @@ import {
   Globe,
   Filter,
   Eye,
+  User,
 } from "lucide-react";
 
 const Vendor = () => {
@@ -48,6 +49,27 @@ const Vendor = () => {
       address: "789 Logistics Blvd, Chicago, IL",
       website: "https://logisticspro.com",
       status: "Active",
+      createdBy: "admin",
+    },
+    {
+      id: 4,
+      name: "Office Supplies Co.",
+      email: "sales@officesupplies.com",
+      phone: "+1 (555) 234-5678",
+      address: "321 Commerce St, Los Angeles, CA",
+      website: "https://officesupplies.com",
+      status: "Active",
+      createdBy: "vendor",
+    },
+    {
+      id: 5,
+      name: "Industrial Parts Ltd.",
+      email: "orders@industrialparts.com",
+      phone: "+1 (555) 876-5432",
+      address: "555 Factory Rd, Detroit, MI",
+      website: "https://industrialparts.com",
+      status: "Inactive",
+      createdBy: "franchise",
     },
   ];
 
@@ -71,7 +93,14 @@ const Vendor = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [errors, setErrors] = useState({});
   const [statusFilter, setStatusFilter] = useState("All");
+  const [createdByFilter, setCreatedByFilter] = useState("All");
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+
+  // Get unique createdBy values for filter
+  const createdByOptions = useMemo(() => {
+    const creators = vendors.map(v => v.createdBy).filter(Boolean);
+    return ['All', ...new Set(creators)];
+  }, [vendors]);
 
   // Show toast function
   const showToast = (message, type = "success") => {
@@ -231,15 +260,25 @@ const Vendor = () => {
     });
   };
 
-  // Filter vendors based on search and status
+  // Filter vendors based on search, status, and createdBy
   const filteredVendors = vendors.filter((vendor) => {
     const matchesSearch = Object.values(vendor).some((value) =>
-      value.toString().toLowerCase().includes(searchTerm.toLowerCase()),
+      value?.toString().toLowerCase().includes(searchTerm.toLowerCase()),
     );
     const matchesStatus =
       statusFilter === "All" || vendor.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    const matchesCreatedBy =
+      createdByFilter === "All" || vendor.createdBy === createdByFilter;
+    
+    return matchesSearch && matchesStatus && matchesCreatedBy;
   });
+
+  // Clear all filters
+  const clearFilters = () => {
+    setSearchTerm("");
+    setStatusFilter("All");
+    setCreatedByFilter("All");
+  };
 
   // View Modal Component
   const ViewModal = () => (
@@ -349,6 +388,26 @@ const Vendor = () => {
                     </p>
                     <p className="text-sm text-gray-900">
                       {viewingVendor.address}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Created By Section */}
+              <div>
+                <h5 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
+                  Created By
+                </h5>
+                <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
+                  <div className="mt-0.5">
+                    <User size={18} className="text-blue-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-gray-500 mb-1">
+                      Created By
+                    </p>
+                    <p className="text-sm text-gray-900 capitalize">
+                      {viewingVendor.createdBy || "N/A"}
                     </p>
                   </div>
                 </div>
@@ -716,6 +775,45 @@ const Vendor = () => {
                       Active vendors will be available for selection
                     </p>
                   </div>
+
+                  {/* Created By */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-sm font-medium text-gray-600">
+                        Created By
+                      </label>
+                    </div>
+                    <div className="relative">
+                      <select
+                        name="createdBy"
+                        value={formData.createdBy}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent hover:border-gray-400 appearance-none bg-white"
+                      >
+                        <option value="admin">Admin</option>
+                        <option value="franchise">Franchise</option>
+                        <option value="vendor">Vendor</option>
+                      </select>
+                      <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                        <svg
+                          className="w-4 h-4 text-gray-400"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            d="M19 9l-7 7-7-7"
+                          />
+                        </svg>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Select who created this vendor
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -797,18 +895,50 @@ const Vendor = () => {
               />
             </div>
 
-            {/* Status Filter */}
-            <div className="flex items-center space-x-2">
-              <Filter size={18} className="text-gray-400" />
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-              >
-                <option value="All">All Status</option>
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
-              </select>
+            {/* Filters Row */}
+            <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+              {/* Status Filter */}
+              <div className="flex items-center space-x-2">
+                <Filter size={18} className="text-gray-400" />
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm min-w-[120px]"
+                >
+                  <option value="All">All Status</option>
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
+              </div>
+
+              {/* Created By Filter - Zoho Style */}
+              <div className="flex items-center space-x-2">
+                <User size={18} className="text-gray-400" />
+                <select
+                  value={createdByFilter}
+                  onChange={(e) => setCreatedByFilter(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm min-w-[130px]"
+                >
+                  <option value="All">All Creators</option>
+                  {createdByOptions.filter(opt => opt !== 'All').map((creator) => (
+                    <option key={creator} value={creator} className="capitalize">
+                      {creator}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Clear Filters Button - Show when filters are active */}
+              {(statusFilter !== "All" || createdByFilter !== "All" || searchTerm) && (
+                <button
+                  onClick={clearFilters}
+                  className="px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors flex items-center"
+                  title="Clear all filters"
+                >
+                  <X size={16} className="mr-1" />
+                  Clear
+                </button>
+              )}
             </div>
           </div>
 
@@ -821,6 +951,46 @@ const Vendor = () => {
             Add Vendor
           </button>
         </div>
+
+        {/* Active Filters Display */}
+        {(statusFilter !== "All" || createdByFilter !== "All" || searchTerm) && (
+          <div className="mt-3 flex flex-wrap items-center gap-2 pt-3 border-t border-gray-100">
+            <span className="text-xs text-gray-500">Active filters:</span>
+            {searchTerm && (
+              <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded-full text-xs border border-blue-200">
+                Search: "{searchTerm}"
+                <button
+                  onClick={() => setSearchTerm("")}
+                  className="hover:text-blue-900"
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            )}
+            {statusFilter !== "All" && (
+              <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded-full text-xs border border-blue-200">
+                Status: {statusFilter}
+                <button
+                  onClick={() => setStatusFilter("All")}
+                  className="hover:text-blue-900"
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            )}
+            {createdByFilter !== "All" && (
+              <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded-full text-xs border border-blue-200 capitalize">
+                Created by: {createdByFilter}
+                <button
+                  onClick={() => setCreatedByFilter("All")}
+                  className="hover:text-blue-900"
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Vendor Table */}
@@ -844,7 +1014,6 @@ const Vendor = () => {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Created By
                 </th>
-
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
@@ -905,11 +1074,11 @@ const Vendor = () => {
                       </span>
                     </td>
                     <td className="px-4 py-4">
-                      <span className="text-sm font-medium text-gray-900 capitalize">
+                      <span className="inline-flex items-center px-2 py-1 bg-purple-50 text-purple-700 rounded-md text-xs font-medium capitalize">
+                        <User size={12} className="mr-1" />
                         {vendor.createdBy}
                       </span>
                     </td>
-
                     <td className="px-4 py-4">
                       <div className="flex items-center space-x-2">
                         <button
@@ -944,8 +1113,8 @@ const Vendor = () => {
                       <Building size={40} className="mx-auto mb-3" />
                       <p className="text-base font-medium">No vendors found</p>
                       <p className="text-sm mt-1">
-                        {searchTerm || statusFilter !== "All"
-                          ? "Try adjusting your search or filter"
+                        {searchTerm || statusFilter !== "All" || createdByFilter !== "All"
+                          ? "Try adjusting your filters"
                           : "Add your first vendor to get started"}
                       </p>
                     </div>
@@ -976,6 +1145,12 @@ const Vendor = () => {
                 <span className="text-xs text-gray-600">
                   Inactive:{" "}
                   {vendors.filter((v) => v.status === "Inactive").length}
+                </span>
+              </div>
+              <div className="flex items-center space-x-2 border-l pl-3 border-gray-300">
+                <User size={12} className="text-gray-400" />
+                <span className="text-xs text-gray-600">
+                  Creators: {createdByOptions.length - 1}
                 </span>
               </div>
             </div>

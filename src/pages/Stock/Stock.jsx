@@ -71,6 +71,7 @@ const DEMO_DATA = {
       max_stock: 50,
       created_at: "2024-01-15",
       updated_at: "2024-01-30",
+      created_by: "John Doe",
     },
     {
       id: 2,
@@ -89,6 +90,7 @@ const DEMO_DATA = {
       max_stock: 15,
       created_at: "2024-01-10",
       updated_at: "2024-01-28",
+      created_by: "Jane Smith",
     },
   ],
   other_shop: [
@@ -109,6 +111,7 @@ const DEMO_DATA = {
       max_stock: 60,
       created_at: "2024-01-18",
       updated_at: "2024-01-30",
+      created_by: "John Doe",
     },
     {
       id: 7,
@@ -127,9 +130,10 @@ const DEMO_DATA = {
       max_stock: 10,
       created_at: "2024-01-28",
       updated_at: "2024-01-30",
+      created_by: "Jane Smith",
     },
   ],
-  grow_tag: [  // Changed to show student names instead of tag names
+  grow_tag: [
     {
       id: 11,
       name: "iPhone Screen Protector",
@@ -140,13 +144,14 @@ const DEMO_DATA = {
       selling_price: 999,
       image: "https://images.unsplash.com/photo-1581094794329-c8112a89af12?w=400",
       description: "Tempered glass for iPhone 15 series",
-      student_name: "Manhar",  // Changed from tag to student_name
-      student_id: "ST001",     // Changed from tag_id to student_id
-      student_location: "Room 101",  // Changed from tag_location
+      student_name: "Manhar",
+      student_id: "ST001",
+      student_location: "Room 101",
       min_stock: 50,
       max_stock: 200,
       created_at: "2024-01-15",
       updated_at: "2024-01-30",
+      created_by: "John Doe",
     },
     {
       id: 12,
@@ -158,15 +163,32 @@ const DEMO_DATA = {
       selling_price: 599,
       image: "https://images.unsplash.com/photo-1583394838336-acd977736f90?w=400",
       description: "2m fast charging USB-C cable",
-      student_name: "Manu",    // Changed from tag to student_name
-      student_id: "ST002",     // Changed from tag_id to student_id
-      student_location: "Room 102",  // Changed from tag_location
+      student_name: "Manu",
+      student_id: "ST002",
+      student_location: "Room 102",
       min_stock: 20,
       max_stock: 100,
       created_at: "2024-01-20",
       updated_at: "2024-01-29",
+      created_by: "Jane Smith",
     },
   ],
+};
+
+// Get unique creators from demo data
+const getUniqueCreators = () => {
+  const creators = new Set();
+  Object.values(DEMO_DATA).forEach(items => {
+    items.forEach(item => {
+      if (item.created_by) {
+        creators.add(item.created_by);
+      }
+    });
+  });
+  return Array.from(creators).map(creator => ({
+    value: creator,
+    label: creator
+  }));
 };
 
 // Options
@@ -182,7 +204,7 @@ const SHOP_OPTIONS = [
   { value: "S004", label: "Office Supplies Plus" },
 ];
 
-const STUDENT_OPTIONS = [  // Changed from GROW_TAG_OPTIONS to STUDENT_OPTIONS
+const STUDENT_OPTIONS = [
   { value: "all", label: "All Growtags" },
   { value: "ST001", label: "Manhar" },
   { value: "ST002", label: "Manu" },
@@ -194,6 +216,11 @@ const CATEGORIES = [
   { id: "hardwares", name: "Hardwares" },
   { id: "repair_parts", name: "Repair Parts" },
   { id: "consumables", name: "Consumables" },
+];
+
+const CREATOR_OPTIONS = [
+  { value: "all", label: "All Creators" },
+  ...getUniqueCreators(),
 ];
 
 // Enhanced Dropdown Component - Fixed focus issues
@@ -333,14 +360,10 @@ const EnhancedDropdown = ({ options, selectedValue, onSelect, placeholder, icon:
 const Stock = () => {
   const [activeTab, setActiveTab] = useState(STOCK_TYPES.FRANCHISE);
   const [stockData, setStockData] = useState([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterCategory, setFilterCategory] = useState("All");
-  const [filterStatus, setFilterStatus] = useState("All");
-  const [selectedItems, setSelectedItems] = useState([]);
   const [selectedEntity, setSelectedEntity] = useState("all");
+  const [selectedCreator, setSelectedCreator] = useState("all");
+  const [filterCategory, setFilterCategory] = useState("All");
   
-  const searchInputRef = useRef(null);
-
   const [adjustmentModal, setAdjustmentModal] = useState({
     isOpen: false,
     item: null,
@@ -354,42 +377,6 @@ const Stock = () => {
     item: null,
   });
 
-  // Create stable callbacks
-  const handleSearchChange = useCallback((e) => {
-    setSearchTerm(e.target.value);
-  }, []);
-
-  const handleClearSearch = useCallback(() => {
-    setSearchTerm('');
-    setTimeout(() => {
-      if (searchInputRef.current) {
-        searchInputRef.current.focus();
-      }
-    }, 10);
-  }, []);
-
-  const handleKeyDown = useCallback((e) => {
-    if (e.key === 'Escape') {
-      setSearchTerm('');
-      setTimeout(() => {
-        if (searchInputRef.current) {
-          searchInputRef.current.focus();
-        }
-      }, 10);
-    }
-  }, []);
-
-  // Focus search input on component mount
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (searchInputRef.current) {
-        searchInputRef.current.focus();
-      }
-    }, 100);
-    
-    return () => clearTimeout(timer);
-  }, []);
-
   const fetchStockData = () => {
     const data = DEMO_DATA[activeTab] || [];
     setStockData(data);
@@ -398,20 +385,8 @@ const Stock = () => {
   useEffect(() => {
     fetchStockData();
     setSelectedEntity("all");
-    setSearchTerm("");
+    setSelectedCreator("all");
     setFilterCategory("All");
-    setFilterStatus("All");
-  }, [activeTab]);
-
-  // Focus search input when tab changes
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (searchInputRef.current) {
-        searchInputRef.current.focus();
-      }
-    }, 50);
-    
-    return () => clearTimeout(timer);
   }, [activeTab]);
 
   const getItemEntityName = (item) => {
@@ -448,27 +423,17 @@ const Stock = () => {
   };
 
   const filteredStock = useMemo(() => {
-    const searchLower = searchTerm.trim().toLowerCase();
-
     return stockData.filter((item) => {
-      const entityName = getItemEntityLabel(item);
-      const searchableText = `${item.name} ${item.sku} ${item.category} ${entityName}`.toLowerCase();
-      const matchesSearch = !searchLower || searchableText.includes(searchLower);
-
       const matchesCategory = filterCategory === "All" || item.category === filterCategory;
-
-      const matchesStatus =
-        filterStatus === "All" ||
-        (filterStatus === "In Stock" && item.quantity > 10) ||
-        (filterStatus === "Low Stock" && item.quantity > 0 && item.quantity <= 10) ||
-        (filterStatus === "Out of Stock" && item.quantity === 0);
 
       const itemEntityId = getEntityId(item);
       const matchesEntity = selectedEntity === "all" || itemEntityId === selectedEntity;
 
-      return matchesSearch && matchesCategory && matchesStatus && matchesEntity;
+      const matchesCreator = selectedCreator === "all" || item.created_by === selectedCreator;
+
+      return matchesCategory && matchesEntity && matchesCreator;
     });
-  }, [stockData, searchTerm, filterCategory, filterStatus, selectedEntity, activeTab]);
+  }, [stockData, filterCategory, selectedEntity, selectedCreator, activeTab]);
 
   const getStockStatus = (quantity) => {
     if (quantity > 10) {
@@ -663,63 +628,35 @@ const Stock = () => {
 
     return (
       <div className="bg-white rounded-xl shadow-sm border p-4 mb-6">
-        <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
-          <div className="relative w-full md:w-96">
-            <input
-              ref={searchInputRef}
-              type="text"
-              placeholder="Search by name, SKU, category, or entity..."
-              value={searchTerm}
-              onChange={handleSearchChange}
-              onKeyDown={handleKeyDown}
-              className="w-full border-2 p-3 pl-10 rounded-lg text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition"
-              autoComplete="off"
+        <div className="flex flex-wrap gap-3 items-center justify-end">
+          {/* Entity Filter */}
+          <EnhancedDropdown
+            options={getEntityOptions()}
+            selectedValue={selectedEntity}
+            onSelect={setSelectedEntity}
+            placeholder={getEntityPlaceholder()}
+            icon={getEntityIcon()}
+          />
+
+          {/* Category Filter */}
+          <div className="flex items-center gap-2">
+            <Filter size={16} className="text-gray-500" />
+            <EnhancedDropdown
+              options={CATEGORIES.map((cat) => ({ value: cat.id, label: cat.name }))}
+              selectedValue={filterCategory}
+              onSelect={setFilterCategory}
+              placeholder="categories"
             />
-            <Search size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" />
-            
-            {searchTerm && (
-              <button
-                onClick={handleClearSearch}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
-                type="button"
-                aria-label="Clear search"
-              >
-                <X size={16} />
-              </button>
-            )}
           </div>
 
-          <div className="flex flex-wrap gap-3 items-center">
-            <EnhancedDropdown
-              options={getEntityOptions()}
-              selectedValue={selectedEntity}
-              onSelect={setSelectedEntity}
-              placeholder={getEntityPlaceholder()}
-              icon={getEntityIcon()}
-            />
-
-            <div className="flex items-center gap-2">
-              <Filter size={16} className="text-gray-500" />
-              <EnhancedDropdown
-                options={CATEGORIES.map((cat) => ({ value: cat.id, label: cat.name }))}
-                selectedValue={filterCategory}
-                onSelect={setFilterCategory}
-                placeholder="categories"
-              />
-            </div>
-
-            <EnhancedDropdown
-              options={[
-                { value: "All", label: "All Status" },
-                { value: "In Stock", label: "In Stock" },
-                { value: "Low Stock", label: "Low Stock" },
-                { value: "Out of Stock", label: "Out of Stock" },
-              ]}
-              selectedValue={filterStatus}
-              onSelect={setFilterStatus}
-              placeholder="status"
-            />
-          </div>
+          {/* Zoho-style Created By Filter */}
+          <EnhancedDropdown
+            options={CREATOR_OPTIONS}
+            selectedValue={selectedCreator}
+            onSelect={setSelectedCreator}
+            placeholder="creators"
+            icon={User}
+          />
         </div>
       </div>
     );
@@ -745,23 +682,10 @@ const Stock = () => {
           <table className="w-full">
             <thead>
               <tr className="bg-gray-50 border-b">
-                <th className="py-4 px-4 text-left text-sm font-semibold text-gray-700">
-                  <input
-                    type="checkbox"
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setSelectedItems(filteredStock.map((item) => item.id));
-                      } else {
-                        setSelectedItems([]);
-                      }
-                    }}
-                    checked={selectedItems.length === filteredStock.length && filteredStock.length > 0}
-                    className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4"
-                  />
-                </th>
                 <th className="py-4 px-4 text-left text-sm font-semibold text-gray-700 min-w-[250px]">Item Details</th>
                 <th className="py-4 px-4 text-left text-sm font-semibold text-gray-700">Category</th>
                 <th className="py-4 px-4 text-left text-sm font-semibold text-gray-700">{getTableHeaderForEntity()}</th>
+                <th className="py-4 px-4 text-left text-sm font-semibold text-gray-700">Created By</th>
                 <th className="py-4 px-4 text-left text-sm font-semibold text-gray-700">Current Stock</th>
                 <th className="py-4 px-4 text-left text-sm font-semibold text-gray-700">Status</th>
                 <th className="py-4 px-4 text-left text-sm font-semibold text-gray-700">Unit Price</th>
@@ -775,7 +699,7 @@ const Stock = () => {
                     <div className="flex flex-col items-center justify-center">
                       <Package size={48} className="text-gray-400 mb-3" />
                       <p className="text-gray-600 text-lg font-medium">No stock items found</p>
-                      <p className="text-gray-500 text-sm mt-1">Try adjusting your filters or search term</p>
+                      <p className="text-gray-500 text-sm mt-1">Try adjusting your filters</p>
                     </div>
                   </td>
                 </tr>
@@ -784,21 +708,7 @@ const Stock = () => {
                   const status = getStockStatus(item.quantity);
 
                   return (
-                    <tr key={item.id} className={`border-b hover:bg-gray-50 transition ${selectedItems.includes(item.id) ? "bg-blue-50" : ""}`}>
-                      <td className="py-4 px-4">
-                        <input
-                          type="checkbox"
-                          checked={selectedItems.includes(item.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedItems([...selectedItems, item.id]);
-                            } else {
-                              setSelectedItems(selectedItems.filter((id) => id !== item.id));
-                            }
-                          }}
-                          className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4"
-                        />
-                      </td>
+                    <tr key={item.id} className="border-b hover:bg-gray-50 transition">
                       <td className="py-4 px-4">
                         <div className="flex items-center gap-3">
                           {item.image ? (
@@ -821,6 +731,12 @@ const Stock = () => {
                       </td>
                       <td className="py-4 px-4">
                         <div className="text-sm text-gray-700">{getItemEntityLabel(item)}</div>
+                      </td>
+                      <td className="py-4 px-4">
+                        <div className="flex items-center gap-1">
+                          <User size={14} className="text-gray-400" />
+                          <span className="text-sm text-gray-700">{item.created_by || "N/A"}</span>
+                        </div>
                       </td>
                       <td className="py-4 px-4">
                         <div className="flex items-center gap-2">
@@ -892,7 +808,7 @@ const Stock = () => {
           <div className="text-center py-10">
             <Package size={48} className="mx-auto mb-3 text-gray-400" />
             <p className="text-gray-600 text-lg font-medium">No stock items found</p>
-            <p className="text-gray-500 text-sm mt-1">Try adjusting your filters or search term</p>
+            <p className="text-gray-500 text-sm mt-1">Try adjusting your filters</p>
           </div>
         ) : (
           filteredStock.map((item) => {
@@ -919,12 +835,18 @@ const Stock = () => {
                   </div>
                 </div>
 
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">{getEntityLabelForCard()}</p>
-                  <p className="text-sm text-gray-700 font-medium">{getItemEntityLabel(item)}</p>
-                </div>
-
                 <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-xs text-gray-500">{getEntityLabelForCard()}</p>
+                    <p className="text-sm text-gray-700 font-medium">{getItemEntityLabel(item)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Created By</p>
+                    <p className="text-sm text-gray-700 font-medium flex items-center gap-1">
+                      <User size={12} className="text-gray-400" />
+                      {item.created_by || "N/A"}
+                    </p>
+                  </div>
                   <div>
                     <p className="text-xs text-gray-500">Current Stock</p>
                     <p className="text-xl font-bold text-gray-900">{item.quantity}</p>
@@ -990,7 +912,7 @@ const Stock = () => {
     };
 
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="fixed inset-0  bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-xl shadow-2xl max-w-md w-full">
           <div className={`p-4 border-b ${isAdd ? "bg-green-50" : "bg-red-50"}`}>
             <div className="flex items-center justify-between">
@@ -1012,6 +934,9 @@ const Stock = () => {
               <p className="text-sm font-medium text-gray-900">{adjustmentModal.item.name}</p>
               <p className="text-xs text-gray-500 mt-1">
                 SKU: {adjustmentModal.item.sku || "N/A"} | {getEntityLabelForModal()} {getItemEntityLabel(adjustmentModal.item)}
+              </p>
+              <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                <User size={12} /> Created by: {adjustmentModal.item.created_by || "N/A"}
               </p>
             </div>
 
@@ -1191,6 +1116,13 @@ const Stock = () => {
                 <div>
                   <p className="text-sm text-gray-600">Entity Type</p>
                   <p className="text-sm font-medium text-gray-900">{STOCK_TYPE_LABELS[activeTab]}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Created By</p>
+                  <p className="text-sm font-medium text-gray-900 flex items-center gap-1">
+                    <User size={14} className="text-gray-400" />
+                    {item.created_by || "N/A"}
+                  </p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">{getEntityLabelForModal()}</p>

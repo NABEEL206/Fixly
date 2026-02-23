@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -31,44 +31,81 @@ export default function Sidebar({ isOpen, closeSidebar }) {
   const navigate = useNavigate();
   const role = user?.role;
   const [openMenus, setOpenMenus] = useState({});
+  const isNavigating = useRef(false);
 
   const toggleMenu = (key) => {
     setOpenMenus((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
   const handleLogout = () => {
-    toast.dismiss();
-    toast(
+    // Don't show logout confirmation if already navigating
+    if (isNavigating.current) return;
+
+    toast.custom(
       (t) => (
-        <div className="flex flex-col gap-3">
+        <div 
+          className="flex flex-col gap-3 bg-white rounded-lg shadow-xl p-4 max-w-sm border border-gray-200"
+          onClick={(e) => e.stopPropagation()}
+        >
           <p className="text-sm font-medium text-gray-800">
             Are you sure you want to logout?
           </p>
           <div className="flex justify-end gap-2">
             <button
               onClick={() => toast.dismiss(t.id)}
-              className="px-3 py-1.5 rounded-md text-sm bg-gray-200"
+              className="px-3 py-1.5 rounded-md text-sm bg-gray-200 hover:bg-gray-300 transition-colors"
             >
               Cancel
             </button>
             <button
-              onClick={() => {
+              onClick={async () => {
+                // Set navigating flag to prevent multiple toasts
+                isNavigating.current = true;
+                
+                // Dismiss the confirmation toast
                 toast.dismiss(t.id);
-                toast.success("Logged out successfully");
-                setTimeout(() => {
-                  logout();
-                  navigate("/login");
-                  if (isMobileView()) closeSidebar();
-                }, 200);
+                
+                try {
+                  // Show loading state
+                  const loadingToast = toast.loading("Logging out...");
+                  
+                  // Perform logout
+                  await logout();
+                  
+                  // Update loading toast to success
+                  toast.success("Logged out successfully", { 
+                    id: loadingToast,
+                    duration: 2000 
+                  });
+                  
+                  // Small delay to ensure toast is visible before navigation
+                  setTimeout(() => {
+                    navigate("/login", { replace: true });
+                    if (isMobileView()) closeSidebar();
+                    // Reset navigating flag after navigation
+                    setTimeout(() => {
+                      isNavigating.current = false;
+                    }, 500);
+                  }, 500);
+                } catch (error) {
+                  console.error("Logout error:", error);
+                  toast.error("Failed to logout. Please try again.");
+                  isNavigating.current = false;
+                }
               }}
-              className="px-3 py-1.5 rounded-md text-sm bg-red-600 text-white"
+              className="px-3 py-1.5 rounded-md text-sm bg-red-600 text-white hover:bg-red-700 transition-colors"
             >
               Logout
             </button>
           </div>
         </div>
       ),
-      { duration: Infinity, position: "top-center" }
+      { 
+        duration: 8000, // 8 seconds
+        position: "top-center",
+        // Prevent toast from closing on click outside
+        className: "z-[9999]",
+      }
     );
   };
 
@@ -83,7 +120,6 @@ export default function Sidebar({ isOpen, closeSidebar }) {
       { path: "/assign-growtags", label: "Assign Grow Tags", icon: <ClipboardList size={20} /> },
       { path: "/items", label: "Items", icon: <Package size={20} /> },
       { path: "/stock", label: "Stock", icon: <Boxes size={20} /> },
-
       {
         label: "Purchase",
         icon: <DollarSign size={20} />,
@@ -94,7 +130,6 @@ export default function Sidebar({ isOpen, closeSidebar }) {
           { path: "/bills", label: "Bills" },
         ],
       },
-
       { path: "/invoice", label: "Invoice", icon: <Receipt size={20} /> },
       { path: "/reports", label: "Reports", icon: <BarChart3 size={20} /> },
     ],
@@ -167,6 +202,9 @@ export default function Sidebar({ isOpen, closeSidebar }) {
                         <NavLink
                           key={cIdx}
                           to={child.path}
+                          onClick={() => {
+                            if (isMobileView()) closeSidebar();
+                          }}
                           className={({ isActive }) =>
                             `block px-3 py-1.5 rounded text-sm transition
                             ${
@@ -189,6 +227,9 @@ export default function Sidebar({ isOpen, closeSidebar }) {
               <NavLink
                 key={idx}
                 to={item.path}
+                onClick={() => {
+                  if (isMobileView()) closeSidebar();
+                }}
                 className={({ isActive }) =>
                   `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition
                   ${
@@ -207,16 +248,17 @@ export default function Sidebar({ isOpen, closeSidebar }) {
       </div>
 
       {/* Logout */}
-      <div className="p-4 border-t border-gray-700">
+      {/* <div className="p-4 border-t border-gray-700">
         <button
           onClick={handleLogout}
+          disabled={isNavigating.current}
           className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg
-          bg-red-600 hover:bg-red-700 text-sm"
+          bg-red-600 hover:bg-red-700 disabled:bg-red-400 disabled:cursor-not-allowed text-sm transition-colors"
         >
           <LogOut size={18} />
           Logout
         </button>
-      </div>
+      </div> */}
     </div>
   );
 }

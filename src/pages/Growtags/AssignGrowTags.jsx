@@ -1,57 +1,52 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, ChevronDown, ChevronUp, ArrowLeft } from "lucide-react";
 import toast from "react-hot-toast";
 import { BASE_URL } from "@/API/BaseURL";
-
 import axios from "axios";
-// 🔐 Axios instance with auth
+
+// API Configuration
 const api = axios.create({
   baseURL: `${BASE_URL}/api/`,
 });
 
-// Attach JWT token to every request
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem("access_token"); // SimpleJWT access token
+    const token = localStorage.getItem("access_token");
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },
-  (error) => Promise.reject(error),
+  (error) => Promise.reject(error)
 );
 
-// Auto logout on token expiry (401)
 api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
       localStorage.removeItem("access_token");
-
       toast.error("Session expired. Please login again.");
-
       setTimeout(() => {
         window.location.href = "/login";
-      }, 300); // ✅ allow toast to show
+      }, 300);
     }
     return Promise.reject(err);
-  },
+  }
 );
 
-// --- API Endpoints ---
+// API Endpoints
 const ASSIGNMENTS_API_URL = "growtag-assignments/";
 const GROWTAGS_API_URL = "growtags/";
 const SHOPS_API_URL = "shops/";
 
-// Helper to extract a single error message from Axios error response
+// Helper Functions
 const extractErrorMessage = (err) => {
   const data = err?.response?.data;
   if (typeof data === "object") {
-    // 1. Check for non-field errors
     if (data.non_field_errors && Array.isArray(data.non_field_errors)) {
       return data.non_field_errors[0];
-    } // 2. Check for the first field-specific error
+    }
     const firstKey = Object.keys(data)[0];
     if (firstKey) {
       const firstVal = data[firstKey];
@@ -62,7 +57,9 @@ const extractErrorMessage = (err) => {
   return err?.message || "An unexpected error occurred.";
 };
 
-// --- Custom Select Dropdown with Search for Grow Tags (for context) ---
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// GrowTag Select Component
 const GrowTagSelect = ({
   availableGrowTags,
   selectedGrowTag,
@@ -73,7 +70,7 @@ const GrowTagSelect = ({
   const [isOpen, setIsOpen] = useState(false);
 
   const currentTag = availableGrowTags.find(
-    (g) => String(g.id) === selectedGrowTag,
+    (g) => String(g.id) === selectedGrowTag
   );
 
   const filteredTags = useMemo(() => {
@@ -83,23 +80,23 @@ const GrowTagSelect = ({
       (g) =>
         g.grow_id.toLowerCase().includes(query) ||
         g.name.toLowerCase().includes(query) ||
-        g.pincode?.toString().includes(query),
+        g.pincode?.toString().includes(query)
     );
   }, [availableGrowTags, searchTerm]);
+
+  const unassignedTags = filteredTags.filter(
+    (g) => !assigned.some((a) => a.growtag === g.id)
+  );
+
+  const isAllAssigned =
+    availableGrowTags.length > 0 &&
+    availableGrowTags.every((g) => assigned.some((a) => a.growtag === g.id));
 
   const handleSelect = (tagId) => {
     setSelectedGrowTag(String(tagId));
     setIsOpen(false);
     setSearchTerm("");
   };
-
-  const isAllAssigned =
-    availableGrowTags.length > 0 &&
-    availableGrowTags.every((g) => assigned.some((a) => a.growtag === g.id));
-
-  const unassignedTags = filteredTags.filter(
-    (g) => !assigned.some((a) => a.growtag === g.id),
-  );
 
   return (
     <div className="relative">
@@ -175,7 +172,7 @@ const GrowTagSelect = ({
   );
 };
 
-// --- NEW COMPONENT: CUSTOM SHOP SELECT DROPDOWN WITH SEARCH ---
+// Shop Select Component
 const ShopSelectDropdown = ({
   shops,
   selectedShop,
@@ -185,7 +182,6 @@ const ShopSelectDropdown = ({
   const [searchTerm, setSearchTerm] = useState("");
   const [isOpen, setIsOpen] = useState(false);
 
-  // Filter shops based on search term (ID, Name, or Pincode)
   const filteredShops = useMemo(() => {
     if (!searchTerm) return shops;
     const query = searchTerm.toLowerCase();
@@ -193,17 +189,16 @@ const ShopSelectDropdown = ({
       (s) =>
         s.shopname.toLowerCase().includes(query) ||
         s.pincode?.toString().includes(query) ||
-        s.id?.toString().includes(query),
+        s.id?.toString().includes(query)
     );
   }, [shops, searchTerm]);
 
   const franchiseShops = filteredShops.filter(
-    (s) => s.shop_type === "franchise",
+    (s) => s.shop_type === "franchise"
   );
   const otherShops = filteredShops.filter((s) => s.shop_type === "othershop");
 
   const handleInternalSelect = (shop) => {
-    // Create a mock event object compatible with the parent's handleShopChange
     const mockEvent = { target: { value: String(shop.id) } };
     handleShopChange(mockEvent);
     setIsOpen(false);
@@ -331,8 +326,11 @@ const ShopSelectDropdown = ({
   );
 };
 
+// Main Component
 export default function AssignGrowTags() {
-  const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const navigate = useNavigate();
+
+  // State Management
   const [shops, setShops] = useState([]);
   const [growtags, setGrowTags] = useState([]);
   const [assigned, setAssigned] = useState([]);
@@ -345,14 +343,14 @@ export default function AssignGrowTags() {
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState([]);
 
-  const navigate = useNavigate();
+  // Add refs to prevent multiple clicks
+  const isUnassigning = useRef(false);
+  const isBulkUnassigning = useRef(false);
 
-  // --- 1. Data Fetching ---
-
+  // Data Fetching
   const fetchAllData = async () => {
     setLoading(true);
-
-    const MIN_SPINNER_TIME = 2000; // ⏱️ 2 seconds
+    const MIN_SPINNER_TIME = 2000;
     const startTime = Date.now();
 
     try {
@@ -365,13 +363,13 @@ export default function AssignGrowTags() {
       setGrowTags(
         growtagsRes.data
           .filter((g) => g.status === "Active" || g.status === "active")
-          .map((g) => ({ ...g, pincode: g.pincode || null })),
+          .map((g) => ({ ...g, pincode: g.pincode || null }))
       );
 
       setShops(
         shopsRes.data
           .filter((s) => s.status === true)
-          .map((s) => ({ ...s, shop_type: s.shop_type?.toLowerCase() })),
+          .map((s) => ({ ...s, shop_type: s.shop_type?.toLowerCase() }))
       );
 
       setAssigned(assignmentsRes.data);
@@ -380,12 +378,9 @@ export default function AssignGrowTags() {
       toast.error("Failed to load initial data.");
     } finally {
       const elapsed = Date.now() - startTime;
-
-      // ⏳ Ensure spinner stays visible for at least 2s
       if (elapsed < MIN_SPINNER_TIME) {
         await delay(MIN_SPINNER_TIME - elapsed);
       }
-
       setLoading(false);
     }
   };
@@ -394,26 +389,21 @@ export default function AssignGrowTags() {
     fetchAllData();
   }, []);
 
-  // --- 2. Shop Selection Logic ---
-
-  // Updated to derive shopName directly from the shops state
+  // Shop Selection Handler
   const handleShopChange = (e) => {
     const shopId = e.target.value;
     const shop = shops.find((s) => String(s.id) === shopId);
-
     setSelectedShop(shopId);
     setSelectedShopName(shop?.shopname || shop?.name || "");
   };
 
-  // Helper function to get the shop's type for value check
   const getSelectedShopType = () => {
     const shopId = Number(selectedShop);
     if (!shopId) return null;
     return shops.find((s) => s.id === shopId)?.shop_type;
   };
 
-  // --- 3. Assignment Logic (POST) ---
-
+  // Assignment Handler
   const handleAssign = async () => {
     const growTagId = Number(selectedGrowTag);
     const shopId = Number(selectedShop);
@@ -421,7 +411,6 @@ export default function AssignGrowTags() {
 
     if (growTagId <= 0 || shopId <= 0 || !shopType) {
       toast.error("Please select an Active Grow Tag and a Shop.");
-
       return;
     }
 
@@ -437,7 +426,6 @@ export default function AssignGrowTags() {
 
     try {
       await api.post(ASSIGNMENTS_API_URL, payload);
-
       toast.success("Grow Tag assigned successfully ✅", { id: t });
 
       setTimeout(async () => {
@@ -451,123 +439,118 @@ export default function AssignGrowTags() {
     }
   };
 
-  // --- 4. Unassign Logic (DELETE) ---
-
+  // ✅ CLEAN UNASSIGN TOAST WITH CLICK PREVENTION
   const handleUnassign = (id) => {
-    const toastId = toast.custom(
-      (t) => (
-        <div className="bg-white shadow-lg rounded-lg p-4 w-80">
-          <p className="text-sm font-medium text-gray-800 mb-3">
-            Are you sure you want to unassign this Grow Tag?
-          </p>
+    // Prevent multiple clicks
+    if (isUnassigning.current) return;
+    isUnassigning.current = true;
 
+    toast(
+      (t) => (
+        <div className="flex flex-col gap-3">
+          <p className="text-sm font-medium">Are you sure you want to unassign this Grow Tag?</p>
+          <p className="text-xs text-gray-500">This action cannot be undone.</p>
           <div className="flex justify-end gap-2">
             <button
-              onClick={() => toast.dismiss(t.id)}
-              className="px-3 py-1.5 text-sm rounded-md bg-gray-200"
+              onClick={() => {
+                toast.dismiss(t.id);
+                isUnassigning.current = false;
+              }}
+              className="px-3 py-1.5 bg-gray-200 rounded text-sm"
             >
               Cancel
             </button>
-
             <button
               onClick={async () => {
                 toast.dismiss(t.id);
-
-                const loadingId = toast.loading("Unassigning Grow Tag...");
-
                 try {
                   await api.delete(`${ASSIGNMENTS_API_URL}${id}/`);
-
-                  toast.success("Grow Tag unassigned successfully ✅", {
-                    id: loadingId,
-                  });
-
-                  setTimeout(async () => {
-                    await fetchAllData();
-                  }, 250);
+                  toast.success("Grow Tag unassigned successfully ✅");
+                  await fetchAllData();
                 } catch (err) {
-                  toast.error(`Unassign failed: ${extractErrorMessage(err)}`, {
-                    id: loadingId,
-                  });
+                  toast.error(`Unassign failed: ${extractErrorMessage(err)}`);
+                } finally {
+                  isUnassigning.current = false;
                 }
               }}
-              className="px-3 py-1.5 text-sm rounded-md bg-red-600 text-white"
+              className="px-3 py-1.5 bg-red-600 text-white rounded text-sm"
             >
               Unassign
             </button>
           </div>
         </div>
       ),
-      { duration: Infinity },
+      { 
+        duration: 6000,
+        onClose: () => {
+          isUnassigning.current = false;
+        }
+      }
     );
   };
 
-  // --- 5. Bulk Unassign (Multiple DELETEs) ---
+  // ✅ CLEAN BULK UNASSIGN TOAST WITH CLICK PREVENTION
   const handleBulk = () => {
     if (selectedIds.length === 0) {
       toast.error("Select at least one assignment to unassign ⚠️");
       return;
     }
 
-    toast.custom(
-      (t) => (
-        <div className="bg-white shadow-lg rounded-lg p-4 w-96">
-          <p className="text-sm font-medium text-gray-800 mb-3">
-            Unassign {selectedIds.length} selected Grow Tags?
-          </p>
+    // Prevent multiple clicks
+    if (isBulkUnassigning.current) return;
+    isBulkUnassigning.current = true;
 
+    toast(
+      (t) => (
+        <div className="flex flex-col gap-3">
+          <p className="text-sm font-medium">Unassign {selectedIds.length} selected Grow Tags?</p>
+          <p className="text-xs text-gray-500">This action cannot be undone.</p>
           <div className="flex justify-end gap-2">
             <button
-              onClick={() => toast.dismiss(t.id)}
-              className="px-3 py-1.5 text-sm rounded-md bg-gray-200"
+              onClick={() => {
+                toast.dismiss(t.id);
+                isBulkUnassigning.current = false;
+              }}
+              className="px-3 py-1.5 bg-gray-200 rounded text-sm"
             >
               Cancel
             </button>
-
             <button
               onClick={async () => {
                 toast.dismiss(t.id);
-
-                const loadingId = toast.loading(
-                  "Unassigning selected Grow Tags...",
-                );
-
                 try {
                   await Promise.all(
                     selectedIds.map((id) =>
-                      api.delete(`${ASSIGNMENTS_API_URL}${id}/`),
-                    ),
+                      api.delete(`${ASSIGNMENTS_API_URL}${id}/`)
+                    )
                   );
 
-                  toast.success(
-                    `${selectedIds.length} Grow Tags unassigned ✅`,
-                    { id: loadingId },
-                  );
-
-                  setTimeout(async () => {
-                    setSelectedIds([]);
-                    await fetchAllData();
-                  }, 250);
+                  toast.success(`${selectedIds.length} Grow Tags unassigned ✅`);
+                  setSelectedIds([]);
+                  await fetchAllData();
                 } catch (err) {
-                  toast.error(
-                    `Bulk unassign failed: ${extractErrorMessage(err)}`,
-                    { id: loadingId },
-                  );
+                  toast.error(`Bulk unassign failed: ${extractErrorMessage(err)}`);
+                } finally {
+                  isBulkUnassigning.current = false;
                 }
               }}
-              className="px-3 py-1.5 text-sm rounded-md bg-red-600 text-white"
+              className="px-3 py-1.5 bg-red-600 text-white rounded text-sm"
             >
               Unassign All
             </button>
           </div>
         </div>
       ),
-      { duration: Infinity },
+      { 
+        duration: 6000,
+        onClose: () => {
+          isBulkUnassigning.current = false;
+        }
+      }
     );
   };
 
-  // --- 6. Filters and Selectors ---
-
+  // Filtered Data
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
 
@@ -583,8 +566,6 @@ export default function AssignGrowTags() {
           shopName: shop?.shopname || shop?.name || "N/A",
           shopType: shop?.shop_type || "N/A",
           assignedAt: assignment.assigned_at,
-
-          // ✅ FUTURE FIELD
           createdBy: assignment.created_by ?? null,
         };
       })
@@ -593,21 +574,19 @@ export default function AssignGrowTags() {
           a.growId.toLowerCase().includes(q) ||
           a.growName.toLowerCase().includes(q) ||
           a.shopName.toLowerCase().includes(q) ||
-          a.shopType.toLowerCase().includes(q),
+          a.shopType.toLowerCase().includes(q)
       );
   }, [search, assigned, growtags, shops]);
 
   const toggleCheck = (id) => {
     setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
   };
 
-  // --- Render ---
-
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
-      {/* BACK BUTTON & HEADER */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 border-b pb-4">
         <h1 className="text-3xl font-bold">Assign Grow Tags</h1>
         <button
@@ -622,27 +601,20 @@ export default function AssignGrowTags() {
       {/* Assign Box */}
       <div className="bg-white p-5 rounded-xl shadow border space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* GrowTag dropdown (Searchable) */}
-          <div>
-            <GrowTagSelect
-              availableGrowTags={growtags}
-              selectedGrowTag={selectedGrowTag}
-              setSelectedGrowTag={setSelectedGrowTag}
-              assigned={assigned}
-            />
-          </div>
+          <GrowTagSelect
+            availableGrowTags={growtags}
+            selectedGrowTag={selectedGrowTag}
+            setSelectedGrowTag={setSelectedGrowTag}
+            assigned={assigned}
+          />
 
-          {/* NEW Shop Dropdown (Searchable) */}
-          <div>
-            <ShopSelectDropdown
-              shops={shops}
-              selectedShop={selectedShop}
-              selectedShopName={selectedShopName}
-              handleShopChange={handleShopChange}
-            />
-          </div>
+          <ShopSelectDropdown
+            shops={shops}
+            selectedShop={selectedShop}
+            selectedShopName={selectedShopName}
+            handleShopChange={handleShopChange}
+          />
 
-          {/* Assign Button */}
           <div className="flex items-end">
             <button
               onClick={handleAssign}
@@ -654,7 +626,7 @@ export default function AssignGrowTags() {
         </div>
       </div>
 
-      {/* Search + Bulk */}
+      {/* Search & Bulk Actions */}
       <div className="flex flex-col sm:flex-row sm:justify-between gap-3">
         <div className="relative">
           <input
@@ -671,18 +643,18 @@ export default function AssignGrowTags() {
 
         <button
           onClick={handleBulk}
-          disabled={selectedIds.length === 0}
+          disabled={selectedIds.length === 0 || isBulkUnassigning.current}
           className={`px-4 py-2 rounded-lg transition-colors font-medium ${
-            selectedIds.length > 0
+            selectedIds.length > 0 && !isBulkUnassigning.current
               ? "bg-red-600 text-white hover:bg-red-700"
               : "bg-gray-300 text-gray-600 cursor-not-allowed"
           }`}
         >
-          Unassign Selected ({selectedIds.length})
+          {isBulkUnassigning.current ? "Processing..." : `Unassign Selected (${selectedIds.length})`}
         </button>
       </div>
 
-      {/* TABLE BELOW */}
+      {/* Desktop Table */}
       <div className="hidden md:block bg-white rounded-xl shadow border p-3 overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-100">
@@ -709,7 +681,6 @@ export default function AssignGrowTags() {
               <th className="p-2 text-left">Assigned Shop</th>
               <th className="p-2 text-left">Shop Type</th>
               <th className="p-2 text-left">Created By</th>
-
               <th className="p-2 text-left">Assigned At</th>
               <th className="p-2 text-left">Action</th>
             </tr>
@@ -723,6 +694,7 @@ export default function AssignGrowTags() {
                     type="checkbox"
                     checked={selectedIds.includes(a.id)}
                     onChange={() => toggleCheck(a.id)}
+                    disabled={isBulkUnassigning.current}
                   />
                 </td>
                 <td className="p-2">{a.growId}</td>
@@ -739,19 +711,19 @@ export default function AssignGrowTags() {
                     {a.shopType.toUpperCase().replace("_", " ")}
                   </span>
                 </td>
-                <td className="p-2 text-gray-500">
-                  {a.createdBy ? a.createdBy : "—"}
-                </td>
-
-                <td className="p-2">
-                  {new Date(a.assignedAt).toLocaleString()}
-                </td>
+                <td className="p-2 text-gray-700">{a.createdBy || "—"}</td>
+                <td className="p-2">{new Date(a.assignedAt).toLocaleString()}</td>
                 <td className="p-2">
                   <button
                     onClick={() => handleUnassign(a.id)}
-                    className="bg-red-600 text-white px-3 py-1 rounded-lg hover:bg-red-700 transition-colors text-sm"
+                    disabled={isUnassigning.current || isBulkUnassigning.current}
+                    className={`px-3 py-1 rounded-lg text-sm ${
+                      isUnassigning.current || isBulkUnassigning.current
+                        ? "bg-gray-400 cursor-not-allowed"
+                        : "bg-red-600 hover:bg-red-700 text-white"
+                    } transition-colors`}
                   >
-                    Unassign
+                    {isUnassigning.current ? "Processing..." : "Unassign"}
                   </button>
                 </td>
               </tr>
@@ -769,7 +741,8 @@ export default function AssignGrowTags() {
           </tbody>
         </table>
       </div>
-      {/* MOBILE VIEW */}
+
+      {/* Mobile View */}
       <div className="md:hidden space-y-3">
         {filtered.map((a) => (
           <div
@@ -784,12 +757,18 @@ export default function AssignGrowTags() {
                 <p className="text-xs text-gray-500">
                   Assigned At: {new Date(a.assignedAt).toLocaleString()}
                 </p>
+                {a.createdBy && (
+                  <p className="text-xs text-gray-600 mt-1">
+                    By: {a.createdBy}
+                  </p>
+                )}
               </div>
 
               <input
                 type="checkbox"
                 checked={selectedIds.includes(a.id)}
                 onChange={() => toggleCheck(a.id)}
+                disabled={isBulkUnassigning.current}
               />
             </div>
 
@@ -810,9 +789,14 @@ export default function AssignGrowTags() {
 
             <button
               onClick={() => handleUnassign(a.id)}
-              className="w-full mt-2 bg-red-600 text-white py-1.5 rounded-lg text-sm hover:bg-red-700"
+              disabled={isUnassigning.current || isBulkUnassigning.current}
+              className={`w-full mt-2 py-1.5 rounded-lg text-sm ${
+                isUnassigning.current || isBulkUnassigning.current
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-red-600 hover:bg-red-700 text-white"
+              }`}
             >
-              Unassign
+              {isUnassigning.current ? "Processing..." : "Unassign"}
             </button>
           </div>
         ))}
