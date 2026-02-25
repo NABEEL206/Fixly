@@ -1,6 +1,5 @@
-import React, { useState, useMemo, useEffect, useRef } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { BASE_URL } from "@/API/BaseURL";
-
 import {
   PlusCircle,
   Edit3,
@@ -18,7 +17,7 @@ import {
   Upload,
   ArrowLeft,
   AlertCircle,
-  MoreVertical,
+  Filter,
   User,
 } from "lucide-react";
 import axios from "axios";
@@ -40,7 +39,8 @@ api.interceptors.request.use(
 );
 
 // ==================== CONSTANTS ====================
-const ITEMS_API_URL = `${BASE_URL}/zoho/local-items/`;
+const ITEMS_API_URL = "/zoho/local-items/";
+
 const ACCOUNTS = ["sales", "service_income", "cogs", "other_income"];
 const ACCOUNT_DISPLAY_NAMES = {
   sales: "Sales",
@@ -48,6 +48,7 @@ const ACCOUNT_DISPLAY_NAMES = {
   cogs: "Cost of Goods Sold",
   other_income: "Other Income",
 };
+
 const UNITS = ["PIECE", "BOX", "SET", "UNIT"];
 const UNIT_DISPLAY_NAMES = {
   PIECE: "Piece",
@@ -55,36 +56,35 @@ const UNIT_DISPLAY_NAMES = {
   SET: "Set",
   UNIT: "Unit",
 };
+
 const PRODUCT_TYPES = ["goods", "service"];
+const PRODUCT_TYPE_DISPLAY_NAMES = {
+  goods: "Goods",
+  service: "Service",
+};
+
 const TAX_PREFERENCES = ["taxable", "non_taxable"];
+const TAX_PREFERENCE_DISPLAY_NAMES = {
+  taxable: "Taxable",
+  non_taxable: "Non-Taxable",
+};
+
 const VENDORS = [
   { id: "", name: "None" },
-  { id: "vendor_a_id", name: "Vendor A" },
-  { id: "vendor_b_id", name: "Vendor B" },
-];
-
-const CATEGORIES = [
-  { id: "", name: "Select Category" },
-  { id: "electronics", name: "Electronics" },
-  { id: "hardwares", name: "Hardwares" },
-  { id: "mobiles", name: "Mobiles & Accessories" },
-  { id: "repair_parts", name: "Repair Parts" },
-  { id: "tools", name: "Tools & Equipment" },
-  { id: "consumables", name: "Consumables" },
-  { id: "services", name: "Services" },
+  { id: "vendor_a_id", name: "Vendor A (Mobile Wholesaler)" },
+  { id: "vendor_b_id", name: "Vendor B (Component Supplier)" },
 ];
 
 const GST_TREATMENTS = [
-  "",
-  "No Tax (0%)",
-  "5% IGST",
-  "12% IGST",
-  "18% IGST",
-  "28% IGST",
-  "5% GST (2.5% CGST + 2.5% SGST)",
-  "12% GST (6% CGST + 6% SGST)",
-  "18% GST (9% CGST + 9% SGST)",
-  "28% GST (14% CGST + 14% SGST)",
+  { value: "NO_TAX", label: "No Tax (0%)" },
+  { value: "IGST_5", label: "5% IGST" },
+  { value: "IGST_12", label: "12% IGST" },
+  { value: "IGST_18", label: "18% IGST" },
+  { value: "IGST_28", label: "28% IGST" },
+  { value: "GST_5", label: "5% GST (2.5% CGST + 2.5% SGST)" },
+  { value: "GST_12", label: "12% GST (6% CGST + 6% SGST)" },
+  { value: "GST_18", label: "18% GST (9% CGST + 9% SGST)" },
+  { value: "GST_28", label: "28% GST (14% CGST + 14% SGST)" },
 ];
 
 // ==================== SEARCH INPUT ====================
@@ -95,7 +95,7 @@ const SearchInput = ({ value, onChange }) => (
     </div>
     <input
       type="text"
-      placeholder="Search items..."
+      placeholder="Search items by name or SKU..."
       value={value}
       onChange={(e) => onChange(e.target.value)}
       className="w-full pl-10 pr-4 py-2.5 text-sm bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -119,30 +119,30 @@ export default function Items() {
   const [activeTab, setActiveTab] = useState("General");
   const [loading, setLoading] = useState(false);
   const [syncStatus, setSyncStatus] = useState({});
-
   const [openViewModal, setOpenViewModal] = useState(false);
   const [viewedItem, setViewedItem] = useState(null);
   const [selectedItems, setSelectedItems] = useState([]);
-  const [actionMenuId, setActionMenuId] = useState(null);
-
   const [currentPage, setCurrentPage] = useState("list");
   const [searchTerm, setSearchTerm] = useState("");
-
   const [errors, setErrors] = useState({});
+
+  // Filter states
+  const [filterProductType, setFilterProductType] = useState("");
+  const [filterSellable, setFilterSellable] = useState("");
+  const [filterCreatedBy, setFilterCreatedBy] = useState("");
 
   const [form, setForm] = useState({
     product_type: "goods",
     name: "",
-    category: "",
     sku: "",
     unit: "PIECE",
-    hsn_or_sac: "",
     tax_preference: "taxable",
-    gst_treatment: "",
+    gst_treatment: "NO_TAX",
+    hsn_or_sac: "",
     item_image: null,
     is_sellable: true,
     selling_price: "",
-    service_charge: "",
+    service_charge: "0",
     sales_account: "sales",
     sales_description: "",
     is_purchasable: false,
@@ -150,19 +150,20 @@ export default function Items() {
     purchase_account: "cogs",
     purchase_description: "",
     preferred_vendor: "",
+    is_active: true,
   });
 
   // ==================== DATA FETCHING ====================
   const fetchItems = async () => {
     setLoading(true);
+    
     try {
-      const response = await api.get("/zoho/local-items/");
-      setItems(response.data);
+      const response = await api.get(ITEMS_API_URL);
+      const itemsData = response.data?.results || response.data || [];
+      setItems(itemsData);
     } catch (error) {
-      toast.error("Failed to load items. Please try again.", {
-        duration: 4000,
-        position: "top-center",
-      });
+      console.error("Fetch error:", error);
+      toast.error(error.response?.data?.detail || "Failed to load items");
     } finally {
       setLoading(false);
     }
@@ -174,30 +175,56 @@ export default function Items() {
 
   // ==================== HELPER FUNCTIONS ====================
   const getCreatedBy = (item) => {
-    if (typeof item.created_by === "number") return null;
-    if (typeof item.created_by === "object" && item.created_by !== null) {
-      return item.created_by.name || item.created_by.email || item.created_by.username || null;
+    if (!item.created_by) return null;
+    if (typeof item.created_by === "object") {
+      return item.created_by.email || item.created_by.username || "User";
     }
-    return item.created_by || null;
+    return item.created_by;
   };
 
-  const getCreatedByDisplay = (item) => {
-    const creator = getCreatedBy(item);
-    return creator || "—";
-  };
+  // Get unique creators for filter
+  const uniqueCreatedBy = useMemo(() => {
+    const set = new Set();
+    items.forEach((item) => {
+      const creator = getCreatedBy(item);
+      if (creator) set.add(creator);
+    });
+    return Array.from(set).sort();
+  }, [items]);
+
+  // Get unique product types for filter
+  const uniqueProductTypes = useMemo(() => {
+    const set = new Set();
+    items.forEach((item) => {
+      if (item.product_type) set.add(item.product_type);
+    });
+    return Array.from(set).sort();
+  }, [items]);
 
   // ==================== FILTERED ITEMS ====================
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
+      // Search filter
       const matchesSearch =
         !searchTerm ||
         item.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.hsn_or_sac?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.sku?.toLowerCase().includes(searchTerm.toLowerCase());
 
-      return matchesSearch;
+      // Product type filter
+      const matchesProductType = !filterProductType || item.product_type === filterProductType;
+
+      // Sellable filter
+      const matchesSellable = !filterSellable || 
+        (filterSellable === "sellable" && item.is_sellable) ||
+        (filterSellable === "not_sellable" && !item.is_sellable);
+
+      // Created by filter
+      const itemCreator = getCreatedBy(item);
+      const matchesCreatedBy = !filterCreatedBy || itemCreator === filterCreatedBy;
+
+      return matchesSearch && matchesProductType && matchesSellable && matchesCreatedBy;
     });
-  }, [items, searchTerm]);
+  }, [items, searchTerm, filterProductType, filterSellable, filterCreatedBy]);
 
   // ==================== FORM VALIDATION ====================
   const validateField = (name, value) => {
@@ -205,45 +232,40 @@ export default function Items() {
 
     switch (name) {
       case "name":
-        if (!value.trim()) {
+        if (!value?.trim()) {
           newErrors[name] = "Item name is required";
-        } else if (value.trim().length > 200) {
-          newErrors[name] = "Item name cannot exceed 200 characters";
-        } else {
-          delete newErrors[name];
-        }
-        break;
-
-      case "category":
-        if (!value) {
-          newErrors[name] = "Category is required";
+        } else if (value.trim().length > 150) {
+          newErrors[name] = "Item name cannot exceed 150 characters";
         } else {
           delete newErrors[name];
         }
         break;
 
       case "hsn_or_sac":
-        if (form.product_type === "service") {
-          if (!value.trim()) {
-            newErrors[name] = "SAC code is required for services";
-          } else if (!/^\d{6}$/.test(value.trim())) {
-            newErrors[name] = "SAC code must be exactly 6 digits";
+        if (form.product_type === "goods") {
+          if (value && !/^\d{4,8}$/.test(value.trim())) {
+            newErrors[name] = "HSN code must be 4-8 digits";
           } else {
             delete newErrors[name];
           }
-        } else if (value && !/^\d{4,8}$/.test(value.trim())) {
-          newErrors[name] = "HSN code must be 4-8 digits";
-        } else {
-          delete newErrors[name];
+        } else if (form.product_type === "service") {
+          if (!value?.trim()) {
+            newErrors[name] = "SAC code is required for services";
+          } else if (!/^\d{6,8}$/.test(value.trim())) {
+            newErrors[name] = "SAC code must be 6-8 digits";
+          } else {
+            delete newErrors[name];
+          }
         }
         break;
 
       case "selling_price":
         if (form.is_sellable) {
-          if (!value) {
+          const price = parseFloat(value);
+          if (!value || isNaN(price)) {
             newErrors[name] = "Selling price is required";
-          } else if (parseFloat(value) <= 0) {
-            newErrors[name] = "Selling price must be greater than 0";
+          } else if (price < 0) {
+            newErrors[name] = "Selling price cannot be negative";
           } else {
             delete newErrors[name];
           }
@@ -254,13 +276,30 @@ export default function Items() {
 
       case "cost_price":
         if (form.is_purchasable) {
-          if (!value) {
+          const price = parseFloat(value);
+          if (!value || isNaN(price)) {
             newErrors[name] = "Cost price is required";
-          } else if (parseFloat(value) <= 0) {
-            newErrors[name] = "Cost price must be greater than 0";
+          } else if (price < 0) {
+            newErrors[name] = "Cost price cannot be negative";
           } else {
             delete newErrors[name];
           }
+        } else {
+          delete newErrors[name];
+        }
+        break;
+
+      case "sales_account":
+        if (form.is_sellable && !value) {
+          newErrors[name] = "Sales account is required";
+        } else {
+          delete newErrors[name];
+        }
+        break;
+
+      case "purchase_account":
+        if (form.is_purchasable && !value) {
+          newErrors[name] = "Purchase account is required";
         } else {
           delete newErrors[name];
         }
@@ -288,25 +327,17 @@ export default function Items() {
   const validateForm = () => {
     const validationErrors = {};
 
-    if (!form.name.trim()) validationErrors.name = "Item name is required";
-    if (!form.category) validationErrors.category = "Category is required";
-    if (!form.tax_preference) validationErrors.tax_preference = "Tax preference is required";
+    if (!form.name?.trim()) validationErrors.name = "Item name is required";
 
     if (form.product_type === "service") {
-      if (!form.hsn_or_sac.trim()) {
+      if (!form.hsn_or_sac?.trim()) {
         validationErrors.hsn_or_sac = "SAC code is required for services";
-      } else if (!/^\d{6}$/.test(form.hsn_or_sac.trim())) {
-        validationErrors.hsn_or_sac = "SAC code must be exactly 6 digits";
       }
-    } else if (form.hsn_or_sac && !/^\d{4,8}$/.test(form.hsn_or_sac.trim())) {
-      validationErrors.hsn_or_sac = "HSN code must be 4-8 digits";
     }
 
     if (form.is_sellable) {
-      if (!form.selling_price) {
-        validationErrors.selling_price = "Selling price is required";
-      } else if (parseFloat(form.selling_price) <= 0) {
-        validationErrors.selling_price = "Selling price must be greater than 0";
+      if (!form.selling_price || parseFloat(form.selling_price) < 0) {
+        validationErrors.selling_price = "Valid selling price is required";
       }
       if (!form.sales_account) {
         validationErrors.sales_account = "Sales account is required";
@@ -314,10 +345,8 @@ export default function Items() {
     }
 
     if (form.is_purchasable) {
-      if (!form.cost_price) {
-        validationErrors.cost_price = "Cost price is required";
-      } else if (parseFloat(form.cost_price) <= 0) {
-        validationErrors.cost_price = "Cost price must be greater than 0";
+      if (!form.cost_price || parseFloat(form.cost_price) < 0) {
+        validationErrors.cost_price = "Valid cost price is required";
       }
       if (!form.purchase_account) {
         validationErrors.purchase_account = "Purchase account is required";
@@ -334,81 +363,60 @@ export default function Items() {
     const validationErrors = validateForm();
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
-      toast.error(Object.values(validationErrors)[0], {
-        duration: 4000,
-        position: "top-center",
-      });
+      toast.error(Object.values(validationErrors)[0]);
 
-      if (
-        Object.keys(validationErrors).some((key) =>
-          ["selling_price", "sales_account", "service_charge"].includes(key)
-        )
-      ) {
+      // Switch to appropriate tab based on error
+      if (validationErrors.selling_price || validationErrors.sales_account) {
         setActiveTab("Sales");
-      } else if (
-        Object.keys(validationErrors).some((key) => ["cost_price", "purchase_account"].includes(key))
-      ) {
+      } else if (validationErrors.cost_price || validationErrors.purchase_account) {
         setActiveTab("Purchase");
-      } else {
-        setActiveTab("General");
       }
       return;
     }
 
-    setLoading(true);
-
-    const toastId = toast.loading(
-      isEdit ? "Updating item..." : "Creating item...",
-      { position: "top-center" }
-    );
+    const toastId = toast.loading(isEdit ? "Updating item..." : "Creating item...");
 
     try {
       const formData = new FormData();
+      
+      // Append all form fields
       Object.keys(form).forEach((key) => {
         if (form[key] !== null && form[key] !== undefined && form[key] !== "") {
-          formData.append(key, form[key]);
+          if (key === 'item_image' && form[key] instanceof File) {
+            formData.append(key, form[key]);
+          } else if (typeof form[key] === 'boolean') {
+            formData.append(key, form[key].toString());
+          } else {
+            formData.append(key, form[key]);
+          }
         }
       });
 
       let response;
       if (isEdit && editId) {
-        response = await api.patch(`/zoho/local-items/${editId}/`, formData, {
+        response = await api.patch(`${ITEMS_API_URL}${editId}/`, formData, {
           headers: { "Content-Type": "multipart/form-data" },
         });
       } else {
-        response = await api.post("/zoho/local-items/", formData, {
+        response = await api.post(ITEMS_API_URL, formData, {
           headers: { "Content-Type": "multipart/form-data" },
         });
       }
 
-      if (response.data?.local_item) {
+      if (response.data) {
         await fetchItems();
         resetForm();
-
         toast.success(
-          isEdit ? "✅ Item updated successfully!" : "✅ Item created successfully!",
-          { id: toastId, duration: 3000 }
+          isEdit ? "Item updated successfully!" : "Item created successfully!", 
+          { id: toastId }
         );
-
-        if (response.data.detail?.includes("Zoho sync failed")) {
-          toast.warning("⚠️ Zoho sync failed. You can try syncing later.", {
-            duration: 5000,
-            position: "top-center",
-          });
-        }
-      } else if (response.data?.detail) {
-        toast.error(response.data.detail, { id: toastId, duration: 4000 });
       }
     } catch (error) {
-      const errorMessage =
-        error.response?.data?.detail ||
-        error.response?.data?.message ||
-        error.message ||
-        "Failed to save item";
-
-      toast.error(`❌ ${errorMessage}`, { id: toastId, duration: 5000 });
-    } finally {
-      setLoading(false);
+      console.error("Submit error:", error);
+      const errorMessage = error.response?.data?.detail || 
+                          error.response?.data?.message || 
+                          "Failed to save item";
+      toast.error(errorMessage, { id: toastId });
     }
   };
 
@@ -416,16 +424,15 @@ export default function Items() {
     setForm({
       product_type: "goods",
       name: "",
-      category: "",
       sku: "",
       unit: "PIECE",
-      hsn_or_sac: "",
       tax_preference: "taxable",
-      gst_treatment: "",
+      gst_treatment: "NO_TAX",
+      hsn_or_sac: "",
       item_image: null,
       is_sellable: true,
       selling_price: "",
-      service_charge: "",
+      service_charge: "0",
       sales_account: "sales",
       sales_description: "",
       is_purchasable: false,
@@ -433,6 +440,7 @@ export default function Items() {
       purchase_account: "cogs",
       purchase_description: "",
       preferred_vendor: "",
+      is_active: true,
     });
     setErrors({});
     setIsEdit(false);
@@ -446,221 +454,150 @@ export default function Items() {
     setForm({
       product_type: item.product_type || "goods",
       name: item.name || "",
-      category: item.category || "",
       sku: item.sku || "",
       unit: item.unit || "PIECE",
-      hsn_or_sac: item.hsn_or_sac || "",
       tax_preference: item.tax_preference || "taxable",
-      gst_treatment: item.gst_treatment || "",
+      gst_treatment: item.gst_treatment || "NO_TAX",
+      hsn_or_sac: item.hsn_or_sac || "",
       item_image: null,
-      is_sellable: item.is_sellable || false,
-      selling_price: item.selling_price || "",
-      service_charge: item.service_charge || "",
+      is_sellable: item.is_sellable ?? true,
+      selling_price: item.selling_price?.toString() || "",
+      service_charge: item.service_charge?.toString() || "0",
       sales_account: item.sales_account || "sales",
       sales_description: item.sales_description || "",
       is_purchasable: item.is_purchasable || false,
-      cost_price: item.cost_price || "",
+      cost_price: item.cost_price?.toString() || "",
       purchase_account: item.purchase_account || "cogs",
       purchase_description: item.purchase_description || "",
       preferred_vendor: item.preferred_vendor || "",
+      is_active: item.is_active ?? true,
     });
     setEditId(item.id);
     setIsEdit(true);
     setCurrentPage("form");
     setActiveTab("General");
     setOpenViewModal(false);
-    setActionMenuId(null);
   };
 
   const handleView = (item) => {
     setViewedItem(item);
     setOpenViewModal(true);
-    setActionMenuId(null);
   };
 
-  const showDeleteConfirmation = (id, itemName) => {
-    toast.custom(
+  const handleDelete = (id, itemName) => {
+    toast(
       (t) => (
-        <div className="flex flex-col gap-4 bg-white rounded-xl shadow-2xl border border-gray-200 p-6 max-w-md">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-red-100 rounded-full">
-              <Trash2 className="text-red-600" size={24} />
-            </div>
-            <div>
-              <h3 className="font-semibold text-gray-800 text-lg">Delete Item?</h3>
-              <p className="text-sm font-medium text-gray-700 mt-1">{itemName}</p>
-              <p className="text-sm text-gray-600 mt-2">This action cannot be undone.</p>
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-gray-200">
-            <button
-              onClick={() => toast.dismiss(t.id)}
-              className="px-5 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition duration-200"
+        <div className="flex flex-col gap-3">
+          <p className="text-sm font-semibold text-gray-800">Delete "{itemName}"?</p>
+          <p className="text-xs text-gray-500">This action cannot be undone.</p>
+          <div className="flex justify-end gap-2">
+            <button 
+              onClick={() => toast.dismiss(t.id)} 
+              className="px-3 py-1.5 bg-gray-200 rounded-md text-sm hover:bg-gray-300 transition-colors"
             >
               Cancel
             </button>
             <button
               onClick={async () => {
                 toast.dismiss(t.id);
-                await performIndividualDelete(id, itemName);
+                const toastId = toast.loading(`Deleting "${itemName}"...`);
+                try {
+                  await api.delete(`${ITEMS_API_URL}${id}/`);
+                  setItems((prev) => prev.filter((item) => item.id !== id));
+                  setSelectedItems((prev) => prev.filter((itemId) => itemId !== id));
+                  toast.success(`"${itemName}" deleted successfully`, { id: toastId });
+                } catch (error) {
+                  toast.error(
+                    error.response?.data?.detail || "Failed to delete item", 
+                    { id: toastId }
+                  );
+                }
               }}
-              className="px-5 py-2.5 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition duration-200 flex items-center gap-2"
+              className="px-3 py-1.5 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 transition-colors"
             >
-              <Trash2 size={16} />
               Delete
             </button>
           </div>
         </div>
       ),
-      { duration: 6000, position: "top-center" }
+      { duration: Infinity }
     );
   };
 
-  const performIndividualDelete = async (id, itemName) => {
-    const toastId = toast.loading(`Deleting "${itemName}"...`, {
-      position: "top-center",
-    });
-
-    try {
-      await api.delete(`${ITEMS_API_URL}${id}/`);
-      setItems((prev) => prev.filter((item) => item.id !== id));
-      setSelectedItems((prev) => prev.filter((itemId) => itemId !== id));
-
-      toast.success(`✅ "${itemName}" deleted successfully`, {
-        id: toastId,
-        duration: 3000,
-      });
-    } catch (error) {
-      toast.error(`❌ Failed to delete: ${error.response?.data?.detail || "Network error"}`, {
-        id: toastId,
-        duration: 4000,
-      });
-    }
-  };
-
-  const showBulkDeleteConfirmation = () => {
+  const handleBulkDelete = () => {
     if (selectedItems.length === 0) {
-      toast.error("Please select at least one item to delete.", {
-        duration: 3000,
-        position: "top-center",
-      });
+      toast.error("Please select at least one item to delete.");
       return;
     }
 
-    toast.custom(
+    toast(
       (t) => (
-        <div className="flex flex-col gap-4 bg-white rounded-xl shadow-2xl border border-gray-200 p-6 max-w-md">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-red-100 rounded-full">
-              <Trash2 className="text-red-600" size={24} />
-            </div>
-            <div>
-              <h3 className="font-semibold text-gray-800 text-lg">
-                Delete {selectedItems.length} Item{selectedItems.length > 1 ? "s" : ""}?
-              </h3>
-              <p className="text-sm text-gray-600 mt-1">This action cannot be undone.</p>
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-gray-200">
-            <button
-              onClick={() => toast.dismiss(t.id)}
-              className="px-5 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg"
+        <div className="flex flex-col gap-3">
+          <p className="text-sm font-semibold text-gray-800">Delete {selectedItems.length} selected items?</p>
+          <p className="text-xs text-gray-500">This action cannot be undone.</p>
+          <div className="flex justify-end gap-2">
+            <button 
+              onClick={() => toast.dismiss(t.id)} 
+              className="px-3 py-1.5 bg-gray-200 rounded-md text-sm hover:bg-gray-300 transition-colors"
             >
               Cancel
             </button>
             <button
               onClick={async () => {
                 toast.dismiss(t.id);
-                await performBulkDelete();
+                const toastId = toast.loading(`Deleting ${selectedItems.length} items...`);
+                
+                try {
+                  const results = await Promise.allSettled(
+                    selectedItems.map((id) => api.delete(`${ITEMS_API_URL}${id}/`))
+                  );
+
+                  const successful = results.filter(r => r.status === 'fulfilled').length;
+                  
+                  await fetchItems();
+                  setSelectedItems([]);
+
+                  if (successful === selectedItems.length) {
+                    toast.success(`Deleted ${successful} items successfully`, { id: toastId });
+                  } else {
+                    toast.success(`Deleted ${successful}/${selectedItems.length} items`, { id: toastId });
+                  }
+                } catch (error) {
+                  toast.error("Bulk delete failed", { id: toastId });
+                }
               }}
-              className="px-5 py-2.5 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg flex items-center gap-2"
+              className="px-3 py-1.5 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 transition-colors"
             >
-              <Trash2 size={16} />
               Delete {selectedItems.length}
             </button>
           </div>
         </div>
       ),
-      { duration: 6000, position: "top-center" }
+      { duration: Infinity }
     );
-  };
-
-  const performBulkDelete = async () => {
-    const toastId = toast.loading(
-      `Deleting ${selectedItems.length} item${selectedItems.length > 1 ? "s" : ""}...`,
-      { position: "top-center" }
-    );
-
-    try {
-      const idsToDelete = [...selectedItems];
-      const deletePromises = idsToDelete.map((id) =>
-        api
-          .delete(`${ITEMS_API_URL}${id}/`)
-          .then(() => ({ success: true, id }))
-          .catch(() => ({ success: false, id }))
-      );
-
-      const results = await Promise.all(deletePromises);
-      const successfulDeletes = results.filter((r) => r.success).length;
-
-      await fetchItems();
-      setSelectedItems([]);
-
-      if (successfulDeletes === selectedItems.length) {
-        toast.success(`✅ Deleted ${successfulDeletes} item${successfulDeletes > 1 ? "s" : ""}`, {
-          id: toastId,
-          duration: 4000,
-        });
-      } else {
-        toast.warning(`⚠️ Deleted ${successfulDeletes}/${selectedItems.length} items`, {
-          id: toastId,
-          duration: 5000,
-        });
-      }
-    } catch (error) {
-      toast.error("❌ Bulk delete failed", { id: toastId, duration: 4000 });
-    }
   };
 
   const handleSyncToZoho = async (id) => {
-    const toastId = toast.loading("Syncing to Zoho...", { position: "top-center" });
+    const toastId = toast.loading("Syncing to Zoho...");
 
     try {
       setSyncStatus((prev) => ({ ...prev, [id]: "syncing" }));
       const response = await api.post(`${ITEMS_API_URL}${id}/sync-to-zoho/`);
 
-      if (response.data.success || response.data.zoho_item_id) {
+      if (response.data.success) {
         setSyncStatus((prev) => ({ ...prev, [id]: "synced" }));
         await fetchItems();
-        toast.success("✅ Item synced to Zoho successfully!", {
-          id: toastId,
-          duration: 3000,
-        });
+        toast.success("Item synced to Zoho successfully!", { id: toastId });
       } else {
         setSyncStatus((prev) => ({ ...prev, [id]: "failed" }));
-        toast.error("❌ Sync failed: " + (response.data.error || "Unknown error"), {
-          id: toastId,
-          duration: 4000,
-        });
+        toast.error("Sync failed: " + (response.data.error || "Unknown error"), { id: toastId });
       }
     } catch (error) {
       setSyncStatus((prev) => ({ ...prev, [id]: "failed" }));
-      toast.error(
-        "❌ Sync failed: " + (error.response?.data?.error || error.message || "Network error"),
-        {
-          id: toastId,
-          duration: 4000,
-        }
-      );
+      toast.error("Sync failed: " + (error.response?.data?.error || error.message), {
+        id: toastId,
+      });
     }
-  };
-
-  const handleSelectItem = (id) => {
-    setSelectedItems((prev) =>
-      prev.includes(id) ? prev.filter((itemId) => itemId !== id) : [...prev, id]
-    );
   };
 
   const handleSelectAll = (checked) => {
@@ -671,10 +608,26 @@ export default function Items() {
     }
   };
 
+  const toggleSelect = (id) => {
+    setSelectedItems(prev => 
+      prev.includes(id) ? prev.filter(itemId => itemId !== id) : [...prev, id]
+    );
+  };
+
+  // Clear all filters
+  const clearFilters = () => {
+    setFilterProductType("");
+    setFilterSellable("");
+    setFilterCreatedBy("");
+    setSearchTerm("");
+  };
+
   // ==================== UI COMPONENTS ====================
-  const LabelWithInfo = ({ children }) => (
+  const LabelWithInfo = ({ children, required }) => (
     <label className="text-sm font-medium text-gray-700 flex items-center gap-1 mb-1">
-      {children} <Info size={12} className="text-gray-400" />
+      {children}
+      {required && <span className="text-red-500">*</span>}
+      <Info size={12} className="text-gray-400" />
     </label>
   );
 
@@ -693,321 +646,243 @@ export default function Items() {
       : baseClass;
   };
 
-  // ==================== ACTION MENU ====================
-  const ActionMenu = ({ itemId, itemName, item }) => {
-    const menuRef = useRef(null);
-
-    useEffect(() => {
-      const handleClickOutside = (event) => {
-        if (menuRef.current && !menuRef.current.contains(event.target)) {
-          setActionMenuId(null);
-        }
-      };
-
-      if (actionMenuId === itemId) {
-        document.addEventListener("mousedown", handleClickOutside);
-      }
-
-      return () => {
-        document.removeEventListener("mousedown", handleClickOutside);
-      };
-    }, [actionMenuId, itemId]);
-
-    return (
-      <div ref={menuRef} className="relative inline-block">
+  // ==================== ACTION BUTTONS ====================
+  const ActionButtons = ({ item }) => (
+    <div className="flex items-center gap-2">
+      <button
+        onClick={() => handleView(item)}
+        className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
+        title="View Details"
+      >
+        <Eye size={18} />
+      </button>
+      <button
+        onClick={() => handleEdit(item)}
+        className="p-2 rounded-lg bg-yellow-50 text-yellow-600 hover:bg-yellow-100 transition-colors"
+        title="Edit Item"
+      >
+        <Edit3 size={18} />
+      </button>
+      {!item.zoho_item_id && (
         <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setActionMenuId(actionMenuId === itemId ? null : itemId);
-          }}
-          className="p-2 rounded-lg hover:bg-gray-100 transition"
+          onClick={() => handleSyncToZoho(item.id)}
+          disabled={syncStatus[item.id] === "syncing"}
+          className={`p-2 rounded-lg transition-colors ${
+            syncStatus[item.id] === "syncing"
+              ? "bg-purple-50 text-purple-600"
+              : "bg-purple-50 text-purple-600 hover:bg-purple-100"
+          }`}
+          title="Sync to Zoho"
         >
-          <MoreVertical size={18} className="text-gray-600" />
+          {syncStatus[item.id] === "syncing" ? (
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
+          ) : (
+            <Upload size={18} />
+          )}
         </button>
-
-        {actionMenuId === itemId && (
-          <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border z-50">
-            <div className="py-1">
-              <button
-                onClick={() => handleView(item)}
-                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-              >
-                <Eye size={14} /> View Details
-              </button>
-              <button
-                onClick={() => handleEdit(item)}
-                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-              >
-                <Edit3 size={14} /> Edit Item
-              </button>
-              {!item.zoho_item_id && (
-                <button
-                  onClick={() => {
-                    setActionMenuId(null);
-                    handleSyncToZoho(itemId);
-                  }}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                >
-                  <Upload size={14} /> Sync to Zoho
-                </button>
-              )}
-              <div className="border-t my-1"></div>
-              <button
-                onClick={() => {
-                  setActionMenuId(null);
-                  showDeleteConfirmation(itemId, itemName);
-                }}
-                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-              >
-                <Trash2 size={14} /> Delete Item
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
+      )}
+      <button
+        onClick={() => handleDelete(item.id, item.name)}
+        className="p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+        title="Delete Item"
+      >
+        <Trash2 size={18} />
+      </button>
+    </div>
+  );
 
   // ==================== ITEMS TABLE ====================
-  const ItemsTable = () => {
-    const truncateId = (id) => {
-      if (!id) return "N/A";
-      const idStr = String(id);
-      return idStr.length > 8 ? `${idStr.slice(0, 8)}...` : idStr;
-    };
-
-    return (
-      <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-        {/* Bulk Delete Bar */}
-        {selectedItems.length > 0 && (
-          <div className="px-6 py-4 bg-red-50 border-b border-red-200 flex items-center justify-between">
-            <span className="text-sm font-medium text-red-700">
-              {selectedItems.length} item{selectedItems.length > 1 ? "s" : ""} selected
-            </span>
-            <button
-              onClick={showBulkDeleteConfirmation}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors flex items-center gap-2"
-            >
-              <Trash2 size={16} />
-              Delete Selected
-            </button>
-          </div>
-        )}
-
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="py-4 px-6 text-left w-12">
-                  <input
-                    type="checkbox"
-                    onChange={(e) => handleSelectAll(e.target.checked)}
-                    checked={filteredItems.length > 0 && selectedItems.length === filteredItems.length}
-                    className="rounded text-blue-600 h-4 w-4 cursor-pointer"
-                  />
-                </th>
-                <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  Item Details
-                </th>
-                <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  Category
-                </th>
-                <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  Type
-                </th>
-                <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  Pricing
-                </th>
-                <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  HSN/SAC
-                </th>
-                <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  Created By
-                </th>
-                <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  Zoho Sync
-                </th>
-                <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-20">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading && filteredItems.length === 0 ? (
-                <tr>
-                  <td colSpan="9" className="text-center py-12">
-                    <div className="flex flex-col items-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-3"></div>
-                      <p className="text-gray-600">Loading items...</p>
-                    </div>
-                  </td>
-                </tr>
-              ) : filteredItems.length === 0 ? (
-                <tr>
-                  <td colSpan="9" className="text-center py-12">
-                    <div className="flex flex-col items-center">
-                      <Search size={40} className="text-gray-300 mb-3" />
-                      <p className="text-gray-600 text-lg font-medium">No items found</p>
-                      {items.length === 0 && (
-                        <button
-                          onClick={() => setCurrentPage("form")}
-                          className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700"
-                        >
-                          <PlusCircle size={18} /> Add New Item
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                filteredItems.map((item) => (
-                  <tr
-                    key={item.id}
-                    className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${
-                      selectedItems.includes(item.id) ? "bg-blue-50" : ""
-                    }`}
-                  >
-                    <td className="py-4 px-6">
-                      <input
-                        type="checkbox"
-                        checked={selectedItems.includes(item.id)}
-                        onChange={() => handleSelectItem(item.id)}
-                        className="rounded text-blue-600 h-4 w-4 cursor-pointer"
-                      />
-                    </td>
-                    <td className="py-4 px-6">
-                      <div className="flex items-start gap-4">
-                        <div className="flex-shrink-0">
-                          {item.item_image ? (
-                            <img
-                              src={item.item_image}
-                              className="w-12 h-12 object-contain rounded-lg border border-gray-200"
-                              alt={item.name}
-                            />
-                          ) : (
-                            <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200">
-                              <Image size={20} className="text-gray-400" />
-                            </div>
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <h4 className="font-medium text-gray-900 text-sm mb-1">{item.name}</h4>
-                          <span className="text-xs text-gray-500">SKU: {item.sku || "—"}</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-4 px-6">
-                      <div>
-                        <span className="text-sm text-gray-700">
-                          {CATEGORIES.find((cat) => cat.id === item.category)?.name || "—"}
-                        </span>
-                        <span className="text-xs text-gray-400 block mt-1">
-                          ID: {truncateId(item.id)}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="py-4 px-6">
-                      <div>
-                        <span
-                          className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                            item.product_type === "goods"
-                              ? "bg-green-100 text-green-700"
-                              : "bg-blue-100 text-blue-700"
-                          }`}
-                        >
-                          {item.product_type?.charAt(0).toUpperCase() + item.product_type?.slice(1)}
-                        </span>
-                        <span className="text-xs text-gray-500 block mt-2">
-                          {item.is_sellable ? "Sellable" : "Not Sellable"}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="py-4 px-6">
-                      <div className="text-sm font-medium text-gray-900 mb-1">
-                        ₹{parseFloat(item.selling_price || 0).toFixed(2)}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        Cost: ₹{parseFloat(item.cost_price || 0).toFixed(2)}
-                      </div>
-                    </td>
-                    <td className="py-4 px-6">
-                      <span className="text-sm text-gray-700">{item.hsn_or_sac || "—"}</span>
-                      {item.gst_treatment && (
-                        <span
-                          className="text-xs text-gray-500 block mt-1 truncate max-w-[150px]"
-                          title={item.gst_treatment}
-                        >
-                          {item.gst_treatment}
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-4 px-6">
-                      <div className="flex items-center gap-2">
-                        <User size={14} className="text-gray-400 flex-shrink-0" />
-                        <span className="text-sm text-gray-700">
-                          {getCreatedByDisplay(item)}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="py-4 px-6">
-                      <button
-                        onClick={() => handleSyncToZoho(item.id)}
-                        disabled={syncStatus[item.id] === "syncing"}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 whitespace-nowrap ${
-                          item.zoho_item_id
-                            ? "bg-green-100 text-green-700 hover:bg-green-200"
-                            : syncStatus[item.id] === "syncing"
-                            ? "bg-yellow-100 text-yellow-700"
-                            : syncStatus[item.id] === "failed"
-                            ? "bg-red-100 text-red-700 hover:bg-red-200"
-                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                        } transition-colors`}
-                      >
-                        {syncStatus[item.id] === "syncing" ? (
-                          <>
-                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-yellow-700"></div>
-                            <span>Syncing...</span>
-                          </>
-                        ) : item.zoho_item_id ? (
-                          <>
-                            <Check size={12} />
-                            <span>Synced</span>
-                          </>
-                        ) : (
-                          <>
-                            <Upload size={12} />
-                            <span>Sync</span>
-                          </>
-                        )}
-                      </button>
-                    </td>
-                    <td className="py-4 px-6">
-                      <ActionMenu itemId={item.id} itemName={item.name} item={item} />
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+  const ItemsTable = () => (
+    <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+      {/* Bulk Delete Bar */}
+      {selectedItems.length > 0 && (
+        <div className="px-6 py-4 bg-red-50 border-b border-red-200 flex items-center justify-between">
+          <span className="text-sm font-medium text-red-700">
+            {selectedItems.length} item{selectedItems.length > 1 ? "s" : ""} selected
+          </span>
+          <button
+            onClick={handleBulkDelete}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors flex items-center gap-2"
+          >
+            <Trash2 size={16} />
+            Delete Selected
+          </button>
         </div>
+      )}
 
-        {/* Table Footer */}
-        {filteredItems.length > 0 && (
-          <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
-            <span className="text-sm text-gray-600">
-              Showing <span className="font-medium">{filteredItems.length}</span> of{" "}
-              <span className="font-medium">{items.length}</span> items
-            </span>
-            {selectedItems.length > 0 && (
-              <span className="text-sm font-medium text-blue-600">
-                {selectedItems.length} selected
-              </span>
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="bg-gray-50 border-b border-gray-200">
+              <th className="py-4 px-6 text-left w-12">
+                <input
+                  type="checkbox"
+                  onChange={(e) => handleSelectAll(e.target.checked)}
+                  checked={filteredItems.length > 0 && selectedItems.length === filteredItems.length}
+                  className="rounded text-blue-600 h-4 w-4 cursor-pointer"
+                />
+              </th>
+              <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                Item Details
+              </th>
+              <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                Type
+              </th>
+              <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                Pricing
+              </th>
+              <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                Zoho Sync
+              </th>
+              <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                Actions
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading && filteredItems.length === 0 ? (
+              <tr>
+                <td colSpan="6" className="text-center py-12">
+                  <div className="flex flex-col items-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-3"></div>
+                    <p className="text-gray-600">Loading items...</p>
+                  </div>
+                </td>
+              </tr>
+            ) : filteredItems.length === 0 ? (
+              <tr>
+                <td colSpan="6" className="text-center py-12">
+                  <div className="flex flex-col items-center">
+                    <Search size={40} className="text-gray-300 mb-3" />
+                    <p className="text-gray-600 text-lg font-medium">No items found</p>
+                    {(searchTerm || filterProductType || filterSellable || filterCreatedBy) && (
+                      <button
+                        onClick={clearFilters}
+                        className="mt-2 text-blue-600 hover:text-blue-800 text-sm font-medium"
+                      >
+                        Clear all filters
+                      </button>
+                    )}
+                    {items.length === 0 && (
+                      <button
+                        onClick={() => setCurrentPage("form")}
+                        className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700"
+                      >
+                        <PlusCircle size={18} /> Add New Item
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              filteredItems.map((item) => (
+                <tr
+                  key={item.id}
+                  className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${
+                    selectedItems.includes(item.id) ? "bg-blue-50" : ""
+                  }`}
+                >
+                  <td className="py-4 px-6">
+                    <input
+                      type="checkbox"
+                      checked={selectedItems.includes(item.id)}
+                      onChange={() => toggleSelect(item.id)}
+                      className="rounded text-blue-600 h-4 w-4 cursor-pointer"
+                    />
+                  </td>
+                  <td className="py-4 px-6">
+                    <div className="flex items-start gap-4">
+                      <div className="flex-shrink-0">
+                        {item.item_image ? (
+                          <img
+                            src={item.item_image.startsWith('http') ? item.item_image : `${BASE_URL}${item.item_image}`}
+                            className="w-12 h-12 object-contain rounded-lg border border-gray-200"
+                            alt={item.name}
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.style.display = 'none';
+                              e.target.parentNode.innerHTML = '<div class="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center"><svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg></div>';
+                            }}
+                          />
+                        ) : (
+                          <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200">
+                            <Image size={20} className="text-gray-400" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="font-medium text-gray-900 text-sm mb-1">{item.name}</h4>
+                        <span className="text-xs text-gray-500">SKU: {item.sku || "—"}</span>
+                        <span className="text-xs text-gray-500 block">Unit: {UNIT_DISPLAY_NAMES[item.unit] || item.unit}</span>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="py-4 px-6">
+                    <span
+                      className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                        item.product_type === "goods"
+                          ? "bg-green-100 text-green-700"
+                          : "bg-blue-100 text-blue-700"
+                      }`}
+                    >
+                      {PRODUCT_TYPE_DISPLAY_NAMES[item.product_type] || item.product_type}
+                    </span>
+                    <span className="text-xs text-gray-500 block mt-1">
+                      {item.is_sellable ? "Sellable" : "Not Sellable"}
+                    </span>
+                  </td>
+                  <td className="py-4 px-6">
+                    <div className="text-sm font-medium text-gray-900">
+                      Sell: ₹{parseFloat(item.selling_price || 0).toFixed(2)}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      Cost: ₹{parseFloat(item.cost_price || 0).toFixed(2)}
+                    </div>
+                  </td>
+                  <td className="py-4 px-6">
+                    {item.zoho_item_id ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded-lg text-xs font-medium">
+                        <Check size={12} />
+                        Synced
+                      </span>
+                    ) : syncStatus[item.id] === "syncing" ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-yellow-100 text-yellow-700 rounded-lg text-xs font-medium">
+                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-yellow-700"></div>
+                        Syncing...
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-700 rounded-lg text-xs font-medium">
+                        <Upload size={12} />
+                        Not Synced
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-4 px-6">
+                    <ActionButtons item={item} />
+                  </td>
+                </tr>
+              ))
             )}
-          </div>
-        )}
+          </tbody>
+        </table>
       </div>
-    );
-  };
+
+      {/* Table Footer */}
+      {filteredItems.length > 0 && (
+        <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+          <span className="text-sm text-gray-600">
+            Showing <span className="font-medium">{filteredItems.length}</span> of{" "}
+            <span className="font-medium">{items.length}</span> items
+          </span>
+          {selectedItems.length > 0 && (
+            <span className="text-sm font-medium text-blue-600">
+              {selectedItems.length} selected
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
 
   // ==================== VIEW MODAL ====================
   const ViewItemModal = () => {
@@ -1015,22 +890,14 @@ export default function Items() {
 
     const DetailRow = ({ label, value }) => (
       <div className="flex justify-between items-start py-3 border-b border-gray-100 last:border-0">
-        <span className="text-sm font-medium text-gray-600 min-w-[140px]">{label}</span>
-        <span className="text-sm text-gray-900 text-right flex-1 font-medium">
-          {value || <span className="text-gray-400 font-normal italic">Not set</span>}
+        <span className="text-sm font-medium text-gray-600">{label}</span>
+        <span className="text-sm text-gray-900 text-right flex-1 ml-4">
+          {value || <span className="text-gray-400 italic">Not set</span>}
         </span>
       </div>
     );
 
-    const Section = ({ title, children, icon: Icon }) => (
-      <div className="border border-gray-200 rounded-xl overflow-hidden">
-        <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center gap-2">
-          {Icon && <Icon size={18} className="text-gray-600" />}
-          <h3 className="font-semibold text-gray-800">{title}</h3>
-        </div>
-        <div className="p-4 bg-white">{children}</div>
-      </div>
-    );
+    const creator = getCreatedBy(viewedItem);
 
     return (
       <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-50 p-4">
@@ -1048,97 +915,94 @@ export default function Items() {
             </button>
           </div>
 
-          <div className="p-6 overflow-y-auto space-y-6">
+          <div className="p-6 overflow-y-auto">
             {viewedItem.item_image && (
-              <div className="flex justify-center mb-4">
+              <div className="flex justify-center mb-6">
                 <img
-                  src={viewedItem.item_image}
+                  src={viewedItem.item_image.startsWith('http') ? viewedItem.item_image : `${BASE_URL}${viewedItem.item_image}`}
                   alt={viewedItem.name}
-                  className="max-h-48 object-contain rounded-lg border border-gray-200 p-2 bg-white"
+                  className="max-h-48 object-contain rounded-lg border border-gray-200 p-2"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.style.display = 'none';
+                  }}
                 />
               </div>
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Section title="General Information" icon={Settings}>
+              <div className="space-y-4">
+                <h3 className="font-semibold text-gray-800 border-b pb-2">General Information</h3>
                 <DetailRow
                   label="Product Type"
-                  value={
-                    viewedItem.product_type?.charAt(0).toUpperCase() + viewedItem.product_type?.slice(1)
-                  }
-                />
-                <DetailRow
-                  label="Category"
-                  value={CATEGORIES.find((cat) => cat.id === viewedItem.category)?.name || viewedItem.category}
+                  value={PRODUCT_TYPE_DISPLAY_NAMES[viewedItem.product_type] || viewedItem.product_type}
                 />
                 <DetailRow label="SKU" value={viewedItem.sku} />
-                <DetailRow
-                  label="Unit"
-                  value={UNIT_DISPLAY_NAMES[viewedItem.unit] || viewedItem.unit}
-                />
+                <DetailRow label="Unit" value={UNIT_DISPLAY_NAMES[viewedItem.unit] || viewedItem.unit} />
                 <DetailRow
                   label={viewedItem.product_type === "goods" ? "HSN Code" : "SAC Code"}
                   value={viewedItem.hsn_or_sac}
                 />
-                <DetailRow
-                  label="Tax Preference"
-                  value={viewedItem.tax_preference?.replace("_", " ")}
+                <DetailRow 
+                  label="Tax Preference" 
+                  value={TAX_PREFERENCE_DISPLAY_NAMES[viewedItem.tax_preference] || viewedItem.tax_preference} 
                 />
-                <DetailRow label="GST Treatment" value={viewedItem.gst_treatment} />
-              </Section>
+                <DetailRow 
+                  label="GST Treatment" 
+                  value={GST_TREATMENTS.find(g => g.value === viewedItem.gst_treatment)?.label || viewedItem.gst_treatment} 
+                />
+                <DetailRow label="Status" value={viewedItem.is_active ? "Active" : "Inactive"} />
+              </div>
 
-              <div className="space-y-6">
-                <Section title="Created By" icon={User}>
-                  <DetailRow label="Created By" value={getCreatedByDisplay(viewedItem)} />
-                  {viewedItem.created_at && (
-                    <DetailRow
-                      label="Created Date"
-                      value={new Date(viewedItem.created_at).toLocaleDateString()}
-                    />
-                  )}
-                  <DetailRow label="Zoho Item ID" value={viewedItem.zoho_item_id || "Not synced"} />
-                </Section>
+              <div className="space-y-4">
+                <h3 className="font-semibold text-gray-800 border-b pb-2">Additional Info</h3>
+                <DetailRow label="Zoho Item ID" value={viewedItem.zoho_item_id || "Not synced"} />
+                <DetailRow label="Created By" value={creator} />
+                <DetailRow label="Created At" value={viewedItem.created_at ? new Date(viewedItem.created_at).toLocaleString() : null} />
+                <DetailRow label="Updated At" value={viewedItem.updated_at ? new Date(viewedItem.updated_at).toLocaleString() : null} />
 
                 {viewedItem.is_sellable && (
-                  <Section title="Sales Details" icon={DollarSign}>
+                  <>
+                    <h3 className="font-semibold text-gray-800 border-b pb-2 mt-4">Sales Details</h3>
                     <DetailRow
                       label="Selling Price"
                       value={`₹${parseFloat(viewedItem.selling_price || 0).toFixed(2)}`}
                     />
-                    <DetailRow
-                      label="Service Charge"
-                      value={
-                        viewedItem.service_charge
-                          ? `₹${parseFloat(viewedItem.service_charge).toFixed(2)}`
-                          : null
-                      }
-                    />
+                    {viewedItem.service_charge > 0 && (
+                      <DetailRow
+                        label="Service Charge"
+                        value={`₹${parseFloat(viewedItem.service_charge).toFixed(2)}`}
+                      />
+                    )}
                     <DetailRow
                       label="Sales Account"
                       value={ACCOUNT_DISPLAY_NAMES[viewedItem.sales_account] || viewedItem.sales_account}
                     />
-                    <DetailRow label="Sales Description" value={viewedItem.sales_description} />
-                  </Section>
+                    {viewedItem.sales_description && (
+                      <DetailRow label="Description" value={viewedItem.sales_description} />
+                    )}
+                  </>
                 )}
 
                 {viewedItem.is_purchasable && (
-                  <Section title="Purchase Details" icon={ShoppingBag}>
+                  <>
+                    <h3 className="font-semibold text-gray-800 border-b pb-2 mt-4">Purchase Details</h3>
                     <DetailRow
                       label="Cost Price"
                       value={`₹${parseFloat(viewedItem.cost_price || 0).toFixed(2)}`}
                     />
                     <DetailRow
                       label="Purchase Account"
-                      value={
-                        ACCOUNT_DISPLAY_NAMES[viewedItem.purchase_account] || viewedItem.purchase_account
-                      }
+                      value={ACCOUNT_DISPLAY_NAMES[viewedItem.purchase_account] || viewedItem.purchase_account}
                     />
                     <DetailRow
                       label="Preferred Vendor"
                       value={VENDORS.find((v) => v.id === viewedItem.preferred_vendor)?.name || viewedItem.preferred_vendor}
                     />
-                    <DetailRow label="Purchase Description" value={viewedItem.purchase_description} />
-                  </Section>
+                    {viewedItem.purchase_description && (
+                      <DetailRow label="Description" value={viewedItem.purchase_description} />
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -1171,8 +1035,8 @@ export default function Items() {
   const renderGeneralTab = () => (
     <div className="space-y-6">
       <div>
-        <LabelWithInfo>Product Type</LabelWithInfo>
-        <div className="flex gap-6">
+        <LabelWithInfo required>Product Type</LabelWithInfo>
+        <div className="flex gap-6 mt-2">
           {PRODUCT_TYPES.map((type) => (
             <label key={type} className="flex items-center text-sm cursor-pointer">
               <input
@@ -1184,7 +1048,7 @@ export default function Items() {
                 className="mr-3 h-4 w-4 text-blue-600"
               />
               <span className={form.product_type === type ? "font-semibold text-blue-700" : "text-gray-700"}>
-                {type.charAt(0).toUpperCase() + type.slice(1)}
+                {PRODUCT_TYPE_DISPLAY_NAMES[type]}
               </span>
             </label>
           ))}
@@ -1206,25 +1070,6 @@ export default function Items() {
         {errors.name && <ValidationError message={errors.name} />}
       </div>
 
-      <div>
-        <label className="text-sm font-medium text-gray-700 flex items-center gap-1 mb-2">
-          Category <span className="text-red-500">*</span>
-        </label>
-        <select
-          name="category"
-          value={form.category}
-          onChange={handleChange}
-          className={getInputClass("category")}
-        >
-          {CATEGORIES.map((category) => (
-            <option key={category.id} value={category.id}>
-              {category.name}
-            </option>
-          ))}
-        </select>
-        {errors.category && <ValidationError message={errors.category} />}
-      </div>
-
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <LabelWithInfo>Unit</LabelWithInfo>
@@ -1236,42 +1081,40 @@ export default function Items() {
           >
             {UNITS.map((unit) => (
               <option key={unit} value={unit}>
-                {UNIT_DISPLAY_NAMES[unit] || unit}
+                {UNIT_DISPLAY_NAMES[unit]}
               </option>
             ))}
           </select>
         </div>
+
         <div>
-          <label className="text-sm font-medium text-gray-700 flex items-center gap-1 mb-2">
-            Tax Preference <span className="text-red-500">*</span>
-          </label>
+          <LabelWithInfo>Tax Preference</LabelWithInfo>
           <select
             name="tax_preference"
             value={form.tax_preference}
             onChange={handleChange}
-            className={getInputClass("tax_preference")}
+            className="border p-3 w-full rounded-lg text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
           >
             {TAX_PREFERENCES.map((pref) => (
               <option key={pref} value={pref}>
-                {pref.replace("_", " ").charAt(0).toUpperCase() + pref.replace("_", " ").slice(1)}
+                {TAX_PREFERENCE_DISPLAY_NAMES[pref]}
               </option>
             ))}
           </select>
-          {errors.tax_preference && <ValidationError message={errors.tax_preference} />}
         </div>
       </div>
 
       <div>
-        <label className="text-sm font-medium flex items-center gap-1 mb-2">GST Treatment</label>
+        <LabelWithInfo>GST Treatment</LabelWithInfo>
         <select
           name="gst_treatment"
           value={form.gst_treatment}
           onChange={handleChange}
           className="border p-3 w-full rounded-lg text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
         >
-          {GST_TREATMENTS.map((treatment, index) => (
-            <option key={index} value={treatment}>
-              {treatment || "Select GST Treatment"}
+          {GST_TREATMENTS.map((treatment) => (
+            <option key={treatment.value} value={treatment.value}>
+              {treatment.label}
             </option>
           ))}
         </select>
@@ -1279,19 +1122,16 @@ export default function Items() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
-          <div className="flex items-center justify-between mb-2">
-            <LabelWithInfo>
-              {form.product_type === "goods" ? "HSN Code" : "SAC Code"}
-              {form.product_type === "service" && <span className="text-red-500">*</span>}
-            </LabelWithInfo>
-          </div>
+          <LabelWithInfo required={form.product_type === "service"}>
+            {form.product_type === "goods" ? "HSN Code" : "SAC Code"}
+          </LabelWithInfo>
           <input
             type="text"
             name="hsn_or_sac"
             value={form.hsn_or_sac}
             onChange={handleChange}
             className={getInputClass("hsn_or_sac")}
-            placeholder={form.product_type === "goods" ? "Enter HSN code (4-8 digits)" : "Enter SAC code (6 digits)"}
+            placeholder={form.product_type === "goods" ? "Enter HSN code" : "Enter SAC code"}
           />
           {errors.hsn_or_sac && <ValidationError message={errors.hsn_or_sac} />}
         </div>
@@ -1312,10 +1152,10 @@ export default function Items() {
       <div>
         <LabelWithInfo>Item Image</LabelWithInfo>
         <div className="p-6 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center min-h-[160px] relative hover:border-blue-400 transition bg-gray-50">
-          {form.item_image ? (
+          {form.item_image && form.item_image instanceof File ? (
             <>
               <img
-                src={typeof form.item_image === "string" ? form.item_image : URL.createObjectURL(form.item_image)}
+                src={URL.createObjectURL(form.item_image)}
                 alt="Preview"
                 className="max-h-28 object-contain rounded mb-3"
               />
@@ -1343,7 +1183,7 @@ export default function Items() {
               const file = e.target.files[0];
               if (file) {
                 if (file.size > 5 * 1024 * 1024) {
-                  toast.error("File size must be less than 5MB", { duration: 3000 });
+                  toast.error("File size must be less than 5MB");
                   return;
                 }
                 setForm((prev) => ({ ...prev, item_image: file }));
@@ -1378,20 +1218,14 @@ export default function Items() {
             <label className="text-sm font-medium flex items-center gap-1 mb-2">
               Selling Price <span className="text-red-500">*</span>
             </label>
-            <div
-              className={
-                errors.selling_price
-                  ? "flex border-2 border-red-500 rounded-lg overflow-hidden bg-red-50"
-                  : "flex border-2 border-gray-300 rounded-lg overflow-hidden focus-within:border-blue-500"
-              }
-            >
+            <div className="flex border-2 border-gray-300 rounded-lg overflow-hidden focus-within:border-blue-500">
               <span className="bg-gray-100 text-gray-700 p-3 text-sm font-medium border-r">₹</span>
               <input
                 type="number"
                 name="selling_price"
                 value={form.selling_price}
                 onChange={handleChange}
-                className="p-3 w-full focus:outline-none text-sm bg-transparent"
+                className="p-3 w-full focus:outline-none text-sm"
                 placeholder="0.00"
                 min="0"
                 step="0.01"
@@ -1401,7 +1235,7 @@ export default function Items() {
           </div>
 
           <div>
-            <label className="text-sm font-medium mb-2">Service Charge (Optional)</label>
+            <label className="text-sm font-medium mb-2">Service Charge</label>
             <div className="flex border-2 border-gray-300 rounded-lg overflow-hidden focus-within:border-blue-500">
               <span className="bg-gray-100 text-gray-700 p-3 text-sm font-medium border-r">₹</span>
               <input
@@ -1480,20 +1314,14 @@ export default function Items() {
             <label className="text-sm font-medium flex items-center gap-1 mb-2">
               Cost Price <span className="text-red-500">*</span>
             </label>
-            <div
-              className={
-                errors.cost_price
-                  ? "flex border-2 border-red-500 rounded-lg overflow-hidden bg-red-50"
-                  : "flex border-2 border-gray-300 rounded-lg overflow-hidden focus-within:border-blue-500"
-              }
-            >
+            <div className="flex border-2 border-gray-300 rounded-lg overflow-hidden focus-within:border-blue-500">
               <span className="bg-gray-100 text-gray-700 p-3 text-sm font-medium border-r">₹</span>
               <input
                 type="number"
                 name="cost_price"
                 value={form.cost_price}
                 onChange={handleChange}
-                className="p-3 w-full focus:outline-none text-sm bg-transparent"
+                className="p-3 w-full focus:outline-none text-sm"
                 placeholder="0.00"
                 min="0"
                 step="0.01"
@@ -1672,6 +1500,88 @@ export default function Items() {
               <PlusCircle size={18} />
               Add New Item
             </button>
+          </div>
+        </div>
+
+        {/* FILTER SECTION */}
+        <div className="mb-6 bg-white p-4 rounded-xl shadow-md border border-gray-200">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <h3 className="text-lg font-semibold text-gray-700 flex items-center gap-2">
+              <Filter size={18} className="text-blue-600" />
+              Filters
+            </h3>
+            <div className="flex flex-col sm:flex-row sm:flex-wrap gap-4 w-full md:w-auto">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                <label className="text-sm font-medium text-gray-600">Product Type:</label>
+                <select
+                  value={filterProductType}
+                  onChange={(e) => setFilterProductType(e.target.value)}
+                  className="border px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200 text-sm min-w-[150px]"
+                >
+                  <option value="">All Types</option>
+                  {uniqueProductTypes.map((type) => (
+                    <option key={type} value={type}>
+                      {PRODUCT_TYPE_DISPLAY_NAMES[type]}
+                    </option>
+                  ))}
+                </select>
+                {filterProductType && (
+                  <button 
+                    onClick={() => setFilterProductType("")} 
+                    className="text-red-500 hover:text-red-700 text-sm"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                <label className="text-sm font-medium text-gray-600">Sellable:</label>
+                <select
+                  value={filterSellable}
+                  onChange={(e) => setFilterSellable(e.target.value)}
+                  className="border px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200 text-sm min-w-[150px]"
+                >
+                  <option value="">All Items</option>
+                  <option value="sellable">Sellable Only</option>
+                  <option value="not_sellable">Non-Sellable Only</option>
+                </select>
+                {filterSellable && (
+                  <button 
+                    onClick={() => setFilterSellable("")} 
+                    className="text-red-500 hover:text-red-700 text-sm"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                <label className="text-sm font-medium text-gray-600 flex items-center gap-1">
+                  <User size={14} /> Created By:
+                </label>
+                <select
+                  value={filterCreatedBy}
+                  onChange={(e) => setFilterCreatedBy(e.target.value)}
+                  className="border px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200 text-sm min-w-[150px]"
+                >
+                  <option value="">All Creators</option>
+                  {uniqueCreatedBy.map((creator) => (
+                    <option key={creator} value={creator}>
+                      {creator}
+                    </option>
+                  ))}
+                </select>
+                {filterCreatedBy && (
+                  <button 
+                    onClick={() => setFilterCreatedBy("")} 
+                    className="text-red-500 hover:text-red-700 text-sm"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 

@@ -539,7 +539,9 @@ export default function Complaints() {
     const t = toast.loading(`Updating status to ${newStatus}...`);
     try {
       const res = await fetch(`${COMPLAINT_API}${complaintId}/`, {
-        method: "PATCH", headers: getAuthHeaders(), body: JSON.stringify({ status: newStatus }),
+        method: "PATCH", 
+        headers: getAuthHeaders(), 
+        body: JSON.stringify({ status: newStatus }),
       });
       if (!res.ok) { setComplaints(original); throw new Error(); }
       toast.success(`Status updated to: ${newStatus}`, { id: t });
@@ -549,59 +551,81 @@ export default function Complaints() {
     }
   };
 
-  const handleOrderConfirmation = async (complaintId) => {
-    const original = complaints;
-    const complaint = complaints.find(c => c.id === complaintId);
-    const newStatus = complaint?.confirm_status === "CONFIRMED" ? "NOT CONFIRMED" : "CONFIRMED";
+const handleOrderConfirmation = async (complaintId) => {
+  const original = complaints;
+  const complaint = complaints.find(c => c.id === complaintId);
+  const newStatus = complaint?.confirm_status === "CONFIRMED" ? "NOT CONFIRMED" : "CONFIRMED";
+  
+  // Optimistic update
+  setComplaints((prev) => 
+    prev.map((c) => 
+      c.id === complaintId 
+        ? { 
+            ...c, 
+            confirm_status: newStatus,
+            confirmed_at: newStatus === "CONFIRMED" ? new Date().toISOString() : null,
+            confirmed_by: newStatus === "CONFIRMED" ? "admin" : null
+          } 
+        : c
+    )
+  );
+  
+  const t = toast.loading(newStatus === "CONFIRMED" ? "Confirming order..." : "Unconfirming order...");
+  
+  try {
+    console.log(`Sending PATCH request for complaint ${complaintId} with status: ${newStatus}`);
+    
+    const res = await fetch(`${COMPLAINT_API}${complaintId}/confirm/`, {
+      method: "PATCH",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ 
+        confirm_status: newStatus  // Send the confirm_status field
+      })
+    });
+    
+    console.log("Response status:", res.status);
+    
+    if (!res.ok) {
+      setComplaints(original);
+      
+      // Try to get error details
+      const errorText = await res.text();
+      console.error("Error response:", errorText);
+      
+      let errorMessage = `Failed with status ${res.status}`;
+      try {
+        const errorData = JSON.parse(errorText);
+        errorMessage = errorData.message || errorData.detail || errorMessage;
+      } catch {
+        // Use default message
+      }
+      
+      throw new Error(errorMessage);
+    }
+    
+    const data = await res.json();
+    console.log("Success response:", data);
     
     setComplaints((prev) => 
       prev.map((c) => 
         c.id === complaintId 
           ? { 
               ...c, 
-              confirm_status: newStatus,
-              confirmed_at: newStatus === "CONFIRMED" ? new Date().toISOString() : null,
-              confirmed_by: newStatus === "CONFIRMED" ? "admin" : null
+              confirm_status: data.confirm_status,
+              confirmed_at: data.confirmed_at,
+              confirmed_by: data.confirmed_by
             } 
           : c
       )
     );
     
-    const t = toast.loading(newStatus === "CONFIRMED" ? "Confirming order..." : "Unconfirming order...");
-    
-    try {
-      const res = await fetch(`${COMPLAINT_API}${complaintId}/confirm/`, {
-        method: "PATCH",
-        headers: getAuthHeaders(),
-      });
-      
-      if (!res.ok) {
-        setComplaints(original);
-        throw new Error(`Failed with status ${res.status}`);
-      }
-      
-      const data = await res.json();
-      
-      setComplaints((prev) => 
-        prev.map((c) => 
-          c.id === complaintId 
-            ? { 
-                ...c, 
-                confirm_status: data.confirm_status,
-                confirmed_at: data.confirmed_at,
-                confirmed_by: data.confirmed_by
-              } 
-            : c
-        )
-      );
-      
-      toast.success(data.message || "Order confirmation updated", { id: t });
-    } catch (err) {
-      console.error("Order confirmation error:", err);
-      setComplaints(original);
-      toast.error("Failed to update order confirmation.", { id: t });
-    }
-  };
+    toast.success(data.message || "Order confirmation updated", { id: t });
+  } catch (err) {
+    console.error("Order confirmation error:", err);
+    setComplaints(original);
+    toast.error(err.message || "Failed to update order confirmation.", { id: t });
+  }
+};
 
   const handleDelete = (id) => {
     toast.dismiss();
@@ -725,11 +749,11 @@ export default function Complaints() {
         </button>
       </div>
 
-      {/* FORM MODAL - Perfectly sized with no overlap */}
+      {/* FORM MODAL */}
       {openForm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-2">
           <div className="bg-white w-full max-w-[700px] rounded-xl shadow-2xl border border-gray-200 max-h-[95vh] overflow-hidden">
-            {/* Modal Header - Compact */}
+            {/* Modal Header */}
             <div className="flex justify-between items-center px-5 py-3 border-b bg-gray-50">
               <h2 className="text-lg font-semibold text-blue-700">
                 {isEdit ? "Edit Complaint" : "Register Complaint"}
@@ -743,7 +767,7 @@ export default function Complaints() {
               </button>
             </div>
 
-            {/* Modal Body - No scrollbar, compact layout */}
+            {/* Modal Body */}
             <div className="p-5 overflow-y-auto" style={{ maxHeight: "calc(95vh - 120px)" }}>
               {/* Customer Search Section - Only for new complaints */}
               {!isEdit && (
@@ -969,7 +993,7 @@ export default function Complaints() {
                   {fieldErrors.issue && <p className="text-red-500 text-xs mt-0.5">{fieldErrors.issue}</p>}
                 </div>
 
-                {/* ASSIGN SECTION - Compact */}
+                {/* ASSIGN SECTION */}
                 <div className={`p-3 border rounded-lg ${assignError ? "border-red-500 bg-red-50" : "border-gray-300 bg-gray-50"}`}>
                   <label className={`text-sm font-semibold block mb-2 ${assignError ? "text-red-600" : "text-gray-700"}`}>
                     Assign To: *
@@ -1090,6 +1114,12 @@ export default function Complaints() {
                     <span className={`mt-1 px-3 py-1 rounded-full text-xs font-semibold inline-block ${selectedComplaint.confirm_status === "CONFIRMED" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
                       {selectedComplaint.confirm_status || "NOT CONFIRMED"}
                     </span>
+                    {selectedComplaint.confirmed_at && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Confirmed at: {new Date(selectedComplaint.confirmed_at).toLocaleString()}
+                        {selectedComplaint.confirmed_by && ` by ${selectedComplaint.confirmed_by}`}
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-600">Assigned To</label>
@@ -1128,20 +1158,6 @@ export default function Complaints() {
                       {new Date(selectedComplaint.created_at).toLocaleString()}
                     </p>
                   </div>
-                  {selectedComplaint.confirmed_at && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600">Confirmed At</label>
-                      <p className="mt-1 p-2 bg-gray-50 rounded-lg">
-                        {new Date(selectedComplaint.confirmed_at).toLocaleString()}
-                      </p>
-                    </div>
-                  )}
-                  {selectedComplaint.confirmed_by && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600">Confirmed By</label>
-                      <p className="mt-1 p-2 bg-gray-50 rounded-lg">{selectedComplaint.confirmed_by}</p>
-                    </div>
-                  )}
                 </div>
               </div>
 

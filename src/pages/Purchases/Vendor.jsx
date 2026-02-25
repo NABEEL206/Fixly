@@ -1,1104 +1,1126 @@
-import React, { useState, useMemo } from "react";
-import { ToastContainer, toast } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
-import {
-  Plus,
-  Edit,
-  Trash2,
-  Search,
-  X,
-  Check,
+import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { 
+  Plus, 
+  Edit, 
+  Trash2, 
+  Eye,
   Building,
-  Phone,
   Mail,
+  Phone,
   MapPin,
   Globe,
-  Filter,
-  Eye,
+  X,
+  CheckCircle,
+  XCircle,
   User,
+  RefreshCw
 } from "lucide-react";
+import toast from "react-hot-toast";
+import axios from "axios";
 
-const Vendor = () => {
-  // Initial vendors data
-  const initialVendors = [
-    {
-      id: 1,
-      name: "Tech Solutions Inc.",
-      email: "contact@techsolutions.com",
-      phone: "+1 (555) 123-4567",
-      address: "123 Tech Street, San Francisco, CA",
-      website: "https://techsolutions.com",
-      status: "Active",
-      createdBy: "admin",
-    },
-    {
-      id: 2,
-      name: "Global Supplies Ltd.",
-      email: "info@globalsupplies.com",
-      phone: "+1 (555) 987-6543",
-      address: "456 Business Ave, New York, NY",
-      website: "https://globalsupplies.com",
-      status: "Inactive",
-      createdBy: "franchise",
-    },
-    {
-      id: 3,
-      name: "Logistics Pro",
-      email: "support@logisticspro.com",
-      phone: "+1 (555) 456-7890",
-      address: "789 Logistics Blvd, Chicago, IL",
-      website: "https://logisticspro.com",
-      status: "Active",
-      createdBy: "admin",
-    },
-    {
-      id: 4,
-      name: "Office Supplies Co.",
-      email: "sales@officesupplies.com",
-      phone: "+1 (555) 234-5678",
-      address: "321 Commerce St, Los Angeles, CA",
-      website: "https://officesupplies.com",
-      status: "Active",
-      createdBy: "vendor",
-    },
-    {
-      id: 5,
-      name: "Industrial Parts Ltd.",
-      email: "orders@industrialparts.com",
-      phone: "+1 (555) 876-5432",
-      address: "555 Factory Rd, Detroit, MI",
-      website: "https://industrialparts.com",
-      status: "Inactive",
-      createdBy: "franchise",
-    },
-  ];
+const API_BASE_URL = "http://127.0.0.1:8000/api";
 
-  // Form state
+// Create axios instance with default config
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Request interceptor to add auth token
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("access_token");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Response interceptor to handle errors - ONLY place for 403 handling
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 403) {
+      toast.error("You don't have permission to perform this action");
+    } else if (error.response?.status === 401) {
+      toast.error("Please login again");
+      // Optional: redirect to login
+      // window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+
+const STATUS_OPTIONS = [
+  { value: "active", label: "Active" },
+  { value: "inactive", label: "Inactive" }
+];
+
+const getStatusClasses = (status) => {
+  switch (status?.toLowerCase()) {
+    case "active":
+      return "bg-green-500/10 text-green-600 border border-green-500/30";
+    case "inactive":
+      return "bg-gray-500/10 text-gray-600 border border-gray-500/30";
+    default:
+      return "bg-gray-500/10 text-gray-600 border border-gray-500/30";
+  }
+};
+
+// Form Modal Component
+const FormModal = ({ 
+  isOpen, 
+  onClose, 
+  onSubmit, 
+  isEdit, 
+  isSubmitting,
+  formData,
+  onFormChange,
+  errors,
+  fieldErrors,
+  onBlur
+}) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-2">
+      <div className="bg-white w-full max-w-[700px] rounded-xl shadow-2xl border border-gray-200 max-h-[95vh] overflow-hidden">
+        {/* Modal Header */}
+        <div className="flex justify-between items-center px-5 py-3 border-b bg-gray-50">
+          <h2 className="text-lg font-semibold text-blue-700">
+            {isEdit ? "Edit Vendor" : "Add New Vendor"}
+          </h2>
+          <button 
+            onClick={onClose}
+            className="text-gray-500 hover:text-red-600 text-xl"
+            disabled={isSubmitting}
+          >
+            ✖
+          </button>
+        </div>
+
+        {/* Modal Body */}
+        <div className="p-5 overflow-y-auto" style={{ maxHeight: "calc(95vh - 120px)" }}>
+          <form onSubmit={onSubmit} className="space-y-4">
+            {/* Vendor Details Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Name */}
+              <div>
+                <input
+                  type="text"
+                  name="name"
+                  value={formData.name || ''}
+                  onChange={onFormChange}
+                  onBlur={() => onBlur('name')}
+                  className={`w-full px-3 py-2 text-sm border rounded-lg ${
+                    fieldErrors.name ? "border-red-500" : "border-gray-300"
+                  } focus:outline-none focus:ring-1 focus:ring-blue-200`}
+                  placeholder="Vendor Name *"
+                  disabled={isSubmitting}
+                />
+                {fieldErrors.name && (
+                  <p className="text-red-500 text-xs mt-0.5">{fieldErrors.name}</p>
+                )}
+              </div>
+
+              {/* Status */}
+              <div>
+                <select
+                  name="status"
+                  value={formData.status || 'active'}
+                  onChange={onFormChange}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"
+                  disabled={isSubmitting}
+                >
+                  {STATUS_OPTIONS.map((s) => (
+                    <option key={s.value} value={s.value}>
+                      {s.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Email */}
+              <div>
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email || ''}
+                  onChange={onFormChange}
+                  onBlur={() => onBlur('email')}
+                  className={`w-full px-3 py-2 text-sm border rounded-lg ${
+                    errors.email || fieldErrors.email ? "border-red-500" : "border-gray-300"
+                  } focus:outline-none focus:ring-1 focus:ring-blue-200`}
+                  placeholder="Email Address *"
+                  disabled={isSubmitting}
+                />
+                {(errors.email || fieldErrors.email) && (
+                  <p className="text-red-500 text-xs mt-0.5">{errors.email || fieldErrors.email}</p>
+                )}
+              </div>
+
+              {/* Phone */}
+              <div>
+                <input
+                  type="tel"
+                  name="phone"
+                  value={formData.phone || ''}
+                  onChange={onFormChange}
+                  onBlur={() => onBlur('phone')}
+                  className={`w-full px-3 py-2 text-sm border rounded-lg ${
+                    errors.phone || fieldErrors.phone ? "border-red-500" : "border-gray-300"
+                  } focus:outline-none focus:ring-1 focus:ring-blue-200`}
+                  placeholder="Phone Number * (10-15 digits)"
+                  maxLength={15}
+                  disabled={isSubmitting}
+                />
+                {(errors.phone || fieldErrors.phone) && (
+                  <p className="text-red-500 text-xs mt-0.5">{errors.phone || fieldErrors.phone}</p>
+                )}
+              </div>
+            </div>
+
+            {/* Website - Full Width (Optional) */}
+            <div>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                  <Globe size={16} className="text-gray-400" />
+                </div>
+                <input
+                  type="text"
+                  name="website"
+                  value={formData.website || ''}
+                  onChange={onFormChange}
+                  className="w-full pl-10 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-200"
+                  placeholder="Website (optional) - e.g., example.com"
+                  disabled={isSubmitting}
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Website is optional. If provided, it will be automatically prefixed with https://
+              </p>
+            </div>
+
+            {/* Address - Full Width */}
+            <div>
+              <textarea
+                name="address"
+                value={formData.address || ''}
+                onChange={onFormChange}
+                onBlur={() => onBlur('address')}
+                rows={2}
+                className={`w-full px-3 py-2 text-sm border rounded-lg ${
+                  fieldErrors.address ? "border-red-500" : "border-gray-300"
+                } focus:outline-none focus:ring-1 focus:ring-blue-200 resize-none`}
+                placeholder="Complete Address *"
+                disabled={isSubmitting}
+              />
+              {fieldErrors.address && (
+                <p className="text-red-500 text-xs mt-0.5">{fieldErrors.address}</p>
+              )}
+            </div>
+
+            {/* Submit Button */}
+            <button 
+              type="submit" 
+              className={`w-full bg-green-600 text-white py-2.5 rounded-lg hover:bg-green-700 font-semibold text-sm flex items-center justify-center gap-2 transition-colors ${
+                isSubmitting ? 'opacity-70 cursor-not-allowed' : ''
+              }`}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  {isEdit ? "Updating..." : "Creating..."}
+                </>
+              ) : (
+                isEdit ? "Update Vendor" : "Add Vendor"
+              )}
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// View Modal Component
+const ViewModal = ({ isOpen, onClose, vendor, onEdit }) => {
+  if (!isOpen || !vendor) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
+      <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-gray-200">
+        <div className="flex justify-between items-center p-6 border-b">
+          <h2 className="text-2xl font-bold text-blue-700">Vendor Details</h2>
+          <button 
+            onClick={onClose} 
+            className="text-gray-500 hover:text-red-600 text-lg"
+          >
+            ✖
+          </button>
+        </div>
+
+        <div className="p-6 max-h-[70vh] overflow-y-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Left Column */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">Basic Information</h3>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-600">Vendor Name</label>
+                <p className="mt-1 p-2 bg-gray-50 rounded-lg flex items-center gap-2">
+                  <Building size={16} className="text-blue-500" />
+                  {vendor.name}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-600">Status</label>
+                <span className={`mt-1 px-3 py-1 rounded-full text-xs font-semibold inline-block ${getStatusClasses(vendor.status)}`}>
+                  {vendor.status === "active" ? "Active" : "Inactive"}
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-600">Email Address</label>
+                <p className="mt-1 p-2 bg-gray-50 rounded-lg flex items-center gap-2 break-all">
+                  <Mail size={16} className="text-blue-500" />
+                  {vendor.email}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-600">Phone Number</label>
+                <p className="mt-1 p-2 bg-gray-50 rounded-lg flex items-center gap-2">
+                  <Phone size={16} className="text-blue-500" />
+                  {vendor.phone}
+                </p>
+              </div>
+            </div>
+
+            {/* Right Column */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">Additional Information</h3>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-600">Address</label>
+                <p className="mt-1 p-2 bg-gray-50 rounded-lg flex items-start gap-2">
+                  <MapPin size={16} className="text-blue-500 mt-1" />
+                  {vendor.address}
+                </p>
+              </div>
+
+              {vendor.website && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-600">Website</label>
+                  <p className="mt-1 p-2 bg-gray-50 rounded-lg flex items-center gap-2">
+                    <Globe size={16} className="text-blue-500" />
+                    <a 
+                      href={vendor.website} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline break-all"
+                    >
+                      {vendor.website.replace(/^https?:\/\//, '')}
+                    </a>
+                  </p>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-600">Created By</label>
+                <p className="mt-1 p-2 bg-gray-50 rounded-lg flex items-center gap-2">
+                  <User size={16} className="text-blue-500" />
+                  {vendor.created_by || "N/A"}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* System Information */}
+          <div className="mt-6 space-y-3">
+            <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">System Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {vendor.created_at && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-600">Created At</label>
+                  <p className="mt-1 p-2 bg-gray-50 rounded-lg">
+                    {new Date(vendor.created_at).toLocaleString()}
+                  </p>
+                </div>
+              )}
+              {vendor.updated_at && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-600">Updated At</label>
+                  <p className="mt-1 p-2 bg-gray-50 rounded-lg">
+                    {new Date(vendor.updated_at).toLocaleString()}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6 border-t flex justify-end gap-3">
+          <button 
+            onClick={() => { 
+              onEdit(vendor); 
+              onClose(); 
+            }} 
+            className="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600"
+          >
+            Edit Vendor
+          </button>
+          <button 
+            onClick={onClose} 
+            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default function Vendor() {
+  // State management
+  const [vendors, setVendors] = useState([]);
+  const [openForm, setOpenForm] = useState(false);
+  const [isEdit, setIsEdit] = useState(false);
+  const [editVendor, setEditVendor] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isFetchingData, setIsFetchingData] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  // Use ref to track toast ID instead of state to prevent re-renders
+  const toastIdRef = useRef(null);
+  // Use ref to prevent multiple edits
+  const isEditingRef = useRef(false);
+
+  // View modal state
+  const [viewModalOpen, setViewModalOpen] = useState(false);
+  const [selectedVendor, setSelectedVendor] = useState(null);
+
+  // Filter states
+  const [filterStatus, setFilterStatus] = useState("");
+  const [search, setSearch] = useState("");
+  const [filterCreatedBy, setFilterCreatedBy] = useState("");
+
+  // Form fields
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     phone: "",
     address: "",
     website: "",
-    status: "Active",
-    createdBy: "admin", // default value
+    status: "active"
   });
 
-  // State management
-  const [vendors, setVendors] = useState(initialVendors);
-  const [editingId, setEditingId] = useState(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-  const [viewingVendor, setViewingVendor] = useState(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [errors, setErrors] = useState({});
-  const [statusFilter, setStatusFilter] = useState("All");
-  const [createdByFilter, setCreatedByFilter] = useState("All");
-  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+  // Validation errors
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [emailError, setEmailError] = useState("");
+  const [phoneError, setPhoneError] = useState("");
+
+  // Selection for bulk actions
+  const [selectedIds, setSelectedIds] = useState([]);
 
   // Get unique createdBy values for filter
-  const createdByOptions = useMemo(() => {
-    const creators = vendors.map(v => v.createdBy).filter(Boolean);
-    return ['All', ...new Set(creators)];
+  const uniqueCreatedBy = useMemo(() => {
+    const set = new Set();
+    vendors.forEach((v) => { 
+      if (v.created_by) set.add(v.created_by); 
+    });
+    return Array.from(set).sort();
   }, [vendors]);
 
-  // Show toast function
-  const showToast = (message, type = "success") => {
-    if (type === "success") {
-      toast.success(message);
-    } else if (type === "error") {
-      toast.error(message);
-    } else if (type === "info") {
-      toast.info(message);
-    }
-  };
-
-  // Validation rules
-  const validateForm = () => {
-    const newErrors = {};
-
-    if (!formData.name.trim()) newErrors.name = "Vendor name is required";
-
-    if (!formData.email.trim()) {
-      newErrors.email = "Email is required";
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = "Invalid email format";
-    }
-
-    if (!formData.phone.trim()) {
-      newErrors.phone = "Phone number is required";
-    } else if (!/^[\+]?[1-9][\d\-\(\)\.\s]{9,15}$/.test(formData.phone)) {
-      newErrors.phone = "Invalid phone number format";
-    }
-
-    if (!formData.address.trim()) newErrors.address = "Address is required";
-
-    if (formData.website && !/^https?:\/\/.+/.test(formData.website)) {
-      newErrors.website = "Invalid website URL (include http:// or https://)";
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  // Handle form input changes
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-
-    // Clear error when user starts typing
-    if (errors[name]) {
-      setErrors((prev) => ({
-        ...prev,
-        [name]: "",
-      }));
-    }
-  };
-
-  // Handle form submission
-  const handleSubmit = (e) => {
-    e.preventDefault();
-
-    if (!validateForm()) {
-      showToast("Please fix the errors in the form", "error");
-      return;
-    }
-
-    if (editingId) {
-      // Update existing vendor
-      setVendors((prev) =>
-        prev.map((vendor) =>
-          vendor.id === editingId ? { ...formData, id: editingId } : vendor,
-        ),
-      );
-      showToast("Vendor updated successfully!");
-    } else {
-      // Add new vendor
-      const newVendor = {
-        ...formData,
-        id: vendors.length > 0 ? Math.max(...vendors.map((v) => v.id)) + 1 : 1,
-      };
-      setVendors((prev) => [...prev, newVendor]);
-      showToast("Vendor added successfully!");
-    }
-
-    resetForm();
-    setIsModalOpen(false);
-  };
-
-  // View vendor
-  const handleView = (vendor) => {
-    setViewingVendor(vendor);
-    setIsViewModalOpen(true);
-  };
-
-  // Edit vendor
-  const handleEdit = (vendor) => {
-    setFormData(vendor);
-    setEditingId(vendor.id);
-    setIsModalOpen(true);
-  };
-
-  // Delete vendor with toast confirmation
-  const handleDelete = (id) => {
-    setDeleteConfirmId(id);
-    const vendor = vendors.find((v) => v.id === id);
-
-    toast.warn(
-      <div>
-        <p className="font-medium mb-2">Delete {vendor?.name}?</p>
-        <p className="text-sm mb-3">This action cannot be undone.</p>
-        <div className="flex space-x-2">
-          <button
-            onClick={() => confirmDelete(id)}
-            className="px-3 py-1.5 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
-          >
-            Delete
-          </button>
-          <button
-            onClick={() => {
-              toast.dismiss();
-              setDeleteConfirmId(null);
-            }}
-            className="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300 transition-colors"
-          >
-            Cancel
-          </button>
-        </div>
-      </div>,
-      {
-        position: "top-center",
-        autoClose: false,
-        closeOnClick: false,
-        closeButton: false,
-        draggable: false,
-      },
-    );
-  };
-
-  // Confirm delete
-  const confirmDelete = (id) => {
-    setVendors((prev) => prev.filter((vendor) => vendor.id !== id));
-    setDeleteConfirmId(null);
-    toast.dismiss();
-    showToast("Vendor deleted successfully!");
-  };
-
-  // Reset form
-  const resetForm = () => {
+  // Reset form states
+  const resetFormStates = useCallback(() => {
     setFormData({
       name: "",
       email: "",
       phone: "",
       address: "",
       website: "",
-      status: "Active",
-      createdBy: "admin",
+      status: "active"
     });
+    setEmailError("");
+    setPhoneError("");
+    setFieldErrors({});
+  }, []);
+
+  // Validation functions
+  const validateEmail = (value) => {
+    if (!value?.trim()) { 
+      setEmailError("Email is required"); 
+      return false; 
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) { 
+      setEmailError("Enter a valid email address"); 
+      return false; 
+    }
+    setEmailError(""); 
+    return true;
   };
 
-  // Filter vendors based on search, status, and createdBy
-  const filteredVendors = vendors.filter((vendor) => {
-    const matchesSearch = Object.values(vendor).some((value) =>
-      value?.toString().toLowerCase().includes(searchTerm.toLowerCase()),
+  const validatePhone = (value) => {
+    if (!value?.trim()) { 
+      setPhoneError("Phone number is required"); 
+      return false; 
+    }
+    const cleaned = value.replace(/\D/g, '');
+    if (cleaned.length < 10 || cleaned.length > 15) { 
+      setPhoneError("Phone number must be 10-15 digits"); 
+      return false; 
+    }
+    setPhoneError(""); 
+    return true;
+  };
+
+  const validateRequiredFields = () => {
+    const errors = {};
+    if (!formData.name?.trim()) errors.name = "Vendor name is required";
+    if (!formData.email?.trim()) errors.email = "Email is required";
+    if (!formData.phone?.trim()) errors.phone = "Phone number is required";
+    if (!formData.address?.trim()) errors.address = "Address is required";
+    
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const validateField = (fieldName) => {
+    switch(fieldName) {
+      case 'name':
+        if (!formData.name?.trim()) {
+          setFieldErrors(prev => ({ ...prev, name: "Vendor name is required" }));
+        } else {
+          setFieldErrors(prev => ({ ...prev, name: "" }));
+        }
+        break;
+      case 'email':
+        validateEmail(formData.email);
+        if (!formData.email?.trim()) {
+          setFieldErrors(prev => ({ ...prev, email: "Email is required" }));
+        } else {
+          setFieldErrors(prev => ({ ...prev, email: "" }));
+        }
+        break;
+      case 'phone':
+        validatePhone(formData.phone);
+        if (!formData.phone?.trim()) {
+          setFieldErrors(prev => ({ ...prev, phone: "Phone number is required" }));
+        } else {
+          setFieldErrors(prev => ({ ...prev, phone: "" }));
+        }
+        break;
+      case 'address':
+        if (!formData.address?.trim()) {
+          setFieldErrors(prev => ({ ...prev, address: "Address is required" }));
+        } else {
+          setFieldErrors(prev => ({ ...prev, address: "" }));
+        }
+        break;
+      default:
+        break;
+    }
+  };
+
+  // Handle form input changes
+  const handleFormChange = (e) => {
+    const { name, value } = e.target;
+    
+    if (name === 'phone') {
+      // Only allow digits for phone
+      const cleaned = value.replace(/\D/g, '').slice(0, 15);
+      setFormData(prev => ({ ...prev, [name]: cleaned }));
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
+
+    // Clear field error when user starts typing
+    if (fieldErrors[name]) {
+      setFieldErrors(prev => ({ ...prev, [name]: "" }));
+    }
+  };
+
+  const handleFieldBlur = (fieldName) => {
+    validateField(fieldName);
+  };
+
+  // Fetch vendors
+  const fetchVendors = useCallback(async (showLoading = true) => {
+    if (showLoading) {
+      setIsFetchingData(true);
+    } else {
+      setIsRefreshing(true);
+    }
+    
+    try {
+      const response = await api.get('/vendors/');
+      
+      // Handle the API response structure
+      const data = response.data;
+      let vendorsList = [];
+      
+      if (Array.isArray(data)) {
+        vendorsList = data;
+      } else if (data?.data && Array.isArray(data.data)) {
+        vendorsList = data.data;
+      } else if (data?.results) {
+        vendorsList = data.results;
+      }
+      
+      setVendors(vendorsList);
+    } catch (error) {
+      console.error("Fetch vendors error:", error);
+      // 403 is handled by interceptor, don't show additional error
+      if (error.response?.status !== 403 && error.response?.status !== 401) {
+        toast.error("Failed to load vendors");
+      }
+    } finally {
+      setIsFetchingData(false);
+      setIsRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => { 
+    fetchVendors(); 
+  }, [fetchVendors]);
+
+  // Handle form submission
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    // Validate all fields
+    const isEmailValid = validateEmail(formData.email);
+    const isPhoneValid = validatePhone(formData.phone);
+    const isRequiredValid = validateRequiredFields();
+
+    if (!isRequiredValid || !isEmailValid || !isPhoneValid) {
+      toast.error("Please fix the errors in the form");
+      return;
+    }
+
+    // Clean phone number
+    const cleanedPhone = formData.phone.replace(/\D/g, '');
+
+    const vendorData = {
+      name: formData.name.trim(),
+      email: formData.email.trim().toLowerCase(),
+      phone: cleanedPhone,
+      address: formData.address.trim(),
+      status: formData.status.toLowerCase(),
+    };
+
+    // Only include website if provided
+    if (formData.website?.trim()) {
+      // Ensure website has protocol
+      let websiteUrl = formData.website.trim();
+      if (!/^https?:\/\//i.test(websiteUrl)) {
+        websiteUrl = `https://${websiteUrl}`;
+      }
+      vendorData.website = websiteUrl;
+    }
+
+    setIsSubmitting(true);
+    
+    // Dismiss any existing toast before showing new one
+    if (toastIdRef.current) {
+      toast.dismiss(toastIdRef.current);
+    }
+    
+    const newToastId = toast.loading(isEdit ? "Updating vendor..." : "Creating vendor...");
+    toastIdRef.current = newToastId;
+
+    try {
+      let response;
+      if (isEdit && editVendor?.id) {
+        // Update existing vendor
+        response = await api.put(`/vendors/${editVendor.id}/`, vendorData);
+      } else {
+        // Create new vendor
+        response = await api.post('/vendors/', vendorData);
+      }
+
+      // Handle response
+      const responseData = response.data;
+      const newVendor = responseData.data || responseData;
+
+      if (isEdit) {
+        setVendors(prev => 
+          prev.map(v => v.id === newVendor.id ? newVendor : v)
+        );
+        toast.success(responseData.message || "Vendor updated successfully!", { id: newToastId });
+      } else {
+        setVendors(prev => [newVendor, ...prev]);
+        toast.success(responseData.message || "Vendor created successfully!", { id: newToastId });
+      }
+
+      // Close form and reset
+      setOpenForm(false);
+      setIsEdit(false);
+      setEditVendor(null);
+      resetFormStates();
+
+    } catch (error) {
+      console.error("Submit error:", error);
+      
+      // Handle validation errors from API (400)
+      if (error.response?.status === 400) {
+        const apiErrors = error.response.data;
+        const errorMessages = [];
+        
+        // Handle field-specific errors
+        Object.keys(apiErrors).forEach(key => {
+          if (Array.isArray(apiErrors[key])) {
+            errorMessages.push(`${key}: ${apiErrors[key].join(', ')}`);
+          } else if (typeof apiErrors[key] === 'string') {
+            errorMessages.push(apiErrors[key]);
+          }
+        });
+
+        toast.error(errorMessages.join('\n') || "Validation failed", { id: newToastId });
+      } 
+      // Don't handle 403 here - it's handled by the interceptor
+      // Don't handle 401 here - it's handled by the interceptor
+      else if (error.response?.status !== 403 && error.response?.status !== 401) {
+        // Only show generic error for non-auth errors
+        toast.error(error.response?.data?.message || `${isEdit ? "Update" : "Create"} failed. Please try again.`, { id: newToastId });
+      }
+    } finally {
+      setIsSubmitting(false);
+      toastIdRef.current = null;
+    }
+  };
+
+  // Handle edit - with debounce to prevent double clicks
+  const handleEdit = useCallback((vendor) => {
+    // Prevent multiple edit clicks
+    if (isEditingRef.current) {
+      return;
+    }
+    
+    isEditingRef.current = true;
+    
+    // Dismiss any existing toasts
+    if (toastIdRef.current) {
+      toast.dismiss(toastIdRef.current);
+      toastIdRef.current = null;
+    }
+    
+    resetFormStates();
+    setEditVendor(vendor);
+    setFormData({
+      name: vendor.name || "",
+      email: vendor.email || "",
+      phone: vendor.phone || "",
+      address: vendor.address || "",
+      website: vendor.website || "",
+      status: vendor.status?.toLowerCase() || "active"
+    });
+    setIsEdit(true);
+    setOpenForm(true);
+    
+    // Reset the editing ref after a short delay
+    setTimeout(() => {
+      isEditingRef.current = false;
+    }, 300);
+  }, [resetFormStates]);
+
+  // Handle delete
+  const handleDelete = (id) => {
+    // Dismiss any existing toasts
+    if (toastIdRef.current) {
+      toast.dismiss(toastIdRef.current);
+    }
+    
+    const deleteToastId = toast(
+      (t) => (
+        <div className="flex flex-col gap-3">
+          <p className="text-sm font-semibold text-gray-800">Delete vendor?</p>
+          <p className="text-xs text-gray-500">This action cannot be undone.</p>
+          <div className="flex justify-end gap-2">
+            <button 
+              onClick={() => {
+                toast.dismiss(t.id);
+                toastIdRef.current = null;
+              }} 
+              className="px-3 py-1.5 bg-gray-200 rounded-md text-sm"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={async () => {
+                toast.dismiss(t.id);
+                const dt = toast.loading("Deleting vendor...");
+                toastIdRef.current = dt;
+                
+                try {
+                  await api.delete(`/vendors/${id}/`);
+                  setVendors((prev) => prev.filter((v) => v.id !== id));
+                  setSelectedIds((prev) => prev.filter((vid) => vid !== id));
+                  toast.success("Vendor deleted successfully", { id: dt });
+                } catch (error) {
+                  console.error("Delete error:", error);
+                  // 403/401 are handled by interceptor, no need to show additional error
+                  if (error.response?.status !== 403 && error.response?.status !== 401) {
+                    toast.error(error.response?.data?.message || "Failed to delete vendor", { id: dt });
+                  }
+                } finally {
+                  toastIdRef.current = null;
+                }
+              }}
+              className="px-3 py-1.5 bg-red-600 text-white rounded-md text-sm"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      ),
+      { duration: Infinity }
     );
-    const matchesStatus =
-      statusFilter === "All" || vendor.status === statusFilter;
-    const matchesCreatedBy =
-      createdByFilter === "All" || vendor.createdBy === createdByFilter;
+    
+    toastIdRef.current = deleteToastId;
+  };
+
+  // Handle bulk delete
+  const handleBulkDelete = () => {
+    if (!selectedIds.length) { 
+      toast.error("Please select at least one vendor"); 
+      return; 
+    }
+    
+    // Dismiss any existing toasts
+    if (toastIdRef.current) {
+      toast.dismiss(toastIdRef.current);
+    }
+    
+    const bulkToastId = toast(
+      (t) => (
+        <div className="flex flex-col gap-3">
+          <p className="text-sm font-semibold text-gray-800">Delete {selectedIds.length} selected vendors?</p>
+          <p className="text-xs text-gray-500">This action cannot be undone.</p>
+          <div className="flex justify-end gap-2">
+            <button 
+              onClick={() => {
+                toast.dismiss(t.id);
+                toastIdRef.current = null;
+              }} 
+              className="px-3 py-1.5 bg-gray-200 rounded-md text-sm"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={async () => {
+                toast.dismiss(t.id);
+                const dt = toast.loading(`Deleting ${selectedIds.length} vendors...`);
+                toastIdRef.current = dt;
+                
+                const results = await Promise.all(
+                  selectedIds.map(async (id) => {
+                    try {
+                      await api.delete(`/vendors/${id}/`);
+                      return { id, success: true };
+                    } catch (error) {
+                      // 403/401 are handled by interceptor, just mark as failed
+                      return { id, success: false };
+                    }
+                  })
+                );
+
+                const deleted = results.filter(r => r.success).map(r => r.id);
+                const failed = results.filter(r => !r.success).map(r => r.id);
+
+                if (deleted.length > 0) {
+                  setVendors((prev) => prev.filter((v) => !deleted.includes(v.id)));
+                  setSelectedIds((prev) => prev.filter((id) => !deleted.includes(id)));
+                }
+
+                if (deleted.length === selectedIds.length) {
+                  toast.success(`${deleted.length} vendor${deleted.length > 1 ? 's' : ''} deleted`, { id: dt });
+                } else {
+                  toast.success(`${deleted.length} deleted, ${failed.length} failed`, { id: dt });
+                }
+                
+                toastIdRef.current = null;
+              }}
+              className="px-3 py-1.5 bg-red-600 text-white rounded-md text-sm"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      ),
+      { duration: Infinity }
+    );
+    
+    toastIdRef.current = bulkToastId;
+  };
+
+  // Toggle selection
+  const toggleSelect = (id) => {
+    setSelectedIds((prev) => 
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === filtered.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filtered.map((v) => v.id));
+    }
+  };
+
+  // Filter vendors
+  const filtered = vendors.filter((v) => {
+    const searchLower = search.toLowerCase();
+    const matchesSearch = 
+      v.name?.toLowerCase().includes(searchLower) ||
+      v.email?.toLowerCase().includes(searchLower) ||
+      v.phone?.includes(search) ||
+      v.address?.toLowerCase().includes(searchLower);
+    
+    const matchesStatus = !filterStatus || v.status?.toLowerCase() === filterStatus.toLowerCase();
+    const matchesCreatedBy = !filterCreatedBy || v.created_by === filterCreatedBy;
     
     return matchesSearch && matchesStatus && matchesCreatedBy;
   });
 
-  // Clear all filters
-  const clearFilters = () => {
-    setSearchTerm("");
-    setStatusFilter("All");
-    setCreatedByFilter("All");
+  // Handle refresh
+  const handleRefresh = () => {
+    fetchVendors(false);
   };
 
-  // View Modal Component
-  const ViewModal = () => (
-    <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl w-full max-w-2xl shadow-2xl">
-        {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <div className="bg-blue-600 p-2 rounded-lg mr-3">
-                <Building className="text-white" size={24} />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-gray-800">
-                  Vendor Details
-                </h3>
-                <p className="text-xs text-gray-500 mt-1">
-                  Complete vendor information
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => {
-                setIsViewModalOpen(false);
-                setViewingVendor(null);
-              }}
-              className="text-gray-400 hover:text-gray-600 p-2 rounded-lg hover:bg-white/50 transition-colors"
-              title="Close"
-            >
-              <X size={20} />
-            </button>
-          </div>
-        </div>
-
-        {/* Modal Body */}
-        <div className="p-6">
-          {viewingVendor && (
-            <div className="space-y-6">
-              {/* Vendor Name & Status */}
-              <div className="flex items-start justify-between">
-                <div>
-                  <h4 className="text-2xl font-bold text-gray-900 mb-2">
-                    {viewingVendor.name}
-                  </h4>
-                  <span
-                    className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                      viewingVendor.status === "Active"
-                        ? "bg-green-100 text-green-800"
-                        : "bg-gray-100 text-gray-800"
-                    }`}
-                  >
-                    {viewingVendor.status}
-                  </span>
-                </div>
-              </div>
-
-              {/* Contact Information Section */}
-              <div>
-                <h5 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
-                  Contact Information
-                </h5>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Email */}
-                  <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
-                    <div className="mt-0.5">
-                      <Mail size={18} className="text-blue-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium text-gray-500 mb-1">
-                        Email Address
-                      </p>
-                      <p className="text-sm text-gray-900 break-all">
-                        {viewingVendor.email}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Phone */}
-                  <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
-                    <div className="mt-0.5">
-                      <Phone size={18} className="text-blue-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium text-gray-500 mb-1">
-                        Phone Number
-                      </p>
-                      <p className="text-sm text-gray-900">
-                        {viewingVendor.phone}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Address Section */}
-              <div>
-                <h5 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
-                  Location
-                </h5>
-                <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
-                  <div className="mt-0.5">
-                    <MapPin size={18} className="text-blue-600" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-gray-500 mb-1">
-                      Address
-                    </p>
-                    <p className="text-sm text-gray-900">
-                      {viewingVendor.address}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Created By Section */}
-              <div>
-                <h5 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
-                  Created By
-                </h5>
-                <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
-                  <div className="mt-0.5">
-                    <User size={18} className="text-blue-600" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-gray-500 mb-1">
-                      Created By
-                    </p>
-                    <p className="text-sm text-gray-900 capitalize">
-                      {viewingVendor.createdBy || "N/A"}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Website Section */}
-              {viewingVendor.website && (
-                <div>
-                  <h5 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
-                    Online Presence
-                  </h5>
-                  <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
-                    <div className="mt-0.5">
-                      <Globe size={18} className="text-blue-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium text-gray-500 mb-1">
-                        Website
-                      </p>
-                      <a
-                        href={viewingVendor.website}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm text-blue-600 hover:text-blue-800 hover:underline break-all"
-                      >
-                        {viewingVendor.website}
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Modal Footer */}
-        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50">
-          <div className="flex justify-between items-center">
-            <button
-              onClick={() => {
-                setIsViewModalOpen(false);
-                handleEdit(viewingVendor);
-              }}
-              className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors flex items-center"
-            >
-              <Edit size={16} className="mr-2" />
-              Edit Vendor
-            </button>
-            <button
-              onClick={() => {
-                setIsViewModalOpen(false);
-                setViewingVendor(null);
-              }}
-              className="px-5 py-2 text-sm font-medium bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  // Two-column Modal component (Edit/Add)
-  const VendorModal = () => (
-    <div className="fixed inset-0  bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl w-full max-w-2xl shadow-2xl">
-        {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-gray-100">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <Building className="text-blue-600 mr-3" size={24} />
-              <div>
-                <h3 className="text-lg font-semibold text-gray-800">
-                  {editingId ? "Edit Vendor" : "New Vendor"}
-                </h3>
-                <p className="text-xs text-gray-500 mt-1">
-                  {editingId
-                    ? "Update vendor information"
-                    : "Add a new vendor to your system"}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => {
-                setIsModalOpen(false);
-                resetForm();
-              }}
-              className="text-gray-400 hover:text-gray-600 p-2 rounded-lg hover:bg-gray-100 transition-colors"
-              title="Close"
-            >
-              <X size={20} />
-            </button>
-          </div>
-        </div>
-
-        {/* Modal Body - Two Column Layout */}
-        <form onSubmit={handleSubmit} className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Left Column */}
-            <div className="space-y-5">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Basic Information
-                </label>
-                <div className="space-y-4">
-                  {/* Vendor Name */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-sm font-medium text-gray-600">
-                        Vendor Name
-                      </label>
-                      <span className="text-xs text-red-500">Required</span>
-                    </div>
-                    <input
-                      type="text"
-                      name="name"
-                      value={formData.name}
-                      onChange={handleInputChange}
-                      className={`w-full px-3 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                        errors.name
-                          ? "border-red-500"
-                          : "border-gray-300 hover:border-gray-400"
-                      }`}
-                      placeholder="Enter vendor name"
-                    />
-                    {errors.name && (
-                      <p className="text-red-500 text-xs mt-1 flex items-center">
-                        <svg
-                          className="w-3 h-3 mr-1"
-                          fill="currentColor"
-                          viewBox="0 0 20 20"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                        {errors.name}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Email */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-sm font-medium text-gray-600">
-                        Email Address
-                      </label>
-                      <span className="text-xs text-red-500">Required</span>
-                    </div>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <Mail size={16} className="text-gray-400" />
-                      </div>
-                      <input
-                        type="email"
-                        name="email"
-                        value={formData.email}
-                        onChange={handleInputChange}
-                        className={`w-full pl-10 pr-3 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                          errors.email
-                            ? "border-red-500"
-                            : "border-gray-300 hover:border-gray-400"
-                        }`}
-                        placeholder="vendor@company.com"
-                      />
-                    </div>
-                    {errors.email && (
-                      <p className="text-red-500 text-xs mt-1 flex items-center">
-                        <svg
-                          className="w-3 h-3 mr-1"
-                          fill="currentColor"
-                          viewBox="0 0 20 20"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                        {errors.email}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Phone */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-sm font-medium text-gray-600">
-                        Phone Number
-                      </label>
-                      <span className="text-xs text-red-500">Required</span>
-                    </div>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <Phone size={16} className="text-gray-400" />
-                      </div>
-                      <input
-                        type="tel"
-                        name="phone"
-                        value={formData.phone}
-                        onChange={handleInputChange}
-                        className={`w-full pl-10 pr-3 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                          errors.phone
-                            ? "border-red-500"
-                            : "border-gray-300 hover:border-gray-400"
-                        }`}
-                        placeholder="+1 (555) 123-4567"
-                      />
-                    </div>
-                    {errors.phone && (
-                      <p className="text-red-500 text-xs mt-1 flex items-center">
-                        <svg
-                          className="w-3 h-3 mr-1"
-                          fill="currentColor"
-                          viewBox="0 0 20 20"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                        {errors.phone}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Right Column */}
-            <div className="space-y-5">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Additional Information
-                </label>
-                <div className="space-y-4">
-                  {/* Address */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-sm font-medium text-gray-600">
-                        Address
-                      </label>
-                      <span className="text-xs text-red-500">Required</span>
-                    </div>
-                    <div className="relative">
-                      <div className="absolute top-3 left-3 flex items-start pointer-events-none">
-                        <MapPin size={16} className="text-gray-400" />
-                      </div>
-                      <textarea
-                        name="address"
-                        value={formData.address}
-                        onChange={handleInputChange}
-                        rows="4"
-                        className={`w-full pl-10 pr-3 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none ${
-                          errors.address
-                            ? "border-red-500"
-                            : "border-gray-300 hover:border-gray-400"
-                        }`}
-                        placeholder="Street address, City, State, ZIP code"
-                      />
-                    </div>
-                    {errors.address && (
-                      <p className="text-red-500 text-xs mt-1 flex items-center">
-                        <svg
-                          className="w-3 h-3 mr-1"
-                          fill="currentColor"
-                          viewBox="0 0 20 20"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                        {errors.address}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Website */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-sm font-medium text-gray-600">
-                        Website
-                      </label>
-                      <span className="text-xs text-gray-500">Optional</span>
-                    </div>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <Globe size={16} className="text-gray-400" />
-                      </div>
-                      <input
-                        type="url"
-                        name="website"
-                        value={formData.website}
-                        onChange={handleInputChange}
-                        className={`w-full pl-10 pr-3 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                          errors.website
-                            ? "border-red-500"
-                            : "border-gray-300 hover:border-gray-400"
-                        }`}
-                        placeholder="https://company.com"
-                      />
-                    </div>
-                    {errors.website && (
-                      <p className="text-red-500 text-xs mt-1 flex items-center">
-                        <svg
-                          className="w-3 h-3 mr-1"
-                          fill="currentColor"
-                          viewBox="0 0 20 20"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                        {errors.website}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Status */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-sm font-medium text-gray-600">
-                        Status
-                      </label>
-                    </div>
-                    <div className="relative">
-                      <select
-                        name="status"
-                        value={formData.status}
-                        onChange={handleInputChange}
-                        className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent hover:border-gray-400 appearance-none bg-white"
-                      >
-                        <option value="Active" className="py-2">
-                          Active
-                        </option>
-                        <option value="Inactive" className="py-2">
-                          Inactive
-                        </option>
-                      </select>
-                      <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                        <svg
-                          className="w-4 h-4 text-gray-400"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="2"
-                            d="M19 9l-7 7-7-7"
-                          />
-                        </svg>
-                      </div>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Active vendors will be available for selection
-                    </p>
-                  </div>
-
-                  {/* Created By */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-sm font-medium text-gray-600">
-                        Created By
-                      </label>
-                    </div>
-                    <div className="relative">
-                      <select
-                        name="createdBy"
-                        value={formData.createdBy}
-                        onChange={handleInputChange}
-                        className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent hover:border-gray-400 appearance-none bg-white"
-                      >
-                        <option value="admin">Admin</option>
-                        <option value="franchise">Franchise</option>
-                        <option value="vendor">Vendor</option>
-                      </select>
-                      <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                        <svg
-                          className="w-4 h-4 text-gray-400"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="2"
-                            d="M19 9l-7 7-7-7"
-                          />
-                        </svg>
-                      </div>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Select who created this vendor
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Modal Footer - Full Width */}
-          <div className="mt-8 pt-6 border-t border-gray-100">
-            <div className="flex justify-between items-center">
-              <div className="text-sm text-gray-500">
-                <span className="font-medium">Note:</span> Fields marked with{" "}
-                <span className="text-red-500">*</span> are required
-              </div>
-              <div className="flex items-center space-x-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsModalOpen(false);
-                    resetForm();
-                  }}
-                  className="px-5 py-2.5 text-sm font-medium text-gray-700 hover:text-gray-800 hover:bg-gray-50 rounded-lg border border-gray-300 transition-colors duration-200"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 flex items-center shadow-sm"
-                >
-                  <Check size={16} className="mr-2" />
-                  {editingId ? "Update Vendor" : "Create Vendor"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
+  // Handle modal close
+  const handleCloseForm = () => {
+    // Dismiss any existing toasts when closing modal
+    if (toastIdRef.current) {
+      toast.dismiss(toastIdRef.current);
+      toastIdRef.current = null;
+    }
+    
+    setOpenForm(false);
+    setIsEdit(false);
+    setEditVendor(null);
+    resetFormStates();
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
-      <ToastContainer
-        position="top-center"
-        autoClose={3000}
-        hideProgressBar={false}
-        newestOnTop={false}
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-      />
-
+    <div className="p-8 max-w-7xl mx-auto font-sans">
       {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center mb-2">
-          <Building className="text-blue-600 mr-3" size={28} />
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800">Vendors</h1>
-            <p className="text-gray-600">Manage your vendor information</p>
-          </div>
+      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-8">
+        <div className="flex items-center gap-3">
+          <h1 className="text-3xl font-bold text-gray-800">Vendors</h1>
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+            title="Refresh"
+          >
+            <RefreshCw size={20} className={isRefreshing ? "animate-spin" : ""} />
+          </button>
         </div>
+        <button
+          onClick={() => { 
+            // Dismiss any existing toasts
+            if (toastIdRef.current) {
+              toast.dismiss(toastIdRef.current);
+              toastIdRef.current = null;
+            }
+            setOpenForm(true); 
+            setIsEdit(false); 
+            setEditVendor(null); 
+            resetFormStates(); 
+          }}
+          className="bg-blue-600 text-white px-6 py-2 rounded-xl shadow-md hover:bg-blue-700 transition-all w-full md:w-auto flex items-center justify-center gap-2"
+          disabled={isSubmitting}
+        >
+          <Plus size={18} /> Add Vendor
+        </button>
       </div>
 
-      {/* Controls Section */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-        <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
-          <div className="flex flex-col md:flex-row items-center space-y-4 md:space-y-0 md:space-x-4 w-full md:w-auto">
-            {/* Search Bar */}
-            <div className="relative w-full md:w-64">
-              <Search
-                className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-                size={18}
-              />
-              <input
-                type="text"
-                placeholder="Search vendors..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full"
-              />
-            </div>
-
-            {/* Filters Row */}
-            <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-              {/* Status Filter */}
-              <div className="flex items-center space-x-2">
-                <Filter size={18} className="text-gray-400" />
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm min-w-[120px]"
+      {/* Filter Section */}
+      <div className="mb-6 bg-white p-4 rounded-xl shadow-md border border-gray-200">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <h3 className="text-lg font-semibold text-gray-700">Filters</h3>
+          <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
+            {/* Status Filter */}
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-600">Status:</label>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="border px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200"
+              >
+                <option value="">All Status</option>
+                {STATUS_OPTIONS.map((s) => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+              {filterStatus && (
+                <button 
+                  onClick={() => setFilterStatus("")} 
+                  className="text-red-500 hover:text-red-700"
                 >
-                  <option value="All">All Status</option>
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                </select>
-              </div>
-
-              {/* Created By Filter - Zoho Style */}
-              <div className="flex items-center space-x-2">
-                <User size={18} className="text-gray-400" />
-                <select
-                  value={createdByFilter}
-                  onChange={(e) => setCreatedByFilter(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm min-w-[130px]"
-                >
-                  <option value="All">All Creators</option>
-                  {createdByOptions.filter(opt => opt !== 'All').map((creator) => (
-                    <option key={creator} value={creator} className="capitalize">
-                      {creator}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Clear Filters Button - Show when filters are active */}
-              {(statusFilter !== "All" || createdByFilter !== "All" || searchTerm) && (
-                <button
-                  onClick={clearFilters}
-                  className="px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors flex items-center"
-                  title="Clear all filters"
-                >
-                  <X size={16} className="mr-1" />
-                  Clear
+                  <X size={16} />
                 </button>
               )}
             </div>
-          </div>
 
-          {/* Add Vendor Button */}
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg flex items-center transition-colors duration-200 text-sm font-medium whitespace-nowrap shadow-sm"
-          >
-            <Plus size={18} className="mr-2" />
-            Add Vendor
-          </button>
+            {/* Created By Filter */}
+            {uniqueCreatedBy.length > 0 && (
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-gray-600">Created By:</label>
+                <select
+                  value={filterCreatedBy}
+                  onChange={(e) => setFilterCreatedBy(e.target.value)}
+                  className="border px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200"
+                >
+                  <option value="">All Creators</option>
+                  {uniqueCreatedBy.map((creator) => (
+                    <option key={creator} value={creator}>{creator}</option>
+                  ))}
+                </select>
+                {filterCreatedBy && (
+                  <button 
+                    onClick={() => setFilterCreatedBy("")} 
+                    className="text-red-500 hover:text-red-700"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
-
-        {/* Active Filters Display */}
-        {(statusFilter !== "All" || createdByFilter !== "All" || searchTerm) && (
-          <div className="mt-3 flex flex-wrap items-center gap-2 pt-3 border-t border-gray-100">
-            <span className="text-xs text-gray-500">Active filters:</span>
-            {searchTerm && (
-              <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded-full text-xs border border-blue-200">
-                Search: "{searchTerm}"
-                <button
-                  onClick={() => setSearchTerm("")}
-                  className="hover:text-blue-900"
-                >
-                  <X size={12} />
-                </button>
-              </span>
-            )}
-            {statusFilter !== "All" && (
-              <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded-full text-xs border border-blue-200">
-                Status: {statusFilter}
-                <button
-                  onClick={() => setStatusFilter("All")}
-                  className="hover:text-blue-900"
-                >
-                  <X size={12} />
-                </button>
-              </span>
-            )}
-            {createdByFilter !== "All" && (
-              <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded-full text-xs border border-blue-200 capitalize">
-                Created by: {createdByFilter}
-                <button
-                  onClick={() => setCreatedByFilter("All")}
-                  className="hover:text-blue-900"
-                >
-                  <X size={12} />
-                </button>
-              </span>
-            )}
-          </div>
-        )}
       </div>
 
-      {/* Vendor Table */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+      {/* Table Section */}
+      <div className="mt-6 bg-white border border-gray-200 rounded-2xl shadow-lg overflow-hidden">
+        <div className="p-4 bg-gray-50 border-b flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="font-semibold text-gray-700 text-sm sm:text-base">
+            Vendor Records ({filtered.length})
+          </h2>
+          
+          {selectedIds.length > 0 && (
+            <button 
+              onClick={handleBulkDelete} 
+              className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 flex items-center gap-2"
+            >
+              <Trash2 size={16} /> Delete Selected ({selectedIds.length})
+            </button>
+          )}
+          
+          <input
+            type="text"
+            placeholder="Search by name, email, phone..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="border px-3 py-2 rounded-lg w-full sm:w-64 shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+          />
+        </div>
+
+        {/* Desktop Table */}
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full text-sm border-collapse">
+            <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Vendor
+                <th className="px-3 py-3 text-center w-12">
+                  <input 
+                    type="checkbox" 
+                    checked={filtered.length > 0 && selectedIds.length === filtered.length} 
+                    onChange={toggleSelectAll} 
+                    className="accent-blue-600 rounded"
+                  />
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Contact Info
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Address
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Created By
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
+                <th className="px-3 py-3 text-left font-semibold text-gray-700">Vendor</th>
+                <th className="px-3 py-3 text-left font-semibold text-gray-700">Email</th>
+                <th className="px-3 py-3 text-left font-semibold text-gray-700">Phone</th>
+                <th className="px-3 py-3 text-center font-semibold text-gray-700">Status</th>
+                <th className="px-3 py-3 text-center font-semibold text-gray-700">Actions</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredVendors.length > 0 ? (
-                filteredVendors.map((vendor) => (
-                  <tr
-                    key={vendor.id}
-                    className="hover:bg-gray-50 transition-colors"
-                  >
-                    <td className="px-4 py-4">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0 h-9 w-9 bg-blue-50 rounded-lg flex items-center justify-center">
-                          <Building className="text-blue-600" size={16} />
-                        </div>
-                        <div className="ml-3">
-                          <div className="text-sm font-medium text-gray-900">
-                            {vendor.name}
-                          </div>
-                          {vendor.website && (
-                            <div className="text-xs text-blue-600 truncate max-w-[200px]">
-                              {vendor.website.replace(/^https?:\/\//, "")}
-                            </div>
-                          )}
-                        </div>
+            <tbody>
+              {isFetchingData ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-gray-500 font-semibold">
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                      Loading vendors...
+                    </div>
+                  </td>
+                </tr>
+              ) : filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-gray-500 font-semibold">
+                    No vendors found
+                  </td>
+                </tr>
+              ) : (
+                filtered.map((vendor) => (
+                  <tr key={vendor.id} className="border-b last:border-0 hover:bg-gray-50 transition">
+                    <td className="px-3 py-4 text-center align-middle">
+                      <input 
+                        type="checkbox" 
+                        checked={selectedIds.includes(vendor.id)} 
+                        onChange={() => toggleSelect(vendor.id)} 
+                        className="accent-blue-600 rounded"
+                      />
+                    </td>
+                    <td className="px-3 py-4">
+                      <div className="flex items-center gap-2">
+                        <Building size={16} className="text-blue-500" />
+                        <span className="font-medium text-gray-800">{vendor.name}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-4">
-                      <div className="flex flex-col space-y-1">
-                        <div className="flex items-center text-sm">
-                          <Mail size={12} className="text-gray-400 mr-2" />
-                          <span className="text-gray-900 truncate max-w-[180px]">
-                            {vendor.email}
-                          </span>
-                        </div>
-                        <div className="flex items-center text-sm">
-                          <Phone size={12} className="text-gray-400 mr-2" />
-                          <span className="text-gray-600">{vendor.phone}</span>
-                        </div>
+                    <td className="px-3 py-4">
+                      <div className="flex items-center gap-2">
+                        <Mail size={14} className="text-gray-400" />
+                        <span className="text-xs text-gray-600">{vendor.email}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-4">
-                      <div className="text-sm text-gray-600 line-clamp-2 max-w-xs">
-                        {vendor.address}
+                    <td className="px-3 py-4">
+                      <div className="flex items-center gap-2">
+                        <Phone size={14} className="text-gray-400" />
+                        <span className="text-xs text-gray-600">{vendor.phone}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-4">
-                      <span
-                        className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                          vendor.status === "Active"
-                            ? "bg-green-100 text-green-800"
-                            : "bg-gray-100 text-gray-800"
-                        }`}
-                      >
-                        {vendor.status}
+                    <td className="px-3 py-4 text-center">
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold inline-block ${getStatusClasses(vendor.status)}`}>
+                        {vendor.status === "active" ? "Active" : "Inactive"}
                       </span>
                     </td>
-                    <td className="px-4 py-4">
-                      <span className="inline-flex items-center px-2 py-1 bg-purple-50 text-purple-700 rounded-md text-xs font-medium capitalize">
-                        <User size={12} className="mr-1" />
-                        {vendor.createdBy}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex items-center space-x-2">
+                    <td className="px-3 py-4">
+                      <div className="flex items-center justify-center gap-2">
                         <button
-                          onClick={() => handleView(vendor)}
-                          className="p-1.5 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-colors"
-                          title="View"
+                          onClick={() => {
+                            setSelectedVendor(vendor);
+                            setViewModalOpen(true);
+                          }}
+                          className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
+                          title="View Details"
                         >
                           <Eye size={16} />
                         </button>
                         <button
                           onClick={() => handleEdit(vendor)}
-                          className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="Edit"
+                          className="p-2 rounded-lg bg-yellow-50 text-yellow-600 hover:bg-yellow-100 transition-colors"
+                          title="Edit Vendor"
                         >
                           <Edit size={16} />
                         </button>
                         <button
                           onClick={() => handleDelete(vendor.id)}
-                          className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Delete"
+                          className="p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                          title="Delete Vendor"
                         >
                           <Trash2 size={16} />
                         </button>
@@ -1106,63 +1128,119 @@ const Vendor = () => {
                     </td>
                   </tr>
                 ))
-              ) : (
-                <tr>
-                  <td colSpan="6" className="px-4 py-8 text-center">
-                    <div className="text-gray-400">
-                      <Building size={40} className="mx-auto mb-3" />
-                      <p className="text-base font-medium">No vendors found</p>
-                      <p className="text-sm mt-1">
-                        {searchTerm || statusFilter !== "All" || createdByFilter !== "All"
-                          ? "Try adjusting your filters"
-                          : "Add your first vendor to get started"}
-                      </p>
-                    </div>
-                  </td>
-                </tr>
               )}
             </tbody>
           </table>
         </div>
 
-        {/* Footer Stats */}
-        <div className="px-4 py-3 border-t border-gray-200 bg-gray-50">
-          <div className="flex flex-col sm:flex-row justify-between items-center space-y-2 sm:space-y-0">
-            <div className="text-sm text-gray-500">
-              Showing{" "}
-              <span className="font-medium">{filteredVendors.length}</span> of{" "}
-              <span className="font-medium">{vendors.length}</span> vendors
+        {/* Mobile View */}
+        <div className="md:hidden space-y-4 mt-4 p-4">
+          {filtered.map((vendor) => (
+            <div key={vendor.id} className="bg-white border rounded-xl shadow p-4 space-y-3">
+              <div className="flex justify-between items-start">
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="checkbox" 
+                    checked={selectedIds.includes(vendor.id)} 
+                    onChange={() => toggleSelect(vendor.id)} 
+                    className="accent-blue-600 rounded"
+                  />
+                  <div>
+                    <p className="font-semibold text-gray-800 flex items-center gap-1">
+                      <Building size={14} className="text-blue-500" />
+                      {vendor.name}
+                    </p>
+                    <p className="text-xs text-gray-600 flex items-center gap-1 mt-1">
+                      <Mail size={12} className="text-gray-400" />
+                      {vendor.email}
+                    </p>
+                    <p className="text-xs text-gray-600 flex items-center gap-1">
+                      <Phone size={12} className="text-gray-400" />
+                      {vendor.phone}
+                    </p>
+                    <p className="text-xs text-gray-500 flex items-center gap-1 mt-1">
+                      <User size={10} className="text-gray-400" />
+                      Created by: {vendor.created_by || "N/A"}
+                    </p>
+                  </div>
+                </div>
+                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusClasses(vendor.status)}`}>
+                  {vendor.status === "active" ? "Active" : "Inactive"}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 pt-2">
+                <button
+                  onClick={() => {
+                    setSelectedVendor(vendor);
+                    setViewModalOpen(true);
+                  }}
+                  className="flex flex-col items-center justify-center p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
+                >
+                  <Eye size={18} />
+                  <span className="text-xs mt-1">View</span>
+                </button>
+                <button
+                  onClick={() => handleEdit(vendor)}
+                  className="flex flex-col items-center justify-center p-2 bg-yellow-50 text-yellow-600 rounded-lg hover:bg-yellow-100 transition-colors"
+                >
+                  <Edit size={18} />
+                  <span className="text-xs mt-1">Edit</span>
+                </button>
+                <button
+                  onClick={() => handleDelete(vendor.id)}
+                  className="flex flex-col items-center justify-center p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
+                >
+                  <Trash2 size={18} />
+                  <span className="text-xs mt-1">Delete</span>
+                </button>
+              </div>
             </div>
-            <div className="flex items-center space-x-3">
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                <span className="text-xs text-gray-600">
-                  Active: {vendors.filter((v) => v.status === "Active").length}
-                </span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 rounded-full bg-gray-400"></div>
-                <span className="text-xs text-gray-600">
-                  Inactive:{" "}
-                  {vendors.filter((v) => v.status === "Inactive").length}
-                </span>
-              </div>
-              <div className="flex items-center space-x-2 border-l pl-3 border-gray-300">
-                <User size={12} className="text-gray-400" />
-                <span className="text-xs text-gray-600">
-                  Creators: {createdByOptions.length - 1}
-                </span>
+          ))}
+        </div>
+
+        {/* Footer Stats */}
+        {vendors.length > 0 && (
+          <div className="px-4 py-3 border-t border-gray-200 bg-gray-50">
+            <div className="flex justify-between items-center text-xs text-gray-600">
+              <span>
+                Showing {filtered.length} of {vendors.length} vendors
+              </span>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1">
+                  <CheckCircle size={12} className="text-green-500" />
+                  <span>Active: {vendors.filter(v => v.status === "active").length}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <XCircle size={12} className="text-gray-400" />
+                  <span>Inactive: {vendors.filter(v => v.status === "inactive").length}</span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Modals */}
-      {isModalOpen && <VendorModal />}
-      {isViewModalOpen && <ViewModal />}
+      <FormModal 
+        isOpen={openForm}
+        onClose={handleCloseForm}
+        onSubmit={handleSubmit}
+        isEdit={isEdit}
+        isSubmitting={isSubmitting}
+        formData={formData}
+        onFormChange={handleFormChange}
+        errors={{ email: emailError, phone: phoneError }}
+        fieldErrors={fieldErrors}
+        onBlur={handleFieldBlur}
+      />
+
+      <ViewModal 
+        isOpen={viewModalOpen}
+        onClose={() => setViewModalOpen(false)}
+        vendor={selectedVendor}
+        onEdit={handleEdit}
+      />
     </div>
   );
-};
-
-export default Vendor;
+}

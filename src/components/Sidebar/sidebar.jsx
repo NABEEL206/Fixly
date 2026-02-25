@@ -20,6 +20,10 @@ import {
   Users2,
   ClipboardList,
   ChevronDown,
+  ShoppingCart,
+  UserCircle,
+  FileText,
+  HelpCircle,
 } from "lucide-react";
 import { useAuth } from "/src/auth/AuthContext";
 import toast from "react-hot-toast";
@@ -30,6 +34,7 @@ export default function Sidebar({ isOpen, closeSidebar }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const role = user?.role;
+  const shopType = user?.shop_type; // Get shop_type for SHOP role
   const [openMenus, setOpenMenus] = useState({});
   const isNavigating = useRef(false);
 
@@ -43,7 +48,7 @@ export default function Sidebar({ isOpen, closeSidebar }) {
 
     toast.custom(
       (t) => (
-        <div 
+        <div
           className="flex flex-col gap-3 bg-white rounded-lg shadow-xl p-4 max-w-sm border border-gray-200"
           onClick={(e) => e.stopPropagation()}
         >
@@ -61,23 +66,23 @@ export default function Sidebar({ isOpen, closeSidebar }) {
               onClick={async () => {
                 // Set navigating flag to prevent multiple toasts
                 isNavigating.current = true;
-                
+
                 // Dismiss the confirmation toast
                 toast.dismiss(t.id);
-                
+
                 try {
                   // Show loading state
                   const loadingToast = toast.loading("Logging out...");
-                  
+
                   // Perform logout
                   await logout();
-                  
+
                   // Update loading toast to success
-                  toast.success("Logged out successfully", { 
+                  toast.success("Logged out successfully", {
                     id: loadingToast,
-                    duration: 2000 
+                    duration: 2000,
                   });
-                  
+
                   // Small delay to ensure toast is visible before navigation
                   setTimeout(() => {
                     navigate("/login", { replace: true });
@@ -100,24 +105,37 @@ export default function Sidebar({ isOpen, closeSidebar }) {
           </div>
         </div>
       ),
-      { 
-        duration: 8000, // 8 seconds
+      {
+        duration: 8000,
         position: "top-center",
-        // Prevent toast from closing on click outside
         className: "z-[9999]",
-      }
+      },
     );
   };
 
+  // Role-based menu items configuration
   const roleBasedMenuItems = {
+    // ADMIN - Full access
     ADMIN: [
-      { path: "/admindashboard", label: "Dashboard", icon: <LayoutDashboard size={20} /> },
+      {
+        path: "/admindashboard",
+        label: "Dashboard",
+        icon: <LayoutDashboard size={20} />,
+      },
       { path: "/leads", label: "Leads", icon: <TrendingUp size={20} /> },
-      { path: "/complaints", label: "Complaints", icon: <FileWarning size={20} /> },
+      {
+        path: "/complaints",
+        label: "Complaints",
+        icon: <FileWarning size={20} />,
+      },
       { path: "/customers", label: "Customers", icon: <Users2 size={20} /> },
       { path: "/shops", label: "Shops", icon: <Store size={20} /> },
       { path: "/growtags", label: "Grow Tags", icon: <Users size={20} /> },
-      { path: "/assign-growtags", label: "Assign Grow Tags", icon: <ClipboardList size={20} /> },
+      {
+        path: "/assign-growtags",
+        label: "Assign Grow Tags",
+        icon: <ClipboardList size={20} />,
+      },
       { path: "/items", label: "Items", icon: <Package size={20} /> },
       { path: "/stock", label: "Stock", icon: <Boxes size={20} /> },
       {
@@ -133,26 +151,184 @@ export default function Sidebar({ isOpen, closeSidebar }) {
       { path: "/invoice", label: "Invoice", icon: <Receipt size={20} /> },
       { path: "/reports", label: "Reports", icon: <BarChart3 size={20} /> },
     ],
+
+    // GROWTAG - Field technicians
+    GROWTAG: [
+      {
+        path: "/growtagdashboard",
+        label: "Dashboard",
+        icon: <LayoutDashboard size={20} />,
+      },
+      {
+        path: "/complaints",
+        label: "Complaints",
+        icon: <FileWarning size={20} />,
+      },
+      { path: "/customers", label: "Customers", icon: <Users2 size={20} /> },
+      // { path: "/shops", label: "Shops", icon: <Store size={20} /> },
+       {
+        label: "Purchase",
+        icon: <DollarSign size={20} />,
+        children: [
+          // { path: "/vendors", label: "Vendors" },
+          // { path: "/expenses", label: "Expenses" },
+          { path: "/purchase-orders", label: "Purchase Orders" },
+          { path: "/bills", label: "Bills" },
+        ],
+      },
+      { path: "/invoice", label: "Invoice", icon: <Receipt size={20} /> },
+      { path: "/stock", label: "Stock", icon: <Boxes size={20} /> },
+      { path: "/reports", label: "Reports", icon: <BarChart3 size={20} /> },
+
+    ],
+
+    // CUSTOMER - End users
+    CUSTOMER: [
+      {
+        path: "/customerdashboard",
+        label: "Dashboard",
+        icon: <LayoutDashboard size={20} />,
+      },
+      {
+        path: "/customercomplaintself",
+        label: "Register Complaint",
+        icon: <FileWarning size={20} />,
+      },
+      {
+        path: "/complaints",
+        label: "My Complaints",
+        icon: <AlertCircle size={20} />,
+      },
+      { path: "/invoice", label: "My Invoices", icon: <Receipt size={20} /> },
+      {
+        path: "/profile",
+        label: "My Profile",
+        icon: <UserCircle size={20} />,
+      },
+      {
+        path: "/support",
+        label: "Support",
+        icon: <HelpCircle size={20} />,
+      },
+    ],
+
+    // SHOP - Base shop menu (will be extended based on shop_type)
+    SHOP: [
+      {
+        path: "/dashboard",
+        label: "Dashboard",
+        icon: <LayoutDashboard size={20} />,
+      },
+      {
+        path: "/complaints",
+        label: "Complaints",
+        icon: <FileWarning size={20} />,
+      },
+      { path: "/customers", label: "Customers", icon: <Users2 size={20} /> },
+      { path: "/growtags", label: "Grow Tags", icon: <Users size={20} /> },
+      { path: "/invoice", label: "Invoice", icon: <Receipt size={20} /> },
+      { path: "/reports", label: "Reports", icon: <BarChart3 size={20} /> },
+      { path: "/stock", label: "Stock", icon: <Boxes size={20} /> },
+      {
+        label: "Purchase",
+        icon: <DollarSign size={20} />,
+        children: [
+          { path: "/vendors", label: "Vendors" },
+          { path: "/expenses", label: "Expenses" },
+          { path: "/purchase-orders", label: "Purchase Orders" },
+          { path: "/bills", label: "Bills" },
+        ],
+      },
+    ],
   };
 
-  const menuItems = roleBasedMenuItems[role] || [];
+  // Get menu items based on role and shop_type
+  const getMenuItems = () => {
+    if (!role) return [];
+
+    // Handle SHOP role with shop_type
+    if (role === "SHOP") {
+      const baseMenu = roleBasedMenuItems.SHOP || [];
+
+      // Customize dashboard path based on shop_type
+      const customizedMenu = baseMenu.map((item) => {
+        if (item.path === "/dashboard") {
+          // Set correct dashboard path based on shop_type
+          if (shopType === "franchise") {
+            return { ...item, path: "/franchisedashboard" };
+          } else if (shopType === "othershop") {
+            return { ...item, path: "/othershopdashboard" };
+          }
+        }
+        return item;
+      });
+
+      return customizedMenu;
+    }
+
+    // For other roles, return directly from mapping
+    return roleBasedMenuItems[role] || [];
+  };
+
+  const menuItems = getMenuItems();
 
   const getSidebarHeader = () => {
+    if (!user) return "Dashboard";
+
+    // Handle SHOP role with shop_type
+    if (role === "SHOP") {
+      if (shopType === "franchise") {
+        return user?.name || "Franchise Shop";
+      } else if (shopType === "othershop") {
+        return user?.name || "Other Shop";
+      }
+      return user?.name || "Shop";
+    }
+
+    // Handle other roles
     switch (role) {
       case "ADMIN":
         return "Fixly Admin";
-      case "GROW_TAG":
+      case "GROWTAG":
         return user?.name || "Grow Tag";
       case "CUSTOMER":
         return user?.name || "Customer";
-      case "FRANCHISE":
-        return user?.name || "Franchise";
-      case "OTHER_SHOP":
-        return user?.name || "Shop";
       default:
-        return "Dashboard";
+        return user?.name || "Dashboard";
     }
   };
+
+  const getRoleDisplay = () => {
+    if (!role) return "";
+
+    // Handle SHOP role with shop_type
+    if (role === "SHOP") {
+      if (shopType === "franchise") {
+        return "Franchise";
+      } else if (shopType === "othershop") {
+        return "Other Shop";
+      }
+      return "Shop";
+    }
+
+    // Handle other roles
+    switch (role) {
+      case "GROWTAG":
+        return "Grow Tag";
+      case "ADMIN":
+        return "Admin";
+      case "CUSTOMER":
+        return "Customer";
+      default:
+        return role;
+    }
+  };
+
+  // Add this for debugging
+  console.log("Sidebar - User:", user);
+  console.log("Sidebar - Role:", role);
+  console.log("Sidebar - Shop Type:", shopType);
+  console.log("Sidebar - Menu items:", menuItems);
 
   return (
     <div
@@ -162,103 +338,93 @@ export default function Sidebar({ isOpen, closeSidebar }) {
     >
       {/* Close mobile */}
       <div className="p-3 flex justify-end md:hidden">
-        <button onClick={closeSidebar} className="p-1 hover:bg-gray-700 rounded">
+        <button
+          onClick={closeSidebar}
+          className="p-1 hover:bg-gray-700 rounded"
+        >
           <X size={22} />
         </button>
       </div>
 
-      {/* Header */}
-      <div className="px-4 pt-3 pb-4 text-center">
-        <h1 className="text-lg font-bold truncate">{getSidebarHeader()}</h1>
-        <p className="text-gray-400 text-xs capitalize truncate">
-          {role?.toLowerCase().replace("_", " ")}
-        </p>
-      </div>
-
       {/* MENU */}
-      <div className="flex-grow px-4 overflow-y-auto">
-        <nav className="space-y-1">
-          {menuItems.map((item, idx) => {
-            if (item.children) {
-              const isOpen = openMenus[item.label];
+      <div className="flex-grow px-4 overflow-y-auto py-4 mt-15">
+        {menuItems.length > 0 ? (
+          <nav className="space-y-1">
+            {menuItems.map((item, idx) => {
+              if (item.children) {
+                const isOpen = openMenus[item.label];
+                return (
+                  <div key={idx}>
+                    <button
+                      onClick={() => toggleMenu(item.label)}
+                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg
+                      text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+                    >
+                      {item.icon}
+                      <span className="flex-grow text-sm text-left">
+                        {item.label}
+                      </span>
+                      <ChevronDown
+                        size={16}
+                        className={`transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+                      />
+                    </button>
+
+                    {isOpen && (
+                      <div className="ml-8 mt-1 space-y-1">
+                        {item.children.map((child, cIdx) => (
+                          <NavLink
+                            key={cIdx}
+                            to={child.path}
+                            onClick={() => {
+                              if (isMobileView()) closeSidebar();
+                            }}
+                            className={({ isActive }) =>
+                              `block px-3 py-1.5 rounded text-sm transition
+                              ${
+                                isActive
+                                  ? "bg-[#2563EB] text-white font-medium"
+                                  : "text-gray-400 hover:bg-gray-700 hover:text-white"
+                              }`
+                            }
+                          >
+                            {child.label}
+                          </NavLink>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
               return (
-                <div key={idx}>
-                  <button
-                    onClick={() => toggleMenu(item.label)}
-                    className="w-full flex items-center gap-3 px-3 py-2 rounded-lg
-                    text-gray-300 hover:bg-gray-700 hover:text-white"
-                  >
-                    {item.icon}
-                    <span className="flex-grow text-sm text-left">{item.label}</span>
-                    <ChevronDown
-                      size={16}
-                      className={`transition-transform ${isOpen ? "rotate-180" : ""}`}
-                    />
-                  </button>
-
-                  {isOpen && (
-                    <div className="ml-8 mt-1 space-y-1">
-                      {item.children.map((child, cIdx) => (
-                        <NavLink
-                          key={cIdx}
-                          to={child.path}
-                          onClick={() => {
-                            if (isMobileView()) closeSidebar();
-                          }}
-                          className={({ isActive }) =>
-                            `block px-3 py-1.5 rounded text-sm transition
-                            ${
-                              isActive
-                                ? "bg-[#2563EB] text-white font-medium"
-                                : "text-gray-400 hover:bg-gray-700 hover:text-white"
-                            }`
-                          }
-                        >
-                          {child.label}
-                        </NavLink>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                <NavLink
+                  key={idx}
+                  to={item.path}
+                  onClick={() => {
+                    if (isMobileView()) closeSidebar();
+                  }}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition
+                    ${
+                      isActive
+                        ? "bg-[#2563EB] text-white font-medium"
+                        : "text-gray-300 hover:bg-gray-700 hover:text-white"
+                    }`
+                  }
+                >
+                  {item.icon}
+                  {item.label}
+                </NavLink>
               );
-            }
-
-            return (
-              <NavLink
-                key={idx}
-                to={item.path}
-                onClick={() => {
-                  if (isMobileView()) closeSidebar();
-                }}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition
-                  ${
-                    isActive
-                      ? "bg-[#2563EB] text-white font-medium border-l-2 border-white shadow-sm"
-                      : "text-gray-300 hover:bg-gray-700 hover:text-white"
-                  }`
-                }
-              >
-                {item.icon}
-                {item.label}
-              </NavLink>
-            );
-          })}
-        </nav>
+            })}
+          </nav>
+        ) : (
+          <div className="text-gray-400 text-center py-4">
+            No menu items available
+          </div>
+        )}
       </div>
-
-      {/* Logout */}
-      {/* <div className="p-4 border-t border-gray-700">
-        <button
-          onClick={handleLogout}
-          disabled={isNavigating.current}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg
-          bg-red-600 hover:bg-red-700 disabled:bg-red-400 disabled:cursor-not-allowed text-sm transition-colors"
-        >
-          <LogOut size={18} />
-          Logout
-        </button>
-      </div> */}
     </div>
   );
 }

@@ -35,15 +35,11 @@ export const AuthProvider = ({ children }) => {
 
   const [loading, setLoading] = useState(false);
 
-  /* 🔐 LOGIN - Updated to match backend exactly */
+  /* 🔐 LOGIN */
   const login = async (loginValue, password) => {
     setLoading(true);
     try {
-      // Log what we're sending (for debugging)
-      console.log("Sending login request with:", { 
-        login: loginValue,  // Using "login" as the key
-        password: password 
-      });
+      console.log("1. Attempting login to:", LOGIN_API);
       
       const res = await fetch(LOGIN_API, {
         method: "POST",
@@ -52,46 +48,50 @@ export const AuthProvider = ({ children }) => {
           "Accept": "application/json"
         },
         body: JSON.stringify({ 
-          login: loginValue,  // Backend expects "login" key
+          login: loginValue,
           password: password 
         }),
       });
 
-      // Log the response status
-      console.log("Response status:", res.status);
-      
+      console.log("2. Response status:", res.status);
+
       const data = await res.json();
-      console.log("Response data:", data);
+      console.log("3. Response data:", data);
 
       if (!res.ok) {
-        throw new Error(data.message || "Invalid credentials");
+        throw new Error(data.message || data.detail || "Invalid credentials");
       }
 
-      // Save tokens from the actual API response
+      // Save tokens
       localStorage.setItem("access_token", data.access_token);
-      localStorage.setItem("refresh_token", data.refresh_token);
+      if (data.refresh_token) {
+        localStorage.setItem("refresh_token", data.refresh_token);
+      }
 
-      // Save user data from API response
+      // Save user data - including shop_type for SHOP role
       const userData = {
         id: data.user.id,
         username: data.user.username,
         name: data.user.name,
         email: data.user.email,
         role: data.user.role,
-        permissions: data.user.permissions,
+        shop_type: data.user.shop_type, // Important for SHOP role
+        permissions: data.user.permissions || [],
         is_active: data.user.is_active
       };
 
       localStorage.setItem("user", JSON.stringify(userData));
       setUser(userData);
 
+      console.log("4. Login successful, user data:", userData);
+
       return { 
         success: true, 
         user: userData,
-        message: data.message 
+        message: data.message || "Login successful" 
       };
     } catch (error) {
-      console.error("Login error:", error);
+      console.error("5. Login error:", error);
       return { 
         success: false, 
         message: error.message || "Login failed. Please try again." 

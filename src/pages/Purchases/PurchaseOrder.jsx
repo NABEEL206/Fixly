@@ -1,65 +1,104 @@
-import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, Save, Edit, Eye, Search, Building, Package } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { X, Plus, Trash2, Save, Edit, Eye, Search, Building, Package, Edit3, User, Filter } from 'lucide-react';
+import axios from 'axios';
+import toast from 'react-hot-toast';
+
+const API_BASE_URL = "http://127.0.0.1:8000/api";
+const ZOHO_BASE_URL = "http://127.0.0.1:8000/zoho";
+
+// Create axios instance with default config
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Create axios instance for zoho endpoints
+const zohoApi = axios.create({
+  baseURL: ZOHO_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Request interceptor to add auth token
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("access_token");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+zohoApi.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("access_token");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Response interceptor to handle errors
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 403) {
+      toast.error("You don't have permission to perform this action");
+    } else if (error.response?.status === 401) {
+      toast.error("Please login again");
+    }
+    return Promise.reject(error);
+  }
+);
+
+zohoApi.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 403) {
+      toast.error("You don't have permission to perform this action");
+    } else if (error.response?.status === 401) {
+      toast.error("Please login again");
+    }
+    return Promise.reject(error);
+  }
+);
+
+const STATUS_OPTIONS = [
+  { value: "DRAFT", label: "Draft" },
+  { value: "SENT", label: "Sent" },
+  { value: "RECEIVED", label: "Received" },
+  { value: "CANCELLED", label: "Cancelled" }
+];
 
 const PurchaseOrder = () => {
   const [showForm, setShowForm] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [viewMode, setViewMode] = useState(false);
   const [purchaseOrders, setPurchaseOrders] = useState([]);
+  const [vendors, setVendors] = useState([]);
+  const [items, setItems] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [toast, setToast] = useState({ show: false, message: '', type: '' });
-  const [deleteConfirm, setDeleteConfirm] = useState({ show: false, poId: null });
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterCreatedBy, setFilterCreatedBy] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Cache for detailed purchase orders
+  const [poDetailsCache, setPoDetailsCache] = useState({});
 
-  // Sample vendors data
-  const vendors = [
-    {
-      id: 1,
-      name: 'Tech Solutions Inc.',
-      email: 'contact@techsolutions.com',
-      phone: '5551234567',
-      address: '123 Tech Street, San Francisco, CA'
-    },
-    {
-      id: 2,
-      name: 'Global Supplies Ltd.',
-      email: 'info@globalsupplies.com',
-      phone: '5559876543',
-      address: '456 Business Ave, New York, NY'
-    },
-    {
-      id: 3,
-      name: 'Logistics Pro',
-      email: 'support@logisticspro.com',
-      phone: '5554567890',
-      address: '789 Logistics Blvd, Chicago, IL'
-    },
-    {
-      id: 4,
-      name: 'Office Essentials Co.',
-      email: 'orders@officeessentials.com',
-      phone: '5553216547',
-      address: '321 Office Park, Boston, MA'
-    }
-  ];
-
-  // Sample items catalog with detailed descriptions
-  const itemsCatalog = [
-    { id: 1, name: 'Laptop Dell XPS 15', description: 'High-performance laptop with Intel i7 processor', unitPrice: 95000 },
-    { id: 2, name: 'Office Chair Ergonomic', description: 'Comfortable office chair with lumbar support', unitPrice: 18000 },
-    { id: 3, name: 'Desk Standing Adjustable', description: 'Height adjustable standing desk', unitPrice: 45000 },
-    { id: 4, name: 'Monitor 27" 4K', description: '4K Ultra HD monitor with HDR support', unitPrice: 30000 },
-    { id: 5, name: 'Keyboard Mechanical', description: 'RGB mechanical keyboard with Cherry MX switches', unitPrice: 11000 },
-    { id: 6, name: 'Mouse Wireless', description: 'Ergonomic wireless mouse with precision tracking', unitPrice: 3500 },
-    { id: 7, name: 'Printer Laser Color', description: 'Color laser printer with duplex printing', unitPrice: 60000 },
-    { id: 8, name: 'Router WiFi 6', description: 'High-speed WiFi 6 router with mesh support', unitPrice: 15000 },
-    { id: 9, name: 'Headset Noise Cancelling', description: 'Wireless noise cancelling headset with mic', unitPrice: 22000 },
-    { id: 10, name: 'Webcam HD 1080p', description: 'Full HD 1080p webcam with auto-focus', unitPrice: 6500 },
-    { id: 11, name: 'USB Hub 7-Port', description: '7-port USB 3.0 hub with power adapter', unitPrice: 2800 },
-    { id: 12, name: 'Cable Management Kit', description: 'Complete cable organizer and management kit', unitPrice: 1800 },
-    { id: 13, name: 'Surge Protector', description: '12-outlet surge protector with USB ports', unitPrice: 2500 },
-    { id: 14, name: 'Desk Lamp LED', description: 'Adjustable LED desk lamp with touch control', unitPrice: 4500 },
-    { id: 15, name: 'Whiteboard 4x6', description: 'Magnetic whiteboard with marker tray', unitPrice: 9500 }
-  ];
+  // Use ref to track toast ID
+  const toastIdRef = useRef(null);
 
   const initialFormState = {
     id: null,
@@ -73,31 +112,238 @@ const PurchaseOrder = () => {
     expectedDeliveryDate: '',
     shipTo: '',
     billTo: '',
-    status: 'Draft',
-    items: [
-      {
-        itemId: '',
-        itemName: '',
-        description: '',
-        quantity: 1,
-        unitPrice: 0,
-        tax: 0,
-        discount: 0,
-        amount: 0
-      }
-    ],
+    status: 'DRAFT',
+    items: [],
     subtotal: 0,
-    totalTax: 0,
     totalDiscount: 0,
+    totalTax: 0,
     shippingCharges: 0,
     adjustment: 0,
     grandTotal: 0,
     terms: '',
-    notes: ''
+    notes: '',
+    created_by: null
   };
 
   const [formData, setFormData] = useState(initialFormState);
   const [errors, setErrors] = useState({});
+
+  // Get unique createdBy values for filter
+  const uniqueCreatedBy = React.useMemo(() => {
+    const set = new Set();
+    purchaseOrders.forEach((po) => { 
+      if (po.created_by) set.add(po.created_by); 
+    });
+    return Array.from(set).sort();
+  }, [purchaseOrders]);
+
+  // Get unique status values for filter
+  const uniqueStatuses = React.useMemo(() => {
+    const set = new Set();
+    purchaseOrders.forEach((po) => { 
+      if (po.status) set.add(po.status); 
+    });
+    return Array.from(set).sort();
+  }, [purchaseOrders]);
+
+  // Fetch vendors and items on component mount
+  useEffect(() => {
+    fetchVendors();
+    fetchItems();
+    fetchPurchaseOrders();
+  }, []);
+
+  // Fetch vendors from API
+  const fetchVendors = async () => {
+    try {
+      const response = await api.get('/vendors/');
+      const data = response.data;
+      let vendorsList = [];
+      
+      if (Array.isArray(data)) {
+        vendorsList = data;
+      } else if (data?.data && Array.isArray(data.data)) {
+        vendorsList = data.data;
+      } else if (data?.results) {
+        vendorsList = data.results;
+      }
+      
+      setVendors(vendorsList);
+    } catch (error) {
+      console.error("Fetch vendors error:", error);
+    }
+  };
+
+  // Fetch items from API
+  const fetchItems = async () => {
+    try {
+      const response = await zohoApi.get('/local-items/');
+      const data = response.data;
+      let itemsList = [];
+      
+      if (Array.isArray(data)) {
+        itemsList = data;
+      } else if (data?.data && Array.isArray(data.data)) {
+        itemsList = data.data;
+      } else if (data?.results) {
+        itemsList = data.results;
+      }
+      
+      setItems(itemsList);
+    } catch (error) {
+      console.error("Fetch items error:", error);
+    }
+  };
+
+  // Fetch single purchase order details
+  const fetchPurchaseOrderDetails = async (id) => {
+    try {
+      // Check cache first
+      if (poDetailsCache[id]) {
+        return poDetailsCache[id];
+      }
+
+      const response = await api.get(`/purchase-orders/${id}/`);
+      const data = response.data;
+      const order = data.data || data;
+
+      // Transform the detailed data
+      let itemsArray = [];
+      if (order?.items && Array.isArray(order.items)) {
+        itemsArray = order.items.map(item => ({
+          id: item?.id || null,
+          itemId: item?.id || '',
+          itemName: item?.item_name || '',
+          description: item?.description || '',
+          quantity: parseFloat(item?.qty) || 0,
+          unitPrice: parseFloat(item?.unit_price) || 0,
+          tax: parseFloat(item?.tax_percent) || 0,
+          discount: parseFloat(item?.discount_percent) || 0,
+          amount: parseFloat(item?.line_total) || 0
+        }));
+      }
+
+      const vendorDetails = order?.vendor_details || {};
+
+      const detailedOrder = {
+        id: order?.id || null,
+        poNumber: order?.po_number || '',
+        vendorId: order?.vendor || '',
+        vendorName: vendorDetails?.name || '',
+        vendorEmail: vendorDetails?.email || '',
+        vendorPhone: vendorDetails?.phone || '',
+        vendorAddress: vendorDetails?.address || '',
+        poDate: order?.po_date || '',
+        expectedDeliveryDate: order?.expected_delivery_date || '',
+        shipTo: order?.ship_to || '',
+        billTo: order?.bill_to || '',
+        status: order?.status || 'DRAFT',
+        items: itemsArray,
+        subtotal: parseFloat(order?.subtotal) || 0,
+        totalDiscount: parseFloat(order?.total_discount) || 0,
+        totalTax: parseFloat(order?.total_tax) || 0,
+        shippingCharges: parseFloat(order?.shipping_charges || 0) || 0,
+        adjustment: parseFloat(order?.adjustment || 0) || 0,
+        grandTotal: parseFloat(order?.grand_total) || 0,
+        terms: order?.terms_and_conditions || '',
+        notes: order?.notes || '',
+        created_by: order?.created_by || null
+      };
+
+      // Update cache
+      setPoDetailsCache(prev => ({
+        ...prev,
+        [id]: detailedOrder
+      }));
+
+      return detailedOrder;
+    } catch (error) {
+      console.error(`Fetch PO details error for ID ${id}:`, error);
+      return null;
+    }
+  };
+
+  // Fetch purchase orders from API (list view - summary data)
+  const fetchPurchaseOrders = async () => {
+    setIsLoading(true);
+    try {
+      const response = await api.get('/purchase-orders/');
+      const data = response.data;
+      let ordersList = [];
+      
+      if (Array.isArray(data)) {
+        ordersList = data;
+      } else if (data?.data && Array.isArray(data.data)) {
+        ordersList = data.data;
+      } else if (data?.results) {
+        ordersList = data.results;
+      }
+      
+      // Transform API data - LIST VIEW (summary data)
+      const transformedOrders = ordersList.map(order => {
+        // Check if we have detailed data in cache
+        const cachedDetail = poDetailsCache[order?.id];
+        
+        if (cachedDetail) {
+          // Use cached detailed data
+          return cachedDetail;
+        }
+
+        // Otherwise, use summary data from list endpoint
+        return {
+          id: order?.id || null,
+          poNumber: order?.po_number || '',
+          vendorName: order?.vendor_name || order?.vendor?.name || order?.vendor_details?.name || '',
+          vendorId: order?.vendor || order?.vendor_id || '',
+          poDate: order?.po_date || '',
+          expectedDeliveryDate: order?.expected_delivery_date || '',
+          status: order?.status || 'DRAFT',
+          grandTotal: parseFloat(order?.grand_total) || 0,
+          created_by: order?.created_by || null,
+          // These will be loaded on demand when viewing/editing
+          vendorEmail: '',
+          vendorPhone: '',
+          vendorAddress: '',
+          items: [],
+          subtotal: 0,
+          totalDiscount: 0,
+          totalTax: 0,
+          shippingCharges: 0,
+          adjustment: 0,
+          terms: '',
+          notes: '',
+          shipTo: '',
+          billTo: ''
+        };
+      });
+      
+      setPurchaseOrders(transformedOrders);
+    } catch (error) {
+      console.error("Fetch purchase orders error:", error);
+      
+      // Let interceptor handle auth errors
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        return;
+      }
+      
+      toast.error("Failed to load purchase orders");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Load detailed data when needed (for view or edit)
+  const loadDetailedData = async (id) => {
+    const detailedData = await fetchPurchaseOrderDetails(id);
+    if (detailedData) {
+      // Update the specific purchase order in the list with detailed data
+      setPurchaseOrders(prev => 
+        prev.map(po => po.id === id ? { ...po, ...detailedData } : po)
+      );
+      return detailedData;
+    }
+    return null;
+  };
 
   // Generate PO Number
   const generatePONumber = () => {
@@ -105,12 +351,6 @@ const PurchaseOrder = () => {
     const date = new Date().getFullYear();
     const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
     return `${prefix}-${date}-${random}`;
-  };
-
-  // Show Toast Notification
-  const showToast = (message, type = 'success') => {
-    setToast({ show: true, message, type });
-    setTimeout(() => setToast({ show: false, message: '', type: '' }), 3000);
   };
 
   // Handle vendor selection
@@ -142,18 +382,29 @@ const PurchaseOrder = () => {
 
   // Handle item selection from catalog
   const handleItemSelection = (index, itemId) => {
-    const item = itemsCatalog.find(i => i.id === parseInt(itemId));
+    const item = items.find(i => i.id === parseInt(itemId));
     if (item) {
-      handleItemChange(index, 'itemId', item.id);
-      handleItemChange(index, 'itemName', item.name);
-      handleItemChange(index, 'description', item.description);
-      handleItemChange(index, 'unitPrice', item.unitPrice);
-    } else {
-      handleItemChange(index, 'itemId', '');
-      handleItemChange(index, 'itemName', '');
-      handleItemChange(index, 'description', '');
-      handleItemChange(index, 'unitPrice', 0);
+      const newItems = [...formData.items];
+      newItems[index].itemId = item.id;
+      newItems[index].itemName = item.name;
+      // Auto-fill description from item, but allow manual editing
+      newItems[index].description = item.purchase_description || item.description || '';
+      newItems[index].unitPrice = parseFloat(item.cost_price || item.selling_price || 0);
+      newItems[index].amount = calculateItemAmount(newItems[index]);
+      
+      const totals = calculateTotals(newItems, formData.shippingCharges, formData.adjustment);
+
+      setFormData(prev => ({
+        ...prev,
+        items: newItems,
+        ...totals
+      }));
     }
+  };
+
+  // Handle manual description change
+  const handleDescriptionChange = (index, value) => {
+    handleItemChange(index, 'description', value);
   };
 
   // Validate Form
@@ -175,23 +426,27 @@ const PurchaseOrder = () => {
     }
 
     // Validate items
-    formData.items.forEach((item, index) => {
-      if (!item.itemName.trim()) {
-        newErrors[`item_${index}_itemName`] = 'Item selection is required';
-      }
-      if (item.quantity <= 0) {
-        newErrors[`item_${index}_quantity`] = 'Quantity must be greater than 0';
-      }
-      if (item.unitPrice <= 0) {
-        newErrors[`item_${index}_unitPrice`] = 'Unit price must be greater than 0';
-      }
-      if (item.tax < 0 || item.tax > 100) {
-        newErrors[`item_${index}_tax`] = 'Tax must be between 0 and 100';
-      }
-      if (item.discount < 0 || item.discount > 100) {
-        newErrors[`item_${index}_discount`] = 'Discount must be between 0 and 100';
-      }
-    });
+    if (formData.items.length === 0) {
+      newErrors.items = 'At least one item is required';
+    } else {
+      formData.items.forEach((item, index) => {
+        if (!item.itemName.trim()) {
+          newErrors[`item_${index}_itemName`] = 'Item selection is required';
+        }
+        if (item.quantity <= 0) {
+          newErrors[`item_${index}_quantity`] = 'Quantity must be greater than 0';
+        }
+        if (item.unitPrice <= 0) {
+          newErrors[`item_${index}_unitPrice`] = 'Unit price must be greater than 0';
+        }
+        if (item.tax < 0 || item.tax > 100) {
+          newErrors[`item_${index}_tax`] = 'Tax must be between 0 and 100';
+        }
+        if (item.discount < 0 || item.discount > 100) {
+          newErrors[`item_${index}_discount`] = 'Discount must be between 0 and 100';
+        }
+      });
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -279,7 +534,7 @@ const PurchaseOrder = () => {
   // Remove item
   const removeItem = (index) => {
     if (formData.items.length === 1) {
-      showToast('At least one item is required', 'error');
+      toast.error('At least one item is required');
       return;
     }
 
@@ -306,70 +561,437 @@ const PurchaseOrder = () => {
     }));
   };
 
+  // Transform form data to API format
+  const transformToAPIFormat = (data) => {
+    return {
+      po_number: data.poNumber,
+      vendor: data.vendorId,
+      po_date: data.poDate,
+      expected_delivery_date: data.expectedDeliveryDate || null,
+      ship_to: data.shipTo || null,
+      bill_to: data.billTo || null,
+      status: data.status,
+      items: data.items.map(item => ({
+        item_name: item.itemName,
+        description: item.description || '',
+        qty: item.quantity,
+        unit_price: item.unitPrice,
+        tax_percent: item.tax,
+        discount_percent: item.discount
+      })),
+      shipping_charges: data.shippingCharges,
+      adjustment: data.adjustment,
+      terms_and_conditions: data.terms || null,
+      notes: data.notes || null
+    };
+  };
+
   // Create Purchase Order
-  const createPO = () => {
+  const createPO = async () => {
     if (!validateForm()) {
-      showToast('Please fix all errors before submitting', 'error');
+      toast.error('Please fix all errors before submitting');
       return;
     }
 
-    const newPO = {
-      ...formData,
-      id: Date.now(),
-      poNumber: formData.poNumber || generatePONumber(),
-      createdAt: new Date().toISOString()
-    };
+    // Dismiss any existing toast
+    if (toastIdRef.current) {
+      toast.dismiss(toastIdRef.current);
+    }
 
-    setPurchaseOrders(prev => [...prev, newPO]);
-    showToast('Purchase Order created successfully!', 'success');
-    resetForm();
+    setIsSubmitting(true);
+    const toastId = toast.loading('Creating purchase order...');
+    toastIdRef.current = toastId;
+
+    try {
+      const apiData = transformToAPIFormat(formData);
+      const response = await api.post('/purchase-orders/', apiData);
+      
+      const responseData = response.data;
+      const newOrder = responseData.data || responseData;
+
+      // Safely handle items from response
+      let itemsArray = [];
+      if (newOrder?.items && Array.isArray(newOrder.items)) {
+        itemsArray = newOrder.items.map(item => ({
+          id: item?.id || null,
+          itemId: item?.id || '',
+          itemName: item?.item_name || '',
+          description: item?.description || '',
+          quantity: parseFloat(item?.qty) || 0,
+          unitPrice: parseFloat(item?.unit_price) || 0,
+          tax: parseFloat(item?.tax_percent) || 0,
+          discount: parseFloat(item?.discount_percent) || 0,
+          amount: parseFloat(item?.line_total) || 0
+        }));
+      }
+
+      // Get vendor details from response or use form data
+      const vendorDetails = newOrder?.vendor_details || {};
+
+      // Transform response to frontend format
+      const transformedOrder = {
+        id: newOrder?.id || null,
+        poNumber: newOrder?.po_number || '',
+        vendorId: newOrder?.vendor || '',
+        vendorName: vendorDetails?.name || formData.vendorName,
+        vendorEmail: vendorDetails?.email || formData.vendorEmail,
+        vendorPhone: vendorDetails?.phone || formData.vendorPhone,
+        vendorAddress: vendorDetails?.address || formData.vendorAddress,
+        poDate: newOrder?.po_date || '',
+        expectedDeliveryDate: newOrder?.expected_delivery_date || '',
+        shipTo: newOrder?.ship_to || '',
+        billTo: newOrder?.bill_to || '',
+        status: newOrder?.status || 'DRAFT',
+        items: itemsArray,
+        subtotal: parseFloat(newOrder?.subtotal) || 0,
+        totalDiscount: parseFloat(newOrder?.total_discount) || 0,
+        totalTax: parseFloat(newOrder?.total_tax) || 0,
+        shippingCharges: parseFloat(newOrder?.shipping_charges || 0) || 0,
+        adjustment: parseFloat(newOrder?.adjustment || 0) || 0,
+        grandTotal: parseFloat(newOrder?.grand_total) || 0,
+        terms: newOrder?.terms_and_conditions || '',
+        notes: newOrder?.notes || '',
+        created_by: newOrder?.created_by || null
+      };
+
+      // Update cache
+      setPoDetailsCache(prev => ({
+        ...prev,
+        [transformedOrder.id]: transformedOrder
+      }));
+
+      setPurchaseOrders(prev => [transformedOrder, ...prev]);
+      
+      // Success toast - update loading toast to success
+      toast.success(responseData.message || 'Purchase Order created successfully!', { id: toastId });
+      
+      // Reset toast ID ref
+      toastIdRef.current = null;
+      
+      // Reset form after successful creation
+      resetForm();
+    } catch (error) {
+      console.error("Create PO error:", error);
+      
+      // Let interceptor handle auth errors
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        toast.dismiss(toastId);
+        toastIdRef.current = null;
+        setIsSubmitting(false);
+        return;
+      }
+      
+      if (error.response?.status === 400) {
+        const apiErrors = error.response.data;
+        const errorMessages = [];
+        
+        Object.keys(apiErrors).forEach(key => {
+          if (Array.isArray(apiErrors[key])) {
+            errorMessages.push(`${key}: ${apiErrors[key].join(', ')}`);
+          } else if (typeof apiErrors[key] === 'string') {
+            errorMessages.push(apiErrors[key]);
+          }
+        });
+
+        toast.error(errorMessages.join('\n') || "Validation failed", { id: toastId });
+      } else {
+        toast.error(error.response?.data?.message || "Failed to create purchase order", { id: toastId });
+      }
+      
+      toastIdRef.current = null;
+      setIsSubmitting(false);
+    }
   };
 
   // Update Purchase Order
-  const updatePO = () => {
+  const updatePO = async () => {
     if (!validateForm()) {
-      showToast('Please fix all errors before updating', 'error');
+      toast.error('Please fix all errors before updating');
       return;
     }
 
-    setPurchaseOrders(prev =>
-      prev.map(po => (po.id === formData.id ? { ...formData, updatedAt: new Date().toISOString() } : po))
-    );
-    showToast('Purchase Order updated successfully!', 'success');
-    resetForm();
-  };
+    // Dismiss any existing toast
+    if (toastIdRef.current) {
+      toast.dismiss(toastIdRef.current);
+    }
 
-  // Show delete confirmation
-  const showDeleteConfirm = (id) => {
-    setDeleteConfirm({ show: true, poId: id });
+    setIsSubmitting(true);
+    const toastId = toast.loading('Updating purchase order...');
+    toastIdRef.current = toastId;
+
+    try {
+      const apiData = transformToAPIFormat(formData);
+      const response = await api.put(`/purchase-orders/${formData.id}/`, apiData);
+      
+      const responseData = response.data;
+      const updatedOrder = responseData.data || responseData;
+
+      // Safely handle items from response
+      let itemsArray = [];
+      if (updatedOrder?.items && Array.isArray(updatedOrder.items)) {
+        itemsArray = updatedOrder.items.map(item => ({
+          id: item?.id || null,
+          itemId: item?.id || '',
+          itemName: item?.item_name || '',
+          description: item?.description || '',
+          quantity: parseFloat(item?.qty) || 0,
+          unitPrice: parseFloat(item?.unit_price) || 0,
+          tax: parseFloat(item?.tax_percent) || 0,
+          discount: parseFloat(item?.discount_percent) || 0,
+          amount: parseFloat(item?.line_total) || 0
+        }));
+      }
+
+      // Get vendor details from response or use form data
+      const vendorDetails = updatedOrder?.vendor_details || {};
+
+      // Transform response to frontend format
+      const transformedOrder = {
+        id: updatedOrder?.id || null,
+        poNumber: updatedOrder?.po_number || '',
+        vendorId: updatedOrder?.vendor || '',
+        vendorName: vendorDetails?.name || formData.vendorName,
+        vendorEmail: vendorDetails?.email || formData.vendorEmail,
+        vendorPhone: vendorDetails?.phone || formData.vendorPhone,
+        vendorAddress: vendorDetails?.address || formData.vendorAddress,
+        poDate: updatedOrder?.po_date || '',
+        expectedDeliveryDate: updatedOrder?.expected_delivery_date || '',
+        shipTo: updatedOrder?.ship_to || '',
+        billTo: updatedOrder?.bill_to || '',
+        status: updatedOrder?.status || 'DRAFT',
+        items: itemsArray,
+        subtotal: parseFloat(updatedOrder?.subtotal) || 0,
+        totalDiscount: parseFloat(updatedOrder?.total_discount) || 0,
+        totalTax: parseFloat(updatedOrder?.total_tax) || 0,
+        shippingCharges: parseFloat(updatedOrder?.shipping_charges || 0) || 0,
+        adjustment: parseFloat(updatedOrder?.adjustment || 0) || 0,
+        grandTotal: parseFloat(updatedOrder?.grand_total) || 0,
+        terms: updatedOrder?.terms_and_conditions || '',
+        notes: updatedOrder?.notes || '',
+        created_by: updatedOrder?.created_by || null
+      };
+
+      // Update cache
+      setPoDetailsCache(prev => ({
+        ...prev,
+        [transformedOrder.id]: transformedOrder
+      }));
+
+      setPurchaseOrders(prev =>
+        prev.map(po => (po.id === transformedOrder.id ? transformedOrder : po))
+      );
+      
+      // Success toast - update loading toast to success
+      toast.success(responseData.message || 'Purchase Order updated successfully!', { id: toastId });
+      
+      // Reset toast ID ref
+      toastIdRef.current = null;
+      
+      // Reset form after successful update
+      resetForm();
+    } catch (error) {
+      console.error("Update PO error:", error);
+      
+      // Let interceptor handle auth errors
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        toast.dismiss(toastId);
+        toastIdRef.current = null;
+        setIsSubmitting(false);
+        return;
+      }
+      
+      if (error.response?.status === 400) {
+        const apiErrors = error.response.data;
+        const errorMessages = [];
+        
+        Object.keys(apiErrors).forEach(key => {
+          if (Array.isArray(apiErrors[key])) {
+            errorMessages.push(`${key}: ${apiErrors[key].join(', ')}`);
+          } else if (typeof apiErrors[key] === 'string') {
+            errorMessages.push(apiErrors[key]);
+          }
+        });
+
+        toast.error(errorMessages.join('\n') || "Validation failed", { id: toastId });
+      } else {
+        toast.error(error.response?.data?.message || "Failed to update purchase order", { id: toastId });
+      }
+      
+      toastIdRef.current = null;
+      setIsSubmitting(false);
+    }
   };
 
   // Delete Purchase Order
-  const deletePO = () => {
-    setPurchaseOrders(prev => prev.filter(po => po.id !== deleteConfirm.poId));
-    showToast('Purchase Order deleted successfully!', 'success');
-    setDeleteConfirm({ show: false, poId: null });
+  const deletePO = (id) => {
+    // Dismiss any existing toast
+    if (toastIdRef.current) {
+      toast.dismiss(toastIdRef.current);
+    }
+
+    const deleteToastId = toast(
+      (t) => (
+        <div className="flex flex-col gap-3">
+          <p className="text-sm font-semibold text-gray-800">Delete Purchase Order?</p>
+          <p className="text-xs text-gray-500">This action cannot be undone.</p>
+          <div className="flex justify-end gap-2">
+            <button 
+              onClick={() => {
+                toast.dismiss(t.id);
+                toastIdRef.current = null;
+              }} 
+              className="px-3 py-1.5 bg-gray-200 rounded-md text-sm"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={async () => {
+                toast.dismiss(t.id);
+                const dt = toast.loading("Deleting purchase order...");
+                toastIdRef.current = dt;
+                
+                try {
+                  await api.delete(`/purchase-orders/${id}/`);
+                  // Remove from cache as well
+                  setPoDetailsCache(prev => {
+                    const newCache = { ...prev };
+                    delete newCache[id];
+                    return newCache;
+                  });
+                  setPurchaseOrders(prev => prev.filter(po => po.id !== id));
+                  
+                  // Success toast - update loading toast to success
+                  toast.success("Purchase Order deleted successfully", { id: dt });
+                  toastIdRef.current = null;
+                } catch (error) {
+                  console.error("Delete PO error:", error);
+                  
+                  // Let interceptor handle auth errors
+                  if (error.response?.status === 401 || error.response?.status === 403) {
+                    toast.dismiss(dt);
+                    toastIdRef.current = null;
+                    return;
+                  }
+                  
+                  toast.error(error.response?.data?.message || "Failed to delete purchase order", { id: dt });
+                  toastIdRef.current = null;
+                }
+              }}
+              className="px-3 py-1.5 bg-red-600 text-white rounded-md text-sm"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      ),
+      { duration: Infinity }
+    );
+    
+    toastIdRef.current = deleteToastId;
   };
 
-  // Cancel delete
-  const cancelDelete = () => {
-    setDeleteConfirm({ show: false, poId: null });
+  // Edit Purchase Order - load detailed data first
+  const editPO = async (po) => {
+    // Dismiss any existing toast
+    if (toastIdRef.current) {
+      toast.dismiss(toastIdRef.current);
+      toastIdRef.current = null;
+    }
+    
+    try {
+      // If we already have detailed data, use it
+      let detailedPO = po;
+      
+      // Check if we need to load more details
+      if (!po.items || po.items.length === 0 || !po.vendorEmail) {
+        detailedPO = await loadDetailedData(po.id);
+      }
+      
+      if (detailedPO) {
+        setFormData({
+          id: detailedPO.id,
+          poNumber: detailedPO.poNumber,
+          vendorId: detailedPO.vendorId,
+          vendorName: detailedPO.vendorName,
+          vendorEmail: detailedPO.vendorEmail,
+          vendorPhone: detailedPO.vendorPhone,
+          vendorAddress: detailedPO.vendorAddress,
+          poDate: detailedPO.poDate,
+          expectedDeliveryDate: detailedPO.expectedDeliveryDate,
+          shipTo: detailedPO.shipTo || '',
+          billTo: detailedPO.billTo || '',
+          status: detailedPO.status,
+          items: detailedPO.items.map(item => ({
+            ...item,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            tax: item.tax,
+            discount: item.discount,
+            amount: item.amount
+          })),
+          subtotal: detailedPO.subtotal,
+          totalDiscount: detailedPO.totalDiscount,
+          totalTax: detailedPO.totalTax,
+          shippingCharges: detailedPO.shippingCharges || 0,
+          adjustment: detailedPO.adjustment || 0,
+          grandTotal: detailedPO.grandTotal,
+          terms: detailedPO.terms || '',
+          notes: detailedPO.notes || '',
+          created_by: detailedPO.created_by
+        });
+        setEditMode(true);
+        setViewMode(false);
+        setShowForm(true);
+      } else {
+        toast.error('Failed to load purchase order details');
+      }
+    } catch (error) {
+      console.error("Error loading PO details:", error);
+      
+      // Let interceptor handle auth errors
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        return;
+      }
+      
+      toast.error('Failed to load purchase order details');
+    }
   };
 
-  // Edit Purchase Order
-  const editPO = (po) => {
-    setFormData(po);
-    setEditMode(true);
-    setViewMode(false);
-    setShowForm(true);
-  };
-
-  // View Purchase Order
-  const viewPO = (po) => {
-    setFormData(po);
-    setViewMode(true);
-    setEditMode(false);
-    setShowForm(true);
+  // View Purchase Order - load detailed data first
+  const viewPO = async (po) => {
+    // Dismiss any existing toast
+    if (toastIdRef.current) {
+      toast.dismiss(toastIdRef.current);
+      toastIdRef.current = null;
+    }
+    
+    try {
+      // If we already have detailed data, use it
+      let detailedPO = po;
+      
+      // Check if we need to load more details
+      if (!po.items || po.items.length === 0) {
+        detailedPO = await loadDetailedData(po.id);
+      }
+      
+      if (detailedPO) {
+        setFormData(detailedPO);
+        setViewMode(true);
+        setEditMode(false);
+        setShowForm(true);
+      } else {
+        toast.error('Failed to load purchase order details');
+      }
+    } catch (error) {
+      console.error("Error loading PO details:", error);
+      
+      // Let interceptor handle auth errors
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        return;
+      }
+      
+      toast.error('Failed to load purchase order details');
+    }
   };
 
   // Reset Form
@@ -379,25 +1001,54 @@ const PurchaseOrder = () => {
     setEditMode(false);
     setViewMode(false);
     setErrors({});
+    setIsSubmitting(false);
   };
 
   // New PO
   const newPO = () => {
+    // Dismiss any existing toast
+    if (toastIdRef.current) {
+      toast.dismiss(toastIdRef.current);
+      toastIdRef.current = null;
+    }
+    
     setFormData({
       ...initialFormState,
-      poNumber: generatePONumber()
+      poNumber: generatePONumber(),
+      items: [{
+        itemId: '',
+        itemName: '',
+        description: '',
+        quantity: 1,
+        unitPrice: 0,
+        tax: 0,
+        discount: 0,
+        amount: 0
+      }]
     });
     setShowForm(true);
     setEditMode(false);
     setViewMode(false);
   };
 
+  // Clear filters
+  const clearFilters = () => {
+    setSearchTerm('');
+    setFilterStatus('');
+    setFilterCreatedBy('');
+  };
+
   // Filter POs
-  const filteredPOs = purchaseOrders.filter(po =>
-    po.poNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    po.vendorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    po.status.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredPOs = purchaseOrders.filter(po => {
+    const matchesSearch = 
+      (po.poNumber?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (po.vendorName?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+    
+    const matchesStatus = !filterStatus || po.status === filterStatus;
+    const matchesCreatedBy = !filterCreatedBy || po.created_by === filterCreatedBy;
+    
+    return matchesSearch && matchesStatus && matchesCreatedBy;
+  });
 
   // View Modal Component
   const ViewModal = () => (
@@ -442,11 +1093,18 @@ const PurchaseOrder = () => {
                 <span>•</span>
                 <span>Delivery: {formData.expectedDeliveryDate}</span>
               </div>
+              {formData.created_by && (
+                <div className="flex items-center gap-1 text-xs text-gray-500 mt-2">
+                  <User size={12} className="text-gray-400" />
+                  <span>Created by: {formData.created_by}</span>
+                </div>
+              )}
             </div>
             <span className={`px-3 py-1 text-sm rounded-full font-medium ${
-              formData.status === 'Draft' ? 'bg-gray-200 text-gray-800' :
-              formData.status === 'Sent' ? 'bg-blue-200 text-blue-800' :
-              formData.status === 'Approved' ? 'bg-green-200 text-green-800' :
+              formData.status === 'DRAFT' ? 'bg-gray-200 text-gray-800' :
+              formData.status === 'SENT' ? 'bg-blue-200 text-blue-800' :
+              formData.status === 'RECEIVED' ? 'bg-green-200 text-green-800' :
+              formData.status === 'CANCELLED' ? 'bg-red-200 text-red-800' :
               'bg-yellow-200 text-yellow-800'
             }`}>
               {formData.status}
@@ -463,19 +1121,19 @@ const PurchaseOrder = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs font-medium text-gray-500 mb-1">Vendor Name</p>
-                  <p className="text-sm text-gray-900 font-medium">{formData.vendorName}</p>
+                  <p className="text-sm text-gray-900 font-medium">{formData.vendorName || 'N/A'}</p>
                 </div>
                 <div>
                   <p className="text-xs font-medium text-gray-500 mb-1">Email</p>
-                  <p className="text-sm text-gray-900">{formData.vendorEmail}</p>
+                  <p className="text-sm text-gray-900">{formData.vendorEmail || 'N/A'}</p>
                 </div>
                 <div>
                   <p className="text-xs font-medium text-gray-500 mb-1">Phone</p>
-                  <p className="text-sm text-gray-900">{formData.vendorPhone}</p>
+                  <p className="text-sm text-gray-900">{formData.vendorPhone || 'N/A'}</p>
                 </div>
                 <div>
                   <p className="text-xs font-medium text-gray-500 mb-1">Address</p>
-                  <p className="text-sm text-gray-900">{formData.vendorAddress}</p>
+                  <p className="text-sm text-gray-900">{formData.vendorAddress || 'N/A'}</p>
                 </div>
               </div>
             </div>
@@ -514,6 +1172,7 @@ const PurchaseOrder = () => {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Item</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Qty</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Unit Price</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Tax %</th>
@@ -522,21 +1181,29 @@ const PurchaseOrder = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {formData.items.map((item, index) => (
-                    <tr key={index}>
-                      <td className="px-4 py-3">
-                        <p className="text-sm font-medium text-gray-900">{item.itemName}</p>
-                        {item.description && (
-                          <p className="text-xs text-gray-500 mt-0.5">{item.description}</p>
-                        )}
+                  {formData.items && formData.items.length > 0 ? (
+                    formData.items.map((item, index) => (
+                      <tr key={index}>
+                        <td className="px-4 py-3">
+                          <p className="text-sm font-medium text-gray-900">{item.itemName || 'N/A'}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="text-sm text-gray-600">{item.description || '-'}</p>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-900 text-right">{item.quantity}</td>
+                        <td className="px-4 py-3 text-sm text-gray-900 text-right">₹{item.unitPrice.toFixed(2)}</td>
+                        <td className="px-4 py-3 text-sm text-gray-900 text-right">{item.tax}%</td>
+                        <td className="px-4 py-3 text-sm text-gray-900 text-right">{item.discount}%</td>
+                        <td className="px-4 py-3 text-sm font-medium text-gray-900 text-right">₹{item.amount.toFixed(2)}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="7" className="px-4 py-3 text-center text-gray-500">
+                        No items added
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-900 text-right">{item.quantity}</td>
-                      <td className="px-4 py-3 text-sm text-gray-900 text-right">₹{item.unitPrice.toFixed(2)}</td>
-                      <td className="px-4 py-3 text-sm text-gray-900 text-right">{item.tax}%</td>
-                      <td className="px-4 py-3 text-sm text-gray-900 text-right">{item.discount}%</td>
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900 text-right">₹{item.amount.toFixed(2)}</td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
             </div>
@@ -625,41 +1292,6 @@ const PurchaseOrder = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
-      {/* Toast Notification */}
-      {toast.show && (
-        <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg text-white ${
-          toast.type === 'success' ? 'bg-green-500' : 
-          toast.type === 'error' ? 'bg-red-500' : 
-          'bg-yellow-500'
-        }`}>
-          {toast.message}
-        </div>
-      )}
-
-      {/* Delete Confirmation Modal */}
-      {deleteConfirm.show && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold mb-4">Confirm Delete</h3>
-            <p className="text-gray-600 mb-6">Are you sure you want to delete this purchase order? This action cannot be undone.</p>
-            <div className="flex justify-end gap-4">
-              <button
-                onClick={cancelDelete}
-                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={deletePO}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Header */}
       <div className="max-w-7xl mx-auto mb-6">
         <div className="flex justify-between items-center">
@@ -667,7 +1299,8 @@ const PurchaseOrder = () => {
           {!showForm && (
             <button
               onClick={newPO}
-              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
+              disabled={isSubmitting}
+              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
             >
               <Plus size={20} />
               New Purchase Order
@@ -680,15 +1313,66 @@ const PurchaseOrder = () => {
       {!showForm && (
         <div className="max-w-7xl mx-auto bg-white rounded-lg shadow">
           <div className="p-4 border-b">
-            <div className="relative">
-              <Search className="absolute left-3 top-3 text-gray-400" size={20} />
-              <input
-                type="text"
-                placeholder="Search by PO Number, Vendor, or Status..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-3 text-gray-400" size={20} />
+                <input
+                  type="text"
+                  placeholder="Search by PO Number or Vendor..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              
+              {/* Status Filter */}
+              {uniqueStatuses.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <Filter size={18} className="text-gray-400" />
+                  <select
+                    value={filterStatus}
+                    onChange={(e) => setFilterStatus(e.target.value)}
+                    className="border px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[150px]"
+                  >
+                    <option value="">All Status</option>
+                    {uniqueStatuses.map((status) => (
+                      <option key={status} value={status}>
+                        {status}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              
+              {/* Created By Filter */}
+              {uniqueCreatedBy.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <User size={18} className="text-gray-400" />
+                  <select
+                    value={filterCreatedBy}
+                    onChange={(e) => setFilterCreatedBy(e.target.value)}
+                    className="border px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[150px]"
+                  >
+                    <option value="">All Creators</option>
+                    {uniqueCreatedBy.map((creator) => (
+                      <option key={creator} value={creator}>
+                        {creator}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              
+              {/* Clear Filters Button */}
+              {(searchTerm || filterStatus || filterCreatedBy) && (
+                <button
+                  onClick={clearFilters}
+                  className="px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors flex items-center"
+                >
+                  <X size={16} className="mr-1" />
+                  Clear
+                </button>
+              )}
             </div>
           </div>
 
@@ -702,13 +1386,23 @@ const PurchaseOrder = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Delivery Date</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created By</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredPOs.length === 0 ? (
+                {isLoading ? (
                   <tr>
-                    <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan="8" className="px-6 py-8 text-center text-gray-500">
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                        Loading purchase orders...
+                      </div>
+                    </td>
+                  </tr>
+                ) : filteredPOs.length === 0 ? (
+                  <tr>
+                    <td colSpan="8" className="px-6 py-8 text-center text-gray-500">
                       No purchase orders found. Create your first one!
                     </td>
                   </tr>
@@ -716,21 +1410,25 @@ const PurchaseOrder = () => {
                   filteredPOs.map((po) => (
                     <tr key={po.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">{po.poNumber}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{po.vendorName}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{po.vendorName || 'N/A'}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{po.poDate}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{po.expectedDeliveryDate}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{po.expectedDeliveryDate || 'N/A'}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 py-1 text-xs rounded-full ${
-                          po.status === 'Draft' ? 'bg-gray-200 text-gray-800' :
-                          po.status === 'Sent' ? 'bg-blue-200 text-blue-800' :
-                          po.status === 'Approved' ? 'bg-green-200 text-green-800' :
+                          po.status === 'DRAFT' ? 'bg-gray-200 text-gray-800' :
+                          po.status === 'SENT' ? 'bg-blue-200 text-blue-800' :
+                          po.status === 'RECEIVED' ? 'bg-green-200 text-green-800' :
+                          po.status === 'CANCELLED' ? 'bg-red-200 text-red-800' :
                           'bg-yellow-200 text-yellow-800'
                         }`}>
                           {po.status}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        ₹{po.grandTotal.toFixed(2)}
+                        ₹{po.grandTotal?.toFixed(2)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {po.created_by || '-'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         <div className="flex gap-2">
@@ -749,7 +1447,7 @@ const PurchaseOrder = () => {
                             <Edit size={18} />
                           </button>
                           <button
-                            onClick={() => showDeleteConfirm(po.id)}
+                            onClick={() => deletePO(po.id)}
                             className="text-red-600 hover:text-red-800 p-1.5 hover:bg-red-50 rounded transition-colors"
                             title="Delete"
                           >
@@ -776,7 +1474,11 @@ const PurchaseOrder = () => {
             <h2 className="text-2xl font-bold text-gray-800">
               {editMode ? 'Edit' : 'New'} Purchase Order
             </h2>
-            <button onClick={resetForm} className="text-gray-500 hover:text-gray-700">
+            <button 
+              onClick={resetForm} 
+              className="text-gray-500 hover:text-gray-700"
+              disabled={isSubmitting}
+            >
               <X size={24} />
             </button>
           </div>
@@ -815,6 +1517,7 @@ const PurchaseOrder = () => {
                     name="poNumber"
                     value={formData.poNumber}
                     onChange={handleInputChange}
+                    disabled={isSubmitting}
                     className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                       errors.poNumber ? 'border-red-500' : 'border-gray-300'
                     }`}
@@ -831,6 +1534,7 @@ const PurchaseOrder = () => {
                     name="poDate"
                     value={formData.poDate}
                     onChange={handleInputChange}
+                    disabled={isSubmitting}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -844,6 +1548,7 @@ const PurchaseOrder = () => {
                     name="expectedDeliveryDate"
                     value={formData.expectedDeliveryDate}
                     onChange={handleInputChange}
+                    disabled={isSubmitting}
                     className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                       errors.expectedDeliveryDate ? 'border-red-500' : 'border-gray-300'
                     }`}
@@ -859,12 +1564,14 @@ const PurchaseOrder = () => {
                     name="status"
                     value={formData.status}
                     onChange={handleInputChange}
+                    disabled={isSubmitting}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="Draft">Draft</option>
-                    <option value="Sent">Sent</option>
-                    <option value="Approved">Approved</option>
-                    <option value="Pending">Pending</option>
+                    {STATUS_OPTIONS.map(option => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -881,6 +1588,7 @@ const PurchaseOrder = () => {
                   <select
                     value={formData.vendorId}
                     onChange={(e) => handleVendorChange(e.target.value)}
+                    disabled={isSubmitting}
                     className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                       errors.vendorName ? 'border-red-500' : 'border-gray-300'
                     }`}
@@ -949,6 +1657,7 @@ const PurchaseOrder = () => {
                     name="shipTo"
                     value={formData.shipTo}
                     onChange={handleInputChange}
+                    disabled={isSubmitting}
                     rows="3"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Enter shipping address..."
@@ -963,6 +1672,7 @@ const PurchaseOrder = () => {
                     name="billTo"
                     value={formData.billTo}
                     onChange={handleInputChange}
+                    disabled={isSubmitting}
                     rows="3"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Enter billing address..."
@@ -977,18 +1687,24 @@ const PurchaseOrder = () => {
                 <h3 className="text-lg font-semibold">Items</h3>
                 <button
                   onClick={addItem}
-                  className="flex items-center gap-2 bg-green-600 text-white px-3 py-1 rounded-lg hover:bg-green-700 transition text-sm"
+                  disabled={isSubmitting}
+                  className="flex items-center gap-2 bg-green-600 text-white px-3 py-1 rounded-lg hover:bg-green-700 transition text-sm disabled:opacity-50"
                 >
                   <Plus size={16} />
                   Add Item
                 </button>
               </div>
 
+              {errors.items && (
+                <p className="text-red-500 text-xs mb-2">{errors.items}</p>
+              )}
+
               <div className="overflow-x-auto">
                 <table className="w-full border">
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Item <span className="text-red-500">*</span></th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Qty <span className="text-red-500">*</span></th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Unit Price <span className="text-red-500">*</span></th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tax %</th>
@@ -998,107 +1714,135 @@ const PurchaseOrder = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {formData.items.map((item, index) => (
-                      <tr key={index} className="border-t">
-                        <td className="px-3 py-2">
-                          <select
-                            value={item.itemId}
-                            onChange={(e) => handleItemSelection(index, e.target.value)}
-                            className={`w-full min-w-[200px] px-2 py-1 border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                              errors[`item_${index}_itemName`] ? 'border-red-500' : 'border-gray-300'
-                            }`}
-                          >
-                            <option value="">-- Select Item --</option>
-                            {itemsCatalog.map(catalogItem => (
-                              <option key={catalogItem.id} value={catalogItem.id}>
-                                {catalogItem.name}
-                              </option>
-                            ))}
-                          </select>
-                          {item.itemName && (
-                            <p className="text-xs text-gray-500 mt-1">{item.description}</p>
-                          )}
-                          {errors[`item_${index}_itemName`] && (
-                            <p className="text-red-500 text-xs mt-1">{errors[`item_${index}_itemName`]}</p>
-                          )}
-                        </td>
-                        <td className="px-3 py-2">
-                          <input
-                            type="number"
-                            value={item.quantity}
-                            onChange={(e) => handleItemChange(index, 'quantity', parseFloat(e.target.value) || 0)}
-                            min="1"
-                            className={`w-20 px-2 py-1 border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                              errors[`item_${index}_quantity`] ? 'border-red-500' : 'border-gray-300'
-                            }`}
-                          />
-                          {errors[`item_${index}_quantity`] && (
-                            <p className="text-red-500 text-xs mt-1">{errors[`item_${index}_quantity`]}</p>
-                          )}
-                        </td>
-                        <td className="px-3 py-2">
-                          <input
-                            type="number"
-                            value={item.unitPrice}
-                            onChange={(e) => handleItemChange(index, 'unitPrice', parseFloat(e.target.value) || 0)}
-                            min="0"
-                            step="0.01"
-                            className={`w-28 px-2 py-1 border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                              errors[`item_${index}_unitPrice`] ? 'border-red-500' : 'border-gray-300'
-                            }`}
-                          />
-                          {errors[`item_${index}_unitPrice`] && (
-                            <p className="text-red-500 text-xs mt-1">{errors[`item_${index}_unitPrice`]}</p>
-                          )}
-                        </td>
-                        <td className="px-3 py-2">
-                          <input
-                            type="number"
-                            value={item.tax}
-                            onChange={(e) => handleItemChange(index, 'tax', parseFloat(e.target.value) || 0)}
-                            min="0"
-                            max="100"
-                            step="0.01"
-                            placeholder="0"
-                            className={`w-20 px-2 py-1 border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                              errors[`item_${index}_tax`] ? 'border-red-500' : 'border-gray-300'
-                            }`}
-                          />
-                          {errors[`item_${index}_tax`] && (
-                            <p className="text-red-500 text-xs mt-1">{errors[`item_${index}_tax`]}</p>
-                          )}
-                        </td>
-                        <td className="px-3 py-2">
-                          <input
-                            type="number"
-                            value={item.discount}
-                            onChange={(e) => handleItemChange(index, 'discount', parseFloat(e.target.value) || 0)}
-                            min="0"
-                            max="100"
-                            step="0.01"
-                            placeholder="0"
-                            className={`w-20 px-2 py-1 border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                              errors[`item_${index}_discount`] ? 'border-red-500' : 'border-gray-300'
-                            }`}
-                          />
-                          {errors[`item_${index}_discount`] && (
-                            <p className="text-red-500 text-xs mt-1">{errors[`item_${index}_discount`]}</p>
-                          )}
-                        </td>
-                        <td className="px-3 py-2 font-medium">
-                          ₹{item.amount.toFixed(2)}
-                        </td>
-                        <td className="px-3 py-2">
-                          <button
-                            onClick={() => removeItem(index)}
-                            className="text-red-600 hover:text-red-800 p-1.5 hover:bg-red-50 rounded transition-colors"
-                            title="Remove Item"
-                          >
-                            <Trash2 size={18} />
-                          </button>
+                    {formData.items && formData.items.length > 0 ? (
+                      formData.items.map((item, index) => (
+                        <tr key={index} className="border-t">
+                          <td className="px-3 py-2">
+                            <select
+                              value={item.itemId}
+                              onChange={(e) => handleItemSelection(index, e.target.value)}
+                              disabled={isSubmitting}
+                              className={`w-full min-w-[200px] px-2 py-1 border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                                errors[`item_${index}_itemName`] ? 'border-red-500' : 'border-gray-300'
+                              }`}
+                            >
+                              <option value="">-- Select Item --</option>
+                              {items.map(catalogItem => (
+                                <option key={catalogItem.id} value={catalogItem.id}>
+                                  {catalogItem.name}
+                                </option>
+                              ))}
+                            </select>
+                            {errors[`item_${index}_itemName`] && (
+                              <p className="text-red-500 text-xs mt-1">{errors[`item_${index}_itemName`]}</p>
+                            )}
+                          </td>
+                          <td className="px-3 py-2">
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={item.description || ''}
+                                onChange={(e) => handleDescriptionChange(index, e.target.value)}
+                                disabled={isSubmitting}
+                                placeholder="Enter description..."
+                                className="w-full min-w-[200px] px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              />
+                              {item.itemId && (
+                                <div className="absolute right-2 top-1.5 text-xs text-gray-400">
+                                  <Edit3 size={14} />
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="number"
+                              value={item.quantity}
+                              onChange={(e) => handleItemChange(index, 'quantity', parseFloat(e.target.value) || 0)}
+                              disabled={isSubmitting}
+                              min="1"
+                              className={`w-20 px-2 py-1 border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                                errors[`item_${index}_quantity`] ? 'border-red-500' : 'border-gray-300'
+                              }`}
+                            />
+                            {errors[`item_${index}_quantity`] && (
+                              <p className="text-red-500 text-xs mt-1">{errors[`item_${index}_quantity`]}</p>
+                            )}
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="number"
+                              value={item.unitPrice}
+                              onChange={(e) => handleItemChange(index, 'unitPrice', parseFloat(e.target.value) || 0)}
+                              disabled={isSubmitting}
+                              min="0"
+                              step="0.01"
+                              className={`w-28 px-2 py-1 border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                                errors[`item_${index}_unitPrice`] ? 'border-red-500' : 'border-gray-300'
+                              }`}
+                            />
+                            {errors[`item_${index}_unitPrice`] && (
+                              <p className="text-red-500 text-xs mt-1">{errors[`item_${index}_unitPrice`]}</p>
+                            )}
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="number"
+                              value={item.tax}
+                              onChange={(e) => handleItemChange(index, 'tax', parseFloat(e.target.value) || 0)}
+                              disabled={isSubmitting}
+                              min="0"
+                              max="100"
+                              step="0.01"
+                              placeholder="0"
+                              className={`w-20 px-2 py-1 border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                                errors[`item_${index}_tax`] ? 'border-red-500' : 'border-gray-300'
+                              }`}
+                            />
+                            {errors[`item_${index}_tax`] && (
+                              <p className="text-red-500 text-xs mt-1">{errors[`item_${index}_tax`]}</p>
+                            )}
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="number"
+                              value={item.discount}
+                              onChange={(e) => handleItemChange(index, 'discount', parseFloat(e.target.value) || 0)}
+                              disabled={isSubmitting}
+                              min="0"
+                              max="100"
+                              step="0.01"
+                              placeholder="0"
+                              className={`w-20 px-2 py-1 border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                                errors[`item_${index}_discount`] ? 'border-red-500' : 'border-gray-300'
+                              }`}
+                            />
+                            {errors[`item_${index}_discount`] && (
+                              <p className="text-red-500 text-xs mt-1">{errors[`item_${index}_discount`]}</p>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 font-medium">
+                            ₹{item.amount.toFixed(2)}
+                          </td>
+                          <td className="px-3 py-2">
+                            <button
+                              onClick={() => removeItem(index)}
+                              disabled={isSubmitting}
+                              className="text-red-600 hover:text-red-800 p-1.5 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+                              title="Remove Item"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="8" className="px-3 py-4 text-center text-gray-500">
+                          No items added. Click "Add Item" to add items.
                         </td>
                       </tr>
-                    ))}
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -1126,6 +1870,7 @@ const PurchaseOrder = () => {
                       type="number"
                       value={formData.shippingCharges}
                       onChange={(e) => handleChargesChange('shippingCharges', e.target.value)}
+                      disabled={isSubmitting}
                       min="0"
                       step="0.01"
                       className="w-32 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -1137,6 +1882,7 @@ const PurchaseOrder = () => {
                       type="number"
                       value={formData.adjustment}
                       onChange={(e) => handleChargesChange('adjustment', e.target.value)}
+                      disabled={isSubmitting}
                       step="0.01"
                       className="w-32 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
@@ -1161,6 +1907,7 @@ const PurchaseOrder = () => {
                     name="terms"
                     value={formData.terms}
                     onChange={handleInputChange}
+                    disabled={isSubmitting}
                     rows="4"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Payment terms, delivery conditions, etc..."
@@ -1175,6 +1922,7 @@ const PurchaseOrder = () => {
                     name="notes"
                     value={formData.notes}
                     onChange={handleInputChange}
+                    disabled={isSubmitting}
                     rows="4"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Any additional notes or special instructions..."
@@ -1187,16 +1935,27 @@ const PurchaseOrder = () => {
             <div className="flex justify-end gap-4">
               <button
                 onClick={resetForm}
-                className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+                disabled={isSubmitting}
+                className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={editMode ? updatePO : createPO}
-                className="flex items-center gap-2 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
+                disabled={isSubmitting}
+                className="flex items-center gap-2 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
               >
-                <Save size={20} />
-                {editMode ? 'Update' : 'Save'} Purchase Order
+                {isSubmitting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    {editMode ? 'Updating...' : 'Saving...'}
+                  </>
+                ) : (
+                  <>
+                    <Save size={20} />
+                    {editMode ? 'Update' : 'Save'} Purchase Order
+                  </>
+                )}
               </button>
             </div>
           </div>

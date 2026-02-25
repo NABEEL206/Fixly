@@ -1,34 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Pencil, Trash2, Search, Filter, Calendar, DollarSign, Tag, FileText, CreditCard, X, ArrowLeft, CheckCircle, XCircle, Info, AlertCircle, Check, Eye, Grid, List, User } from 'lucide-react';
-
-const Toast = ({ message, type, onClose }) => {
-  const icons = {
-    success: <CheckCircle className="text-green-500" size={20} />,
-    error: <XCircle className="text-red-500" size={20} />,
-    info: <Info className="text-blue-500" size={20} />,
-    warning: <AlertCircle className="text-yellow-500" size={20} />
-  };
-
-  const bgColors = {
-    success: 'bg-green-50 border-green-200',
-    error: 'bg-red-50 border-red-200',
-    info: 'bg-blue-50 border-blue-200',
-    warning: 'bg-yellow-50 border-yellow-200'
-  };
-
-  return (
-    <div className={`fixed top-4 left-1/2 transform -translate-x-1/2 flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg border ${bgColors[type]} z-50 animate-slideIn`}>
-      {icons[type]}
-      <span className="text-sm font-medium text-gray-800">{message}</span>
-      <button
-        onClick={onClose}
-        className="ml-2 text-gray-400 hover:text-gray-600"
-      >
-        <X size={18} />
-      </button>
-    </div>
-  );
-};
+import { Plus, Pencil, Trash2, Search, Filter, Calendar, DollarSign, Tag, FileText, CreditCard, X, ArrowLeft, CheckCircle, XCircle, Info, AlertCircle, Check, Eye, User } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 // View Modal Component
 const ViewModal = ({ expense, onClose }) => {
@@ -36,9 +8,9 @@ const ViewModal = ({ expense, onClose }) => {
 
   const getStatusColor = (status) => {
     switch(status) {
-      case 'Approved': return 'bg-green-100 text-green-800';
-      case 'Pending': return 'bg-yellow-100 text-yellow-800';
-      case 'Rejected': return 'bg-red-100 text-red-800';
+      case 'APPROVED': return 'bg-green-100 text-green-800';
+      case 'PENDING': return 'bg-yellow-100 text-yellow-800';
+      case 'REJECTED': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -54,107 +26,74 @@ const ViewModal = ({ expense, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-40">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white p-5 border-b border-gray-200 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={onClose}
-              className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              <ArrowLeft size={20} />
-            </button>
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900">
-                View Expense Details
-              </h2>
-              <p className="text-sm text-gray-500 mt-1">Complete expense information</p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
-          >
-            <X size={24} />
-          </button>
+    <div className="fixed inset-0 bg-black/30 flex justify-center items-center z-50 p-4">
+      <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-gray-200">
+        <div className="flex justify-between items-center p-6 border-b">
+          <h2 className="text-2xl font-bold text-blue-700">Expense Details - ID: {expense.id}</h2>
+          <button onClick={onClose} className="text-gray-500 hover:text-red-600 text-lg">✖</button>
         </div>
-        
-        <div className="p-5">
-          <div className="space-y-6">
-            {/* Header Section */}
-            <div className="flex items-start justify-between">
+
+        <div className="p-6 max-h-[70vh] overflow-y-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">Expense Information</h3>
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">{expense.title}</h3>
-                <div className="flex items-center gap-3 mt-2">
-                  <span className={`px-3 py-1 inline-flex text-sm font-semibold rounded-full ${getStatusColor(expense.status)}`}>
-                    {expense.status}
-                  </span>
-                  <span className="text-sm text-gray-500">ID: {expense.id}</span>
+                <label className="block text-sm font-medium text-gray-600">Title</label>
+                <p className="mt-1 p-2 bg-gray-50 rounded-lg">{expense.title}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600">Merchant</label>
+                <p className="mt-1 p-2 bg-gray-50 rounded-lg">{expense.merchant || 'N/A'}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600">Amount</label>
+                <p className="mt-1 p-2 bg-gray-50 rounded-lg font-semibold">{formatRupees(expense.amount)}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600">Date</label>
+                <p className="mt-1 p-2 bg-gray-50 rounded-lg">{expense.date}</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">Category & Status</h3>
+              <div>
+                <label className="block text-sm font-medium text-gray-600">Category</label>
+                <p className="mt-1 p-2 bg-gray-50 rounded-lg">{expense.category?.name || 'N/A'}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600">Status</label>
+                <span className={`mt-1 px-3 py-1 rounded-full text-xs font-semibold inline-block ${getStatusColor(expense.status)}`}>
+                  {expense.status}
+                </span>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600">Payment Method</label>
+                <p className="mt-1 p-2 bg-gray-50 rounded-lg">{expense.payment_method}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600">Created By</label>
+                <p className="mt-1 p-2 bg-gray-50 rounded-lg">{expense.created_by || 'admin'}</p>
+              </div>
+            </div>
+
+            <div className="md:col-span-2">
+              <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">System Information</h3>
+              <div className="grid grid-cols-2 gap-4 mt-2">
+                <div>
+                  <label className="block text-sm font-medium text-gray-600">Created At</label>
+                  <p className="mt-1 text-sm">{expense.created_at ? new Date(expense.created_at).toLocaleString() : 'N/A'}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-600">Updated At</label>
+                  <p className="mt-1 text-sm">{expense.updated_at ? new Date(expense.updated_at).toLocaleString() : 'N/A'}</p>
                 </div>
               </div>
-              <div className="text-right">
-                <div className="text-2xl font-bold text-gray-900">{formatRupees(expense.amount)}</div>
-                <div className="text-sm text-gray-500 mt-1">{expense.date}</div>
-              </div>
             </div>
-
-            {/* Details Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h4 className="text-sm font-medium text-gray-500 mb-2 flex items-center gap-2">
-                  <Tag size={16} />
-                  Category
-                </h4>
-                <p className="text-gray-900">{expense.category}</p>
-              </div>
-
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h4 className="text-sm font-medium text-gray-500 mb-2 flex items-center gap-2">
-                  <Tag size={16} />
-                  Merchant
-                </h4>
-                <p className="text-gray-900">{expense.merchant || 'Not specified'}</p>
-              </div>
-
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h4 className="text-sm font-medium text-gray-500 mb-2 flex items-center gap-2">
-                  <CreditCard size={16} />
-                  Payment Method
-                </h4>
-                <p className="text-gray-900">{expense.paymentMethod}</p>
-              </div>
-
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h4 className="text-sm font-medium text-gray-500 mb-2 flex items-center gap-2">
-                  <Calendar size={16} />
-                  Date
-                </h4>
-                <p className="text-gray-900">{expense.date}</p>
-              </div>
-
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h4 className="text-sm font-medium text-gray-500 mb-2 flex items-center gap-2">
-                  <User size={16} />
-                  Created By
-                </h4>
-                <p className="text-gray-900 capitalize">{expense.createdBy || 'admin'}</p>
-              </div>
-            </div>
-
-            {/* Additional Notes (if any) */}
-            {expense.notes && (
-              <div className="border-t border-gray-200 pt-6">
-                <h4 className="text-sm font-medium text-gray-500 mb-3">Additional Notes</h4>
-                <p className="text-gray-700 bg-gray-50 p-4 rounded-lg">{expense.notes}</p>
-              </div>
-            )}
           </div>
 
-          <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-gray-200">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
-            >
+          <div className="mt-6 flex justify-end gap-3">
+            <button onClick={onClose} className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">
               Close
             </button>
           </div>
@@ -165,69 +104,9 @@ const ViewModal = ({ expense, onClose }) => {
 };
 
 const ExpenseTracker = () => {
-  const [expenses, setExpenses] = useState([
-    { 
-      id: 1, 
-      title: 'Office Printer Supplies',
-      date: '2024-01-15', 
-      merchant: 'Office Supplies Co', 
-      category: 'Office Supplies', 
-      amount: 245.50, 
-      paymentMethod: 'Credit Card',
-      status: 'Approved',
-      notes: 'Purchased for the main office printer',
-      createdBy: 'admin'
-    },
-    { 
-      id: 2, 
-      title: 'Development Laptop',
-      date: '2024-01-18', 
-      merchant: 'Tech Store', 
-      category: 'Equipment', 
-      amount: 1299.99, 
-      paymentMethod: 'Company Card',
-      status: 'Pending',
-      notes: 'For new developer hire',
-      createdBy: 'franchise'
-    },
-    { 
-      id: 3, 
-      title: 'Client Meeting Lunch',
-      date: '2024-01-20', 
-      merchant: 'Coffee Shop', 
-      category: 'Meals', 
-      amount: 45.30, 
-      paymentMethod: 'Cash',
-      status: 'Approved',
-      notes: 'Meeting with ABC Corp clients',
-      createdBy: 'admin'
-    },
-    { 
-      id: 4, 
-      title: 'Software Subscription',
-      date: '2024-01-22', 
-      merchant: 'Adobe', 
-      category: 'Software', 
-      amount: 52.99, 
-      paymentMethod: 'Credit Card',
-      status: 'Approved',
-      notes: 'Monthly Creative Cloud subscription',
-      createdBy: 'vendor'
-    },
-    { 
-      id: 5, 
-      title: 'Team Building Dinner',
-      date: '2024-01-25', 
-      merchant: 'Restaurant', 
-      category: 'Meals', 
-      amount: 350.00, 
-      paymentMethod: 'Company Card',
-      status: 'Pending',
-      notes: 'Annual team dinner',
-      createdBy: 'franchise'
-    },
-  ]);
-
+  const [expenses, setExpenses] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [selectedExpenses, setSelectedExpenses] = useState([]);
   const [isSelectAll, setIsSelectAll] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -236,26 +115,355 @@ const ExpenseTracker = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterCreatedBy, setFilterCreatedBy] = useState('All');
-  const [categories, setCategories] = useState(['Office Supplies', 'Equipment', 'Meals', 'Travel', 'Accommodation', 'Software', 'Other']);
   const [showNewCategory, setShowNewCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [formData, setFormData] = useState({
     title: '',
     date: '',
     merchant: '',
-    category: '',
+    category_id: '',
     amount: '',
-    paymentMethod: '',
-    status: 'Pending',
-    notes: '',
-    createdBy: 'admin'
+    payment_method: 'CASH',
+    status: 'PENDING',
+    receipt: null
   });
   const [errors, setErrors] = useState({});
-  const [toasts, setToasts] = useState([]);
   const [isMobile, setIsMobile] = useState(false);
 
-  const paymentMethods = ['Cash', 'Credit Card', 'Debit Card', 'Company Card', 'Bank Transfer', 'Check', 'PayPal', 'Other'];
-  const statuses = ['Pending', 'Approved', 'Rejected'];
+  const paymentMethods = [
+    { value: 'CASH', label: 'Cash' },
+    { value: 'CREDIT_CARD', label: 'Credit Card' },
+    { value: 'DEBIT_CARD', label: 'Debit Card' },
+    { value: 'COMPANY_CARD', label: 'Company Card' },
+    { value: 'BANK_TRANSFER', label: 'Bank Transfer' },
+    { value: 'CHECK', label: 'Check' },
+    { value: 'PAYPAL', label: 'PayPal' },
+    { value: 'OTHER', label: 'Other' }
+  ];
+  
+  const statuses = ['PENDING', 'APPROVED', 'REJECTED'];
+
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem("access_token");
+    const headers = { "Content-Type": "application/json" };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    return headers;
+  };
+
+  // Fetch expenses from API
+  const fetchExpenses = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch('http://127.0.0.1:8000/api/expenses/', {
+        headers: getAuthHeaders()
+      });
+      if (!response.ok) throw new Error('Failed to fetch expenses');
+      const data = await response.json();
+      setExpenses(data);
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch categories from API
+  const fetchCategories = async () => {
+    try {
+      const response = await fetch('http://127.0.0.1:8000/api/expense-categories/', {
+        headers: getAuthHeaders()
+      });
+      if (!response.ok) throw new Error('Failed to fetch categories');
+      const data = await response.json();
+      setCategories(data);
+    } catch (error) {
+      toast.error(error.message);
+    }
+  };
+
+  // Add new category
+  const addCategory = async () => {
+    if (!newCategoryName.trim()) {
+      toast.error('Category name cannot be empty');
+      return;
+    }
+
+    try {
+      const response = await fetch('http://127.0.0.1:8000/api/expense-categories/', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ 
+          name: newCategoryName.trim(),
+          is_active: true 
+        }),
+      });
+
+      if (response.status === 400) {
+        const errorData = await response.json();
+        toast.error(errorData.name?.[0] || 'Failed to add category');
+        return;
+      }
+      if (!response.ok) throw new Error('Failed to add category');
+      
+      const newCategory = await response.json();
+      setCategories([...categories, newCategory]);
+      setFormData({...formData, category_id: newCategory.id});
+      setNewCategoryName('');
+      setShowNewCategory(false);
+      setErrors({...errors, category_id: ''});
+      toast.success(`Category "${newCategory.name}" added successfully`);
+    } catch (error) {
+      toast.error(error.message);
+    }
+  };
+
+  // Add expense
+  const addExpense = async () => {
+    const toastId = toast.loading('Adding expense...');
+    
+    try {
+      const expenseData = {
+        category_id: parseInt(formData.category_id),
+        title: formData.title,
+        merchant: formData.merchant || '',
+        amount: parseFloat(formData.amount).toFixed(2),
+        date: formData.date,
+        payment_method: formData.payment_method,
+        status: formData.status,
+        receipt: null
+      };
+
+      const response = await fetch('http://127.0.0.1:8000/api/expenses/', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(expenseData),
+      });
+
+      if (response.status === 403) {
+        toast.error("You don't have permission to add expenses", { id: toastId });
+        return;
+      }
+      if (response.status === 400) {
+        const errorData = await response.json();
+        const errorMessages = Object.entries(errorData)
+          .map(([field, errors]) => `${field}: ${Array.isArray(errors) ? errors.join(', ') : errors}`)
+          .join('\n');
+        toast.error(errorMessages || 'Failed to add expense', { id: toastId });
+        return;
+      }
+      if (!response.ok) throw new Error('Failed to add expense');
+      
+      const newExpense = await response.json();
+      // Fetch the complete expense with category details
+      const completeExpense = {
+        ...newExpense,
+        category: categories.find(c => c.id === parseInt(formData.category_id))
+      };
+      setExpenses([completeExpense, ...expenses]);
+      toast.success(`Expense "${formData.title}" added successfully`, { id: toastId });
+      resetForm();
+    } catch (error) {
+      toast.error(error.message, { id: toastId });
+    }
+  };
+
+  // Update expense
+  const updateExpense = async () => {
+    const toastId = toast.loading('Updating expense...');
+    
+    try {
+      const expenseData = {
+        category_id: parseInt(formData.category_id),
+        title: formData.title,
+        merchant: formData.merchant || '',
+        amount: parseFloat(formData.amount).toFixed(2),
+        date: formData.date,
+        payment_method: formData.payment_method,
+        status: formData.status,
+        receipt: null
+      };
+
+      const response = await fetch(`http://127.0.0.1:8000/api/expenses/${editingExpense.id}/`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(expenseData),
+      });
+
+      if (response.status === 403) {
+        toast.error("You don't have permission to edit this expense", { id: toastId });
+        return;
+      }
+      if (response.status === 404) {
+        toast.error("Expense not found. It may have been deleted.", { id: toastId });
+        return;
+      }
+      if (response.status === 400) {
+        const errorData = await response.json();
+        const errorMessages = Object.entries(errorData)
+          .map(([field, errors]) => `${field}: ${Array.isArray(errors) ? errors.join(', ') : errors}`)
+          .join('\n');
+        toast.error(errorMessages || 'Failed to update expense', { id: toastId });
+        return;
+      }
+      if (!response.ok) throw new Error('Failed to update expense');
+      
+      const updatedExpense = await response.json();
+      // Fetch the complete expense with category details
+      const completeExpense = {
+        ...updatedExpense,
+        category: categories.find(c => c.id === parseInt(formData.category_id))
+      };
+      setExpenses(expenses.map(exp => 
+        exp.id === editingExpense.id ? completeExpense : exp
+      ));
+      toast.success(`Expense "${formData.title}" updated successfully`, { id: toastId });
+      resetForm();
+    } catch (error) {
+      toast.error(error.message, { id: toastId });
+    }
+  };
+
+  // Delete expense
+  const handleDelete = (id) => {
+    const expenseToDelete = expenses.find(exp => exp.id === id);
+    
+    toast.dismiss();
+    toast(
+      (t) => (
+        <div className="flex flex-col gap-3">
+          <p className="text-sm font-semibold text-gray-800">Delete expense "{expenseToDelete?.title}"?</p>
+          <p className="text-xs text-gray-500">This action cannot be undone.</p>
+          <div className="flex justify-end gap-2">
+            <button 
+              onClick={() => toast.dismiss(t.id)} 
+              className="px-3 py-1.5 bg-gray-200 rounded-md text-sm"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={async () => {
+                toast.dismiss(t.id);
+                const dt = toast.loading(`Deleting expense...`);
+                
+                try {
+                  const response = await fetch(`http://127.0.0.1:8000/api/expenses/${id}/`, {
+                    method: 'DELETE',
+                    headers: getAuthHeaders(),
+                  });
+
+                  if (response.status === 403) {
+                    toast.error("You don't have permission to delete this expense", { id: dt });
+                    return;
+                  }
+                  if (!response.ok) throw new Error('Failed to delete expense');
+                  
+                  setExpenses(expenses.filter(exp => exp.id !== id));
+                  toast.success(`Expense "${expenseToDelete?.title}" deleted successfully`, { id: dt });
+                } catch (error) {
+                  toast.error(error.message, { id: dt });
+                }
+              }}
+              className="px-3 py-1.5 bg-red-600 text-white rounded-md text-sm"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      ),
+      { duration: Infinity }
+    );
+  };
+
+  // Bulk delete expenses
+  const handleBulkDelete = () => {
+    if (selectedExpenses.length === 0) {
+      toast.error('Please select expenses to delete');
+      return;
+    }
+
+    const expenseNames = expenses
+      .filter(exp => selectedExpenses.includes(exp.id))
+      .map(exp => exp.title)
+      .join('\n');
+
+    toast.dismiss();
+    toast(
+      (t) => (
+        <div className="flex flex-col gap-3">
+          <p className="text-sm font-semibold text-gray-800">Delete {selectedExpenses.length} expense(s)?</p>
+          <p className="text-xs text-gray-500 bg-gray-50 p-2 rounded max-h-32 overflow-y-auto whitespace-pre-line">
+            {expenseNames}
+          </p>
+          <div className="flex justify-end gap-2">
+            <button 
+              onClick={() => toast.dismiss(t.id)} 
+              className="px-3 py-1.5 bg-gray-200 rounded-md text-sm"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={async () => {
+                toast.dismiss(t.id);
+                const dt = toast.loading(`Deleting ${selectedExpenses.length} expenses...`);
+                
+                try {
+                  const results = await Promise.all(
+                    selectedExpenses.map(async (id) => {
+                      try {
+                        const res = await fetch(`http://127.0.0.1:8000/api/expenses/${id}/`, {
+                          method: 'DELETE',
+                          headers: getAuthHeaders(),
+                        });
+                        return { id, ok: res.ok, status: res.status };
+                      } catch {
+                        return { id, ok: false, status: 0 };
+                      }
+                    })
+                  );
+
+                  const deleted = results.filter((r) => r.ok).map((r) => r.id);
+                  const forbidden = results.filter((r) => r.status === 403).map((r) => r.id);
+                  const notFound = results.filter((r) => r.status === 404).map((r) => r.id);
+
+                  if (deleted.length > 0) {
+                    setExpenses(prev => prev.filter(exp => !deleted.includes(exp.id)));
+                    setSelectedExpenses([]);
+                    setIsSelectAll(false);
+                  }
+
+                  if (deleted.length === selectedExpenses.length) {
+                    toast.success(`${deleted.length} expense(s) deleted successfully`, { id: dt });
+                  } else {
+                    if (deleted.length > 0) {
+                      toast.success(`${deleted.length} deleted successfully`, { id: dt });
+                    }
+                    if (forbidden.length > 0) {
+                      toast.error(`${forbidden.length} expense(s) could not be deleted (no permission)`);
+                    }
+                    if (notFound.length > 0) {
+                      toast.error(`${notFound.length} expense(s) not found — already deleted?`);
+                    }
+                  }
+                } catch (error) {
+                  toast.error('Failed to delete some expenses', { id: dt });
+                }
+              }}
+              className="px-3 py-1.5 bg-red-600 text-white rounded-md text-sm"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      ),
+      { duration: Infinity }
+    );
+  };
+
+  // Initial data fetch
+  useEffect(() => {
+    fetchExpenses();
+    fetchCategories();
+  }, []);
 
   // Check if mobile view
   useEffect(() => {
@@ -270,7 +478,7 @@ const ExpenseTracker = () => {
 
   // Get unique createdBy values for filter
   const createdByOptions = useMemo(() => {
-    const creators = expenses.map(exp => exp.createdBy).filter(Boolean);
+    const creators = expenses.map(exp => exp.created_by).filter(Boolean);
     return ['All', ...new Set(creators)];
   }, [expenses]);
 
@@ -282,20 +490,6 @@ const ExpenseTracker = () => {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     }).format(amount);
-  };
-
-  const addToast = (message, type) => {
-    const id = Date.now();
-    const newToast = { id, message, type };
-    setToasts(prev => [...prev, newToast]);
-    
-    setTimeout(() => {
-      removeToast(id);
-    }, 5000);
-  };
-
-  const removeToast = (id) => {
-    setToasts(prev => prev.filter(toast => toast.id !== id));
   };
 
   // Handle expense selection
@@ -318,41 +512,20 @@ const ExpenseTracker = () => {
     setIsSelectAll(!isSelectAll);
   };
 
-  // Bulk delete selected expenses
-  const handleBulkDelete = () => {
-    if (selectedExpenses.length === 0) {
-      addToast('Please select expenses to delete', 'warning');
-      return;
-    }
-
-    const expenseNames = expenses
-      .filter(exp => selectedExpenses.includes(exp.id))
-      .map(exp => exp.title);
-
-    if (window.confirm(`Are you sure you want to delete ${selectedExpenses.length} expense(s)?\n\n${expenseNames.join('\n')}`)) {
-      setExpenses(prev => prev.filter(exp => !selectedExpenses.includes(exp.id)));
-      addToast(`Deleted ${selectedExpenses.length} expense(s) successfully`, 'success');
-      setSelectedExpenses([]);
-      setIsSelectAll(false);
-    } else {
-      addToast('Bulk delete cancelled', 'info');
-    }
-  };
-
   const validateForm = () => {
     const newErrors = {};
     
     if (!formData.title.trim()) newErrors.title = 'Title is required';
     if (!formData.date) newErrors.date = 'Date is required';
-    if (!formData.category) newErrors.category = 'Category is required';
+    if (!formData.category_id) newErrors.category_id = 'Category is required';
     if (!formData.amount) newErrors.amount = 'Amount is required';
     else if (isNaN(formData.amount) || parseFloat(formData.amount) <= 0) newErrors.amount = 'Amount must be a positive number';
-    if (!formData.paymentMethod) newErrors.paymentMethod = 'Payment method is required';
+    if (!formData.payment_method) newErrors.payment_method = 'Payment method is required';
     
     setErrors(newErrors);
     
     if (Object.keys(newErrors).length > 0) {
-      addToast('Please fill in all required fields correctly', 'error');
+      toast.error('Please fill in all required fields correctly');
       return false;
     }
     
@@ -365,38 +538,9 @@ const ExpenseTracker = () => {
     }
 
     if (editingExpense) {
-      setExpenses(expenses.map(exp => 
-        exp.id === editingExpense.id 
-          ? { ...formData, id: editingExpense.id, amount: parseFloat(formData.amount) }
-          : exp
-      ));
-      addToast(`Expense "${formData.title}" updated successfully`, 'success');
+      updateExpense();
     } else {
-      const newExpense = { 
-        ...formData, 
-        id: Date.now(), 
-        amount: parseFloat(formData.amount) 
-      };
-      setExpenses([...expenses, newExpense]);
-      addToast(`Expense "${formData.title}" added successfully`, 'success');
-    }
-    resetForm();
-  };
-
-  const handleAddCategory = () => {
-    if (newCategoryName.trim()) {
-      if (!categories.includes(newCategoryName.trim())) {
-        setCategories([...categories, newCategoryName.trim()]);
-        setFormData({...formData, category: newCategoryName.trim()});
-        setNewCategoryName('');
-        setShowNewCategory(false);
-        setErrors({...errors, category: ''});
-        addToast(`Category "${newCategoryName.trim()}" added successfully`, 'success');
-      } else {
-        addToast('This category already exists', 'warning');
-      }
-    } else {
-      addToast('Category name cannot be empty', 'error');
+      addExpense();
     }
   };
 
@@ -409,27 +553,15 @@ const ExpenseTracker = () => {
     setFormData({
       title: expense.title,
       date: expense.date,
-      merchant: expense.merchant,
-      category: expense.category,
+      merchant: expense.merchant || '',
+      category_id: expense.category?.id?.toString() || expense.category_id?.toString() || '',
       amount: expense.amount.toString(),
-      paymentMethod: expense.paymentMethod,
+      payment_method: expense.payment_method,
       status: expense.status,
-      notes: expense.notes || '',
-      createdBy: expense.createdBy || 'admin'
+      receipt: null
     });
     setErrors({});
     setShowModal(true);
-  };
-
-  const handleDelete = (id) => {
-    const expenseToDelete = expenses.find(exp => exp.id === id);
-    
-    if (window.confirm(`Are you sure you want to delete "${expenseToDelete.title}"?`)) {
-      setExpenses(expenses.filter(exp => exp.id !== id));
-      addToast(`Expense "${expenseToDelete.title}" deleted successfully`, 'success');
-    } else {
-      addToast('Deletion cancelled', 'info');
-    }
   };
 
   const resetForm = () => {
@@ -437,12 +569,11 @@ const ExpenseTracker = () => {
       title: '',
       date: '',
       merchant: '',
-      category: '',
+      category_id: '',
       amount: '',
-      paymentMethod: '',
-      status: 'Pending',
-      notes: '',
-      createdBy: 'admin'
+      payment_method: 'CASH',
+      status: 'PENDING',
+      receipt: null
     });
     setEditingExpense(null);
     setShowModal(false);
@@ -460,28 +591,28 @@ const ExpenseTracker = () => {
 
   const filteredExpenses = expenses.filter(expense => {
     const matchesSearch = expense.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         expense.merchant.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         expense.category.toLowerCase().includes(searchTerm.toLowerCase());
+                         expense.merchant?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         expense.category?.name?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = filterStatus === 'All' || expense.status === filterStatus;
-    const matchesCreatedBy = filterCreatedBy === 'All' || expense.createdBy === filterCreatedBy;
+    const matchesCreatedBy = filterCreatedBy === 'All' || expense.created_by === filterCreatedBy;
     
     return matchesSearch && matchesStatus && matchesCreatedBy;
   });
 
   const getStatusColor = (status) => {
     switch(status) {
-      case 'Approved': return 'bg-green-100 text-green-800';
-      case 'Pending': return 'bg-yellow-100 text-yellow-800';
-      case 'Rejected': return 'bg-red-100 text-red-800';
+      case 'APPROVED': return 'bg-green-100 text-green-800';
+      case 'PENDING': return 'bg-yellow-100 text-yellow-800';
+      case 'REJECTED': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
 
-  // Desktop Table View (Zoho Style)
+  // Desktop Table View
   const renderTableView = () => (
     <div className="bg-white rounded-lg shadow-sm overflow-hidden border border-gray-200">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1200px]">
+        <table className="w-full min-w-[1000px]">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
               <th className="w-12 px-4 py-4 text-xs font-medium text-gray-500 uppercase tracking-wider text-center">
@@ -492,33 +623,14 @@ const ExpenseTracker = () => {
                   className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
               </th>
-              <th className="px-4 py-4 text-xs font-medium text-gray-500 uppercase tracking-wider text-left">
-                Title
-              </th>
-              <th className="px-4 py-4 text-xs font-medium text-gray-500 uppercase tracking-wider text-center">
-                Date
-              </th>
-              <th className="px-4 py-4 text-xs font-medium text-gray-500 uppercase tracking-wider text-center">
-                Merchant
-              </th>
-              <th className="px-4 py-4 text-xs font-medium text-gray-500 uppercase tracking-wider text-center">
-                Category
-              </th>
-              <th className="px-4 py-4 text-xs font-medium text-gray-500 uppercase tracking-wider text-right">
-                Amount
-              </th>
-              <th className="px-4 py-4 text-xs font-medium text-gray-500 uppercase tracking-wider text-center">
-                Payment
-              </th>
-              <th className="px-4 py-4 text-xs font-medium text-gray-500 uppercase tracking-wider text-center">
-                Created By
-              </th>
-              <th className="px-4 py-4 text-xs font-medium text-gray-500 uppercase tracking-wider text-center">
-                Status
-              </th>
-              <th className="px-4 py-4 text-xs font-medium text-gray-500 uppercase tracking-wider text-center">
-                Actions
-              </th>
+              <th className="px-4 py-4 text-xs font-medium text-gray-500 uppercase tracking-wider text-left">ID</th>
+              <th className="px-4 py-4 text-xs font-medium text-gray-500 uppercase tracking-wider text-left">Date</th>
+              <th className="px-4 py-4 text-xs font-medium text-gray-500 uppercase tracking-wider text-left">Category</th>
+              <th className="px-4 py-4 text-xs font-medium text-gray-500 uppercase tracking-wider text-right">Amount</th>
+              <th className="px-4 py-4 text-xs font-medium text-gray-500 uppercase tracking-wider text-center">Payment</th>
+              <th className="px-4 py-4 text-xs font-medium text-gray-500 uppercase tracking-wider text-center">Created By</th>
+              <th className="px-4 py-4 text-xs font-medium text-gray-500 uppercase tracking-wider text-center">Status</th>
+              <th className="px-4 py-4 text-xs font-medium text-gray-500 uppercase tracking-wider text-center">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
@@ -532,24 +644,14 @@ const ExpenseTracker = () => {
                     className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
                 </td>
-                <td className="px-4 py-4">
-                  <div className="flex flex-col">
-                    <span className="text-sm font-medium text-gray-900">{expense.title}</span>
-                    {expense.notes && (
-                      <span className="text-xs text-gray-500 mt-1 truncate max-w-[200px]">{expense.notes}</span>
-                    )}
-                  </div>
-                </td>
-                <td className="px-4 py-4 text-sm text-gray-600 text-center whitespace-nowrap">
+                <td className="px-4 py-4 text-sm font-mono text-gray-600">#{expense.id}</td>
+                <td className="px-4 py-4 text-sm text-gray-600 whitespace-nowrap">
                   {expense.date}
                 </td>
-                <td className="px-4 py-4 text-sm text-gray-600 text-center">
-                  {expense.merchant || '—'}
-                </td>
-                <td className="px-4 py-4 text-sm text-gray-600 text-center">
+                <td className="px-4 py-4">
                   <span className="inline-flex items-center px-2 py-1 bg-purple-50 text-purple-700 rounded-md text-xs font-medium">
                     <Tag size={12} className="mr-1" />
-                    {expense.category}
+                    {expense.category?.name || 'N/A'}
                   </span>
                 </td>
                 <td className="px-4 py-4 text-sm font-semibold text-gray-900 text-right whitespace-nowrap">
@@ -558,13 +660,13 @@ const ExpenseTracker = () => {
                 <td className="px-4 py-4 text-sm text-gray-600 text-center">
                   <span className="inline-flex items-center gap-1">
                     <CreditCard size={12} className="text-gray-400" />
-                    {expense.paymentMethod}
+                    {expense.payment_method}
                   </span>
                 </td>
                 <td className="px-4 py-4 text-sm text-gray-600 text-center">
                   <span className="inline-flex items-center gap-1 capitalize">
                     <User size={12} className="text-gray-400" />
-                    {expense.createdBy}
+                    {expense.created_by || 'admin'}
                   </span>
                 </td>
                 <td className="px-4 py-4 text-center">
@@ -576,24 +678,24 @@ const ExpenseTracker = () => {
                   <div className="flex items-center justify-center gap-2">
                     <button
                       onClick={() => handleView(expense)}
-                      className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
-                      title="View details"
+                      className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
+                      title="View Details"
                     >
-                      <Eye size={16} />
+                      <Eye size={18} />
                     </button>
                     <button
                       onClick={() => handleEdit(expense)}
-                      className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-md transition-colors"
-                      title="Edit expense"
+                      className="p-2 rounded-lg bg-yellow-50 text-yellow-600 hover:bg-yellow-100 transition-colors"
+                      title="Edit Expense"
                     >
-                      <Pencil size={16} />
+                      <Pencil size={18} />
                     </button>
                     <button
                       onClick={() => handleDelete(expense.id)}
-                      className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md transition-colors"
-                      title="Delete expense"
+                      className="p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                      title="Delete Expense"
                     >
-                      <Trash2 size={16} />
+                      <Trash2 size={18} />
                     </button>
                   </div>
                 </td>
@@ -603,11 +705,18 @@ const ExpenseTracker = () => {
         </table>
       </div>
 
-      {filteredExpenses.length === 0 && (
+      {filteredExpenses.length === 0 && !loading && (
         <div className="text-center py-12">
           <Search className="mx-auto text-gray-300 mb-3" size={48} />
           <p className="text-gray-500 text-lg">No expenses found</p>
           <p className="text-sm text-gray-400 mt-1">Try adjusting your search or filter</p>
+        </div>
+      )}
+
+      {loading && (
+        <div className="text-center py-12">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <p className="text-gray-500 mt-2">Loading expenses...</p>
         </div>
       )}
     </div>
@@ -627,13 +736,13 @@ const ExpenseTracker = () => {
               className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
             />
             <div>
-              <h3 className="font-medium text-gray-900">{expense.title}</h3>
-              <div className="flex items-center gap-2 mt-1">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono text-gray-500">#{expense.id}</span>
                 <span className={`px-2 py-1 inline-flex text-xs leading-4 font-semibold rounded-full ${getStatusColor(expense.status)}`}>
                   {expense.status}
                 </span>
-                <span className="text-xs text-gray-500">{expense.date}</span>
               </div>
+              <p className="text-sm text-gray-600 mt-1">{expense.date}</p>
             </div>
           </div>
         </div>
@@ -641,28 +750,24 @@ const ExpenseTracker = () => {
         {/* Expense Details */}
         <div className="grid grid-cols-2 gap-3 mb-3">
           <div>
-            <p className="text-xs text-gray-500 mb-1">Merchant</p>
-            <p className="text-sm font-medium text-gray-900">{expense.merchant || '—'}</p>
-          </div>
-          <div>
             <p className="text-xs text-gray-500 mb-1">Category</p>
             <div className="flex items-center gap-1">
               <Tag size={14} className="text-gray-400" />
-              <p className="text-sm font-medium text-gray-900">{expense.category}</p>
+              <p className="text-sm font-medium text-gray-900">{expense.category?.name || 'N/A'}</p>
             </div>
           </div>
           <div>
             <p className="text-xs text-gray-500 mb-1">Payment</p>
             <div className="flex items-center gap-1">
               <CreditCard size={14} className="text-gray-400" />
-              <p className="text-sm font-medium text-gray-900">{expense.paymentMethod}</p>
+              <p className="text-sm font-medium text-gray-900">{expense.payment_method}</p>
             </div>
           </div>
           <div>
             <p className="text-xs text-gray-500 mb-1">Created By</p>
             <div className="flex items-center gap-1">
               <User size={14} className="text-gray-400" />
-              <p className="text-sm font-medium text-gray-900 capitalize">{expense.createdBy}</p>
+              <p className="text-sm font-medium text-gray-900 capitalize">{expense.created_by || 'admin'}</p>
             </div>
           </div>
         </div>
@@ -675,25 +780,25 @@ const ExpenseTracker = () => {
             </div>
             <p className="text-2xl font-bold text-gray-900">{formatRupees(expense.amount)}</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="grid grid-cols-3 gap-2">
             <button
               onClick={() => handleView(expense)}
-              className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-              title="View details"
+              className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
+              title="View Details"
             >
               <Eye size={18} />
             </button>
             <button
               onClick={() => handleEdit(expense)}
-              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-              title="Edit expense"
+              className="p-2 rounded-lg bg-yellow-50 text-yellow-600 hover:bg-yellow-100 transition-colors"
+              title="Edit Expense"
             >
               <Pencil size={18} />
             </button>
             <button
               onClick={() => handleDelete(expense.id)}
-              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-              title="Delete expense"
+              className="p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+              title="Delete Expense"
             >
               <Trash2 size={18} />
             </button>
@@ -705,18 +810,6 @@ const ExpenseTracker = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6">
-      {/* Toast Container */}
-      <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 space-y-2">
-        {toasts.map(toast => (
-          <Toast
-            key={toast.id}
-            message={toast.message}
-            type={toast.type}
-            onClose={() => removeToast(toast.id)}
-          />
-        ))}
-      </div>
-
       {/* View Modal */}
       {viewingExpense && (
         <ViewModal
@@ -873,33 +966,13 @@ const ExpenseTracker = () => {
           </div>
         )}
 
-        {/* Select All Bar for Mobile */}
-        {!selectedExpenses.length > 0 && (
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                checked={isSelectAll}
-                onChange={handleSelectAll}
-                className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-              />
-              <span className="text-sm text-gray-700">
-                {isSelectAll ? 'All expenses selected' : 'Select all expenses'}
-              </span>
-            </div>
-            <span className="text-sm text-gray-500">
-              {filteredExpenses.length} expense(s) found
-            </span>
-          </div>
-        )}
-
         {/* Content Area - Conditional rendering based on screen size */}
         {isMobile ? (
           /* Mobile Card View */
           <div className="space-y-4">
             {filteredExpenses.map(renderCardView)}
             
-            {filteredExpenses.length === 0 && (
+            {filteredExpenses.length === 0 && !loading && (
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
                 <Search className="mx-auto text-gray-300 mb-3" size={48} />
                 <p className="text-gray-500">No expenses found</p>
@@ -915,7 +988,7 @@ const ExpenseTracker = () => {
 
       {/* Edit/Add Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-40">
+        <div className="fixed inset-0  bg-opacity-50 flex items-center justify-center p-4 z-40">
           <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-white p-5 border-b border-gray-200 flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -1009,29 +1082,29 @@ const ExpenseTracker = () => {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Category *</label>
                   <select
-                    value={formData.category}
+                    value={formData.category_id}
                     onChange={(e) => {
                       if (e.target.value === '__add_new__') {
                         setShowNewCategory(true);
-                        setFormData({...formData, category: ''});
-                        if (errors.category) setErrors({...errors, category: ''});
+                        setFormData({...formData, category_id: ''});
+                        if (errors.category_id) setErrors({...errors, category_id: ''});
                       } else {
-                        setFormData({...formData, category: e.target.value});
-                        if (errors.category) setErrors({...errors, category: ''});
+                        setFormData({...formData, category_id: e.target.value});
+                        if (errors.category_id) setErrors({...errors, category_id: ''});
                       }
                     }}
                     className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      errors.category ? 'border-red-500' : 'border-gray-300'
+                      errors.category_id ? 'border-red-500' : 'border-gray-300'
                     }`}
                   >
                     <option value="">Select category</option>
                     {categories.map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
+                      <option key={cat.id} value={cat.id}>{cat.name}</option>
                     ))}
                     <option value="__add_new__" className="text-blue-600 font-medium">+ Add New Category</option>
                   </select>
-                  {errors.category && !showNewCategory && (
-                    <p className="mt-1 text-xs text-red-600">{errors.category}</p>
+                  {errors.category_id && !showNewCategory && (
+                    <p className="mt-1 text-xs text-red-600">{errors.category_id}</p>
                   )}
                   
                   {showNewCategory && (
@@ -1041,11 +1114,11 @@ const ExpenseTracker = () => {
                         placeholder="New category"
                         value={newCategoryName}
                         onChange={(e) => setNewCategoryName(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleAddCategory()}
+                        onKeyPress={(e) => e.key === 'Enter' && addCategory()}
                         className="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                       <button
-                        onClick={handleAddCategory}
+                        onClick={addCategory}
                         className="px-2 py-1.5 text-xs bg-green-600 text-white rounded hover:bg-green-700"
                       >
                         Add
@@ -1060,9 +1133,6 @@ const ExpenseTracker = () => {
                         ✕
                       </button>
                     </div>
-                  )}
-                  {showNewCategory && errors.category && (
-                    <p className="mt-1 text-xs text-red-600">{errors.category}</p>
                   )}
                 </div>
 
@@ -1095,54 +1165,23 @@ const ExpenseTracker = () => {
                     Payment Method *
                   </label>
                   <select
-                    value={formData.paymentMethod}
+                    value={formData.payment_method}
                     onChange={(e) => {
-                      setFormData({...formData, paymentMethod: e.target.value});
-                      if (errors.paymentMethod) setErrors({...errors, paymentMethod: ''});
+                      setFormData({...formData, payment_method: e.target.value});
+                      if (errors.payment_method) setErrors({...errors, payment_method: ''});
                     }}
                     className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      errors.paymentMethod ? 'border-red-500' : 'border-gray-300'
+                      errors.payment_method ? 'border-red-500' : 'border-gray-300'
                     }`}
                   >
                     <option value="">Select payment method</option>
                     {paymentMethods.map(method => (
-                      <option key={method} value={method}>{method}</option>
+                      <option key={method.value} value={method.value}>{method.label}</option>
                     ))}
                   </select>
-                  {errors.paymentMethod && (
-                    <p className="mt-1 text-xs text-red-600">{errors.paymentMethod}</p>
+                  {errors.payment_method && (
+                    <p className="mt-1 text-xs text-red-600">{errors.payment_method}</p>
                   )}
-                </div>
-
-                {/* Created By */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    <User size={14} className="inline mr-1" />
-                    Created By
-                  </label>
-                  <select
-                    value={formData.createdBy}
-                    onChange={(e) => setFormData({...formData, createdBy: e.target.value})}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="admin">Admin</option>
-                    <option value="franchise">Franchise</option>
-                    <option value="vendor">Vendor</option>
-                  </select>
-                </div>
-
-                {/* Notes */}
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Notes
-                  </label>
-                  <textarea
-                    value={formData.notes}
-                    onChange={(e) => setFormData({...formData, notes: e.target.value})}
-                    placeholder="Add any additional notes about this expense..."
-                    rows="3"
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
                 </div>
 
                 {/* Status */}
@@ -1178,23 +1217,6 @@ const ExpenseTracker = () => {
           </div>
         </div>
       )}
-
-      {/* Add CSS for toast animation */}
-      <style jsx>{`
-        @keyframes slideIn {
-          from {
-            transform: translateY(-20px) translateX(-50%);
-            opacity: 0;
-          }
-          to {
-            transform: translateY(0) translateX(-50%);
-            opacity: 1;
-          }
-        }
-        .animate-slideIn {
-          animation: slideIn 0.3s ease-out;
-        }
-      `}</style>
     </div>
   );
 };

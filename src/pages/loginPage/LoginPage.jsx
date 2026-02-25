@@ -22,7 +22,7 @@ export default function LoginPage() {
   const { login, user, loading: authLoading } = useAuth();
 
   // Form states
-  const [loginValue, setLoginValue] = useState(""); // Changed from identifier to loginValue
+  const [loginValue, setLoginValue] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
@@ -31,19 +31,38 @@ export default function LoginPage() {
   /* 🔐 Redirect if already logged in */
   useEffect(() => {
     if (user) {
-      redirectBasedOnRole(user.role);
+      redirectBasedOnRole(user);
     }
   }, [user, navigate]);
 
-  const redirectBasedOnRole = (role) => {
-    const roleRouteMap = {
-      "ADMIN": "/admindashboard",
-      "GROW_TAG": "/growtagdashboard",
-      "CUSTOMER": "/customerdashboard",
-      "FRANCHISE": "/franchisedashboard",
-      "OTHER_SHOP": "/othershopdashboard",
-    };
-    navigate(roleRouteMap[role] || "/");
+  const redirectBasedOnRole = (userData) => {
+    console.log("Redirecting user:", userData);
+    
+    // Handle different role types
+    if (userData.role === "ADMIN") {
+      navigate("/admindashboard");
+    } 
+    else if (userData.role === "GROWTAG") {
+      navigate("/growtagdashboard");
+    }
+    else if (userData.role === "CUSTOMER") {
+      navigate("/customerdashboard");
+    }
+    else if (userData.role === "SHOP") {
+      // For shops, check shop_type to determine which dashboard
+      if (userData.shop_type === "franchise") {
+        navigate("/franchisedashboard");
+      } else if (userData.shop_type === "othershop") {
+        navigate("/othershopdashboard");
+      } else {
+        // Default shop dashboard if type not specified
+        navigate("/othershopdashboard");
+      }
+    }
+    else {
+      console.error("Unknown role:", userData.role);
+      navigate("/login");
+    }
   };
 
   // Validation
@@ -73,11 +92,11 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      console.log("Attempting login with:", loginValue); // Debug log
+      console.log("Attempting login with:", loginValue);
       
-      const result = await login(loginValue, password); // Now using correct parameter name
+      const result = await login(loginValue, password);
 
-      console.log("Login result:", result); // Debug log
+      console.log("Login result:", result);
 
       if (result.success) {
         toast.success(result.message || "Login successful!");
@@ -106,7 +125,7 @@ export default function LoginPage() {
           <CardContent className="p-6 space-y-6">
             <div className="text-center">
               <h1 className="text-3xl font-bold text-blue-700">
-                Finland Mobile
+                Fixly Mobiles
               </h1>
               <p className="text-gray-600 text-sm mt-2">
                 Login to access your dashboard
@@ -127,7 +146,7 @@ export default function LoginPage() {
             )}
 
             <form onSubmit={handleLogin} className="space-y-4">
-              {/* Login Field - Now clearly labeled */}
+              {/* Login Field */}
               <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-700">
                   Login ID <span className="text-xs text-gray-500">(username or email)</span>
@@ -208,7 +227,6 @@ export default function LoginPage() {
                 )}
               </Button>
             </form>
-
           </CardContent>
         </Card>
       </motion.div>

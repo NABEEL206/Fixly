@@ -3,13 +3,11 @@ import { useState, useEffect } from "react";
 import { useAuth } from "/src/auth/AuthContext";
 import toast from "react-hot-toast";
 
-
-export default function Navbar({ toggleSidebar }) {
+export default function Navbar({ toggleSidebar, isSidebarOpen }) { // Add isSidebarOpen prop
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [currentTime, setCurrentTime] = useState("");
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-
 
   useEffect(() => {
     const updateTime = () => {
@@ -23,105 +21,114 @@ export default function Navbar({ toggleSidebar }) {
       setCurrentTime(timeString);
     };
 
-    // Update time immediately
     updateTime();
-    
-    // Update time every second
     const timeIntervalId = setInterval(updateTime, 1000);
 
-    // Handle resize for mobile detection
     const handleResize = () => {
       setIsMobile(window.innerWidth < 768);
     };
 
     window.addEventListener('resize', handleResize);
 
-    // Cleanup intervals and listeners
     return () => {
       clearInterval(timeIntervalId);
       window.removeEventListener('resize', handleResize);
     };
   }, []);
 
-const handleLogout = () => {
-  // 🔑 Close any existing toasts first
-  toast.dismiss();
+  const handleLogout = () => {
+    toast.dismiss();
 
-  toast(
-    (t) => (
-      <div className="flex flex-col gap-3">
-        <p className="text-sm font-medium text-gray-800">
-          Are you sure you want to logout?
-        </p>
+    toast(
+      (t) => (
+        <div className="flex flex-col gap-3">
+          <p className="text-sm font-medium text-gray-800">
+            Are you sure you want to logout?
+          </p>
 
-        <div className="flex justify-end gap-2">
-          <button
-            onClick={() => toast.dismiss(t.id)}
-            className="px-3 py-1.5 rounded-md text-sm bg-gray-200 hover:bg-gray-300"
-          >
-            Cancel
-          </button>
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => toast.dismiss(t.id)}
+              className="px-3 py-1.5 rounded-md text-sm bg-gray-200 hover:bg-gray-300"
+            >
+              Cancel
+            </button>
 
-          <button
-            onClick={() => {
-              toast.dismiss(t.id);
-
-              // 🔐 Clear session
-              sessionStorage.clear();
-
-              // 🔓 Logout
-              logout();
-
-              // 🔁 Redirect
-              navigate("/login", { replace: true });
-
-              // ♻️ Hard refresh (keeps your current logic)
-              setTimeout(() => {
-                window.location.reload();
-              }, 50);
-            }}
-            className="px-3 py-1.5 rounded-md text-sm bg-red-600 text-white hover:bg-red-700"
-          >
-            Logout
-          </button>
+            <button
+              onClick={() => {
+                toast.dismiss(t.id);
+                sessionStorage.clear();
+                logout();
+                navigate("/login", { replace: true });
+                setTimeout(() => {
+                  window.location.reload();
+                }, 50);
+              }}
+              className="px-3 py-1.5 rounded-md text-sm bg-red-600 text-white hover:bg-red-700"
+            >
+              Logout
+            </button>
+          </div>
         </div>
-      </div>
-    ),
-    {
-      duration: Infinity,
-      position: "top-center",
+      ),
+      {
+        duration: Infinity,
+        position: "top-center",
+      }
+    );
+  };
+
+  const getRoleConfig = () => {
+    if (!user) return null;
+
+    if (user.role === "SHOP") {
+      if (user.shop_type === "franchise") {
+        return {
+          badgeColor: "bg-gradient-to-r from-orange-600 to-amber-600",
+          icon: "🏪",
+          label: "Franchise"
+        };
+      } else if (user.shop_type === "othershop") {
+        return {
+          badgeColor: "bg-gradient-to-r from-red-600 to-pink-600",
+          icon: "🛍️",
+          label: "Other Shop"
+        };
+      } else {
+        return {
+          badgeColor: "bg-gradient-to-r from-blue-600 to-indigo-600",
+          icon: "🏬",
+          label: "Shop"
+        };
+      }
     }
-  );
-};
 
-
-  // Role-based styling configuration
-  const roleConfig = {
-    ADMIN: {
-      badgeColor: "bg-gradient-to-r from-purple-600 to-pink-600",
-      icon: "👑",
-      label: "Admin"
-    },
-    GROW_TAG: {
-      badgeColor: "bg-gradient-to-r from-green-600 to-emerald-600",
-      icon: "🏷️",
-      label: "Grow Tag"
-    },
-    CUSTOMER: {
-      badgeColor: "bg-gradient-to-r from-blue-600 to-cyan-600",
-      icon: "👤",
-      label: "Customer"
-    },
-    FRANCHISE: {
-      badgeColor: "bg-gradient-to-r from-orange-600 to-amber-600",
-      icon: "🏪",
-      label: "Franchise"
-    },
-    OTHER_SHOP: {
-      badgeColor: "bg-gradient-to-r from-red-600 to-pink-600",
-      icon: "🛍️",
-      label: "Other Shop"
-    },
+    switch (user.role) {
+      case "ADMIN":
+        return {
+          badgeColor: "bg-gradient-to-r from-purple-600 to-pink-600",
+          icon: "👑",
+          label: "Admin"
+        };
+      case "GROWTAG":
+        return {
+          badgeColor: "bg-gradient-to-r from-green-600 to-emerald-600",
+          icon: "🏷️",
+          label: "Grow Tag"
+        };
+      case "CUSTOMER":
+        return {
+          badgeColor: "bg-gradient-to-r from-blue-600 to-cyan-600",
+          icon: "👤",
+          label: "Customer"
+        };
+      default:
+        return {
+          badgeColor: "bg-gradient-to-r from-gray-600 to-slate-600",
+          icon: "👤",
+          label: user.role || "User"
+        };
+    }
   };
 
   if (!user) {
@@ -130,12 +137,12 @@ const handleLogout = () => {
         <div className="flex items-center space-x-2 md:space-x-4">
           <button 
             onClick={toggleSidebar} 
-            className="text-2xl md:text-3xl font-bold p-1 hover:opacity-80 transition-opacity hover:bg-blue-900/30 rounded-lg p-2"
+            className="text-2xl md:text-3xl font-bold hover:bg-blue-900/30 rounded-lg p-2 transition-all"
+            aria-label="Toggle sidebar"
           > 
             ☰
           </button>
           
-          {/* Logo - Mobile Optimized */}
           <div className="flex items-center space-x-1 md:space-x-2">
             <div className="w-8 h-8 md:w-10 md:h-10 bg-white rounded-lg flex items-center justify-center shadow-sm">
               <img
@@ -156,10 +163,8 @@ const handleLogout = () => {
     );
   }
 
-  const currentRole = user.role.toUpperCase();
-  const config = roleConfig[currentRole] || roleConfig.CUSTOMER;
-
-  // Get clean user name (remove duplicates)
+  const config = getRoleConfig();
+  
   const getUserDisplayName = () => {
     if (!user.name) {
       return user.email ? user.email.split('@')[0].replace('.', ' ') : "User";
@@ -186,30 +191,33 @@ const handleLogout = () => {
   return (
     <nav className="fixed top-0 left-0 right-0 h-16 bg-gradient-to-r from-blue-800 to-blue-700 text-white flex items-center px-2 md:px-6 shadow-lg z-50">
       
-      {/* LEFT SIDE → Mobile Optimized Hamburger + Logo */}
+      {/* LEFT SIDE → Hamburger + Logo */}
       <div className="flex items-center space-x-1 md:space-x-3 min-w-0">
-        {/* Hamburger Button - Always Visible */}
+        {/* Hamburger Button - Enhanced with visual feedback */}
         <button 
           onClick={toggleSidebar} 
-          className="
+          className={`
             w-10 h-10
             md:w-12 md:h-12
             flex items-center justify-center
             text-xl md:text-2xl font-bold
-            hover:bg-blue-900/30 
             rounded-lg 
             transition-all duration-200
             active:scale-95
             shrink-0
-          "
+            ${isSidebarOpen 
+              ? 'bg-blue-900/50 text-blue-200' 
+              : 'hover:bg-blue-900/30 text-white'
+            }
+          `}
           aria-label="Toggle sidebar"
+          title={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
         > 
           ☰
         </button>
 
-        {/* Logo Container - Mobile Optimized */}
+        {/* Logo Container */}
         <div className="flex items-center space-x-2 md:space-x-3 min-w-0">
-          {/* Logo - Responsive sizing */}
           <div className="
             w-9 h-9
             md:w-12 md:h-12
@@ -241,7 +249,6 @@ const handleLogout = () => {
             />
           </div>
           
-          {/* Brand Name - Responsive text */}
           <div className="flex flex-col min-w-0">
             <h1 className="
               text-sm
@@ -254,22 +261,20 @@ const handleLogout = () => {
             ">
               Fixly Mobiles
             </h1>
-            {/* Optional tagline - only on larger screens */}
             {!isMobile && (
               <span className="text-xs text-blue-200/80 truncate">
-                Professional Management
+                {config.label} Portal
               </span>
             )}
           </div>
         </div>
       </div>
 
-      {/* RIGHT SIDE → Mobile Optimized Controls */}
+      {/* RIGHT SIDE */}
       <div className="ml-auto flex items-center space-x-2 md:space-x-4 lg:space-x-6 min-w-0"> 
 
-        {/* Time Display - Responsive */}
+        {/* Time Display */}
         {!isMobile ? (
-          // Desktop Time Display
           <div className="hidden md:flex flex-col items-end bg-blue-900/40 px-3 py-1.5 md:px-4 md:py-2 rounded-lg backdrop-blur-sm min-w-[100px]">
             <div className="flex items-center space-x-1 md:space-x-2">
               <span className="text-yellow-300 animate-pulse text-sm">🕒</span>
@@ -278,13 +283,12 @@ const handleLogout = () => {
             <div className="text-[10px] md:text-xs text-blue-200">Live Time</div>
           </div>
         ) : (
-          // Mobile Time Display - Compact
           <div className="flex items-center bg-blue-900/40 px-2 py-1 rounded-lg backdrop-blur-sm min-w-[60px] justify-center">
             <div className="text-xs font-mono font-semibold">{mobileTime}</div>
           </div>
         )}
 
-        {/* User Display - Mobile Optimized */}
+        {/* User Display */}
         <div className="relative group">
           <div className="
             flex items-center 
@@ -298,7 +302,6 @@ const handleLogout = () => {
             backdrop-blur-sm
             min-w-0
           ">
-            {/* User Icon - Responsive */}
             <div className={`
               w-7 h-7
               md:w-8 md:h-8
@@ -311,7 +314,6 @@ const handleLogout = () => {
               <span className="text-xs md:text-sm lg:text-base">{config.icon}</span>
             </div>
             
-            {/* User Info - Hidden on mobile, visible on desktop */}
             {!isMobile && (
               <div className="hidden md:block ml-2 min-w-0">
                 <div className="text-xs lg:text-sm font-bold truncate max-w-[80px] lg:max-w-[100px]">
@@ -324,7 +326,6 @@ const handleLogout = () => {
             )}
           </div>
           
-          {/* User Info Tooltip - Shows on hover */}
           <div className="
             absolute right-0 top-full mt-2 
             hidden group-hover:block 
@@ -332,7 +333,7 @@ const handleLogout = () => {
             text-white px-4 py-3 
             rounded-lg text-sm 
             shadow-2xl z-50 
-            min-w-[220px] 
+            min-w-[250px] 
             border border-gray-700
           ">
             <div className="flex items-center space-x-3 mb-3">
@@ -351,10 +352,10 @@ const handleLogout = () => {
                   <span className="font-semibold text-xs truncate ml-2">{user.email}</span>
                 </div>
               )}
-              {user.phone && (
+              {user.shop_type && (
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-300 text-xs">Phone:</span>
-                  <span className="font-semibold text-xs">{user.phone}</span>
+                  <span className="text-gray-300 text-xs">Shop Type:</span>
+                  <span className="font-semibold text-xs capitalize">{user.shop_type}</span>
                 </div>
               )}
               <div className="flex items-center justify-between">
@@ -365,7 +366,7 @@ const handleLogout = () => {
           </div>
         </div>
 
-        {/* Logout Button - Mobile Optimized */}
+        {/* Logout Button */}
         <div className="relative group shrink-0">
           <button
             onClick={handleLogout}
@@ -382,7 +383,6 @@ const handleLogout = () => {
             "
             aria-label="Logout"
           >
-            {/* Logout Icon - Responsive */}
             <svg 
               className="
                 w-4 h-4
@@ -404,13 +404,11 @@ const handleLogout = () => {
               />
             </svg>
             
-            {/* Logout Text - Hidden on mobile */}
             <span className="hidden md:inline font-medium ml-1 text-sm lg:text-base">
               Logout
             </span>
           </button>
           
-          {/* Logout Tooltip - Shows on hover */}
           <div className="
             absolute right-0 top-full mt-2 
             hidden group-hover:block 
