@@ -1,8 +1,8 @@
+// src/pages/admin/AdminDashboard.jsx
 import React, { useState, useEffect } from "react";
 import { Bar, Line } from "react-chartjs-2";
-import { BASE_URL } from "@/API/BaseURL";
-import { useAuth } from "@/auth/AuthContext";
 import { useNavigate } from "react-router-dom";
+import axiosInstance from "@/API/axiosInstance";
 
 import {
   Chart as ChartJS,
@@ -42,9 +42,13 @@ ChartJS.register(
   Title
 );
 
+// Helper function to extract error message
+const getErrorMessage = (error) => {
+  return error.response?.data?.message || error.message || "An unexpected error occurred";
+};
+
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  const { user, isAuthenticated } = useAuth();
   
   // State for meta data
   const [metaData, setMetaData] = useState({
@@ -99,12 +103,13 @@ export default function AdminDashboard() {
     day: "numeric",
   });
 
-  // Check authentication
+  // Check authentication - only redirect if no token
   useEffect(() => {
-    if (!isAuthenticated()) {
+    const token = localStorage.getItem("access_token");
+    if (!token) {
       navigate("/login");
     }
-  }, [isAuthenticated, navigate]);
+  }, [navigate]);
 
   // Fetch meta data on component mount
   useEffect(() => {
@@ -128,37 +133,8 @@ export default function AdminDashboard() {
   // Fetch meta data from API
   const fetchMetaData = async () => {
     try {
-      const token = localStorage.getItem("access_token");
-
-      if (!token) {
-        navigate("/login");
-        return;
-      }
-
-      const response = await fetch(
-        `${BASE_URL}/api/admin/dashboard/meta/`,
-        {
-          method: "GET",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      if (response.status === 401) {
-        localStorage.removeItem("access_token");
-        localStorage.removeItem("refresh_token");
-        localStorage.removeItem("user");
-        navigate("/login");
-        return;
-      }
-
-      if (!response.ok) {
-        throw new Error("Failed to load meta data");
-      }
-
-      const data = await response.json();
+      const response = await axiosInstance.get("/api/admin/dashboard/meta/");
+      const data = response.data;
       
       setMetaData({
         loading: false,
@@ -170,10 +146,11 @@ export default function AdminDashboard() {
       });
       
     } catch (error) {
+      // 401 is handled globally by axiosInstance interceptor
       setMetaData(prev => ({
         ...prev,
         loading: false,
-        error: error.message || "Failed to load year data",
+        error: getErrorMessage(error),
       }));
       console.error("Meta data API error:", error);
     }
@@ -184,37 +161,8 @@ export default function AdminDashboard() {
     setDashboardData(prev => ({ ...prev, loading: true, error: null }));
 
     try {
-      const token = localStorage.getItem("access_token");
-
-      if (!token) {
-        navigate("/login");
-        return;
-      }
-
-      const response = await fetch(
-        `${BASE_URL}/api/admin/dashboard/?year=${selectedYear}`,
-        {
-          method: "GET",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      if (response.status === 401) {
-        localStorage.removeItem("access_token");
-        localStorage.removeItem("refresh_token");
-        localStorage.removeItem("user");
-        navigate("/login");
-        return;
-      }
-
-      if (!response.ok) {
-        throw new Error("Failed to load dashboard data");
-      }
-
-      const data = await response.json();
+      const response = await axiosInstance.get(`/api/admin/dashboard/?year=${selectedYear}`);
+      const data = response.data;
       
       setDashboardData({
         loading: false,
@@ -225,10 +173,11 @@ export default function AdminDashboard() {
         charts: data.charts,
       });
     } catch (error) {
+      // 401 is handled globally by axiosInstance interceptor
       setDashboardData(prev => ({
         ...prev,
         loading: false,
-        error: error.message || "Failed to load dashboard data",
+        error: getErrorMessage(error),
       }));
       console.error("Dashboard API error:", error);
     }
@@ -237,6 +186,14 @@ export default function AdminDashboard() {
   // Handle year change
   const handleYearChange = (year) => {
     setSelectedYear(year);
+  };
+
+  // Handle refresh
+  const handleRefresh = () => {
+    fetchMetaData();
+    if (selectedYear) {
+      fetchDashboardData();
+    }
   };
 
   // Charts Data Configuration
@@ -391,10 +348,7 @@ export default function AdminDashboard() {
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Oops! Something went wrong</h2>
           <p className="text-gray-600 mb-6">{error}</p>
           <button
-            onClick={() => {
-              fetchMetaData();
-              if (selectedYear) fetchDashboardData();
-            }}
+            onClick={handleRefresh}
             className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors"
           >
             Try Again
@@ -443,10 +397,7 @@ export default function AdminDashboard() {
             </div>
 
             <button
-              onClick={() => {
-                fetchMetaData();
-                if (selectedYear) fetchDashboardData();
-              }}
+              onClick={handleRefresh}
               disabled={dashboardData.loading}
               className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors flex items-center gap-2 shadow-md disabled:opacity-50"
             >

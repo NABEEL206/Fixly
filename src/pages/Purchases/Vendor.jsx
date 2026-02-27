@@ -17,62 +17,7 @@ import {
   RefreshCw
 } from "lucide-react";
 import toast from "react-hot-toast";
-import axios from "axios";
-import { getAuthHeaders } from "@/utils/authHeaders";
-
-const API_BASE_URL = "http://127.0.0.1:8000/api";
-
-// Create axios instance with default config
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-// Request interceptor to add auth token with correct type
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem("access_token");
-    const tokenType = localStorage.getItem("token_type") || "Bearer";
-    if (token) {
-      config.headers.Authorization = `${tokenType} ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
-
-// Response interceptor to handle errors - ONLY place for 403 handling
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 403) {
-      toast.error("You don't have permission to perform this action");
-    } else if (error.response?.status === 401) {
-      toast.error("Session expired. Please login again.");
-      // Optional: redirect to login after a short delay
-      setTimeout(() => {
-        window.location.href = '/login';
-      }, 1500);
-    }
-    return Promise.reject(error);
-  }
-);
-
-// Debug function to check auth state
-const debugAuth = () => {
-  const token = localStorage.getItem("access_token");
-  const tokenType = localStorage.getItem("token_type");
-  
-  console.log("=== Vendor Auth Debug ===");
-  console.log("Token exists:", !!token);
-  console.log("Token type:", tokenType || "not set (defaulting to Bearer)");
-  console.log("Token preview:", token ? `${token.substring(0, 20)}...` : "none");
-  console.log("========================");
-};
+import axiosInstance from "@/API/axiosInstance";
 
 const STATUS_OPTIONS = [
   { value: "active", label: "Active" },
@@ -571,7 +516,7 @@ export default function Vendor() {
     validateField(fieldName);
   };
 
-  // Fetch vendors
+  // Fetch vendors - FIXED: Added /api/ prefix
   const fetchVendors = useCallback(async (showLoading = true) => {
     if (showLoading) {
       setIsFetchingData(true);
@@ -580,7 +525,8 @@ export default function Vendor() {
     }
     
     try {
-      const response = await api.get('/vendors/');
+      // ✅ FIXED: Added /api/ prefix
+      const response = await axiosInstance.get('/api/vendors/');
       
       // Handle the API response structure
       const data = response.data;
@@ -597,7 +543,7 @@ export default function Vendor() {
       setVendors(vendorsList);
     } catch (error) {
       console.error("Fetch vendors error:", error);
-      // 403 is handled by interceptor, don't show additional error
+      // 403/401 are handled by interceptor, don't show additional error
       if (error.response?.status !== 403 && error.response?.status !== 401) {
         toast.error("Failed to load vendors");
       }
@@ -608,11 +554,10 @@ export default function Vendor() {
   }, []);
 
   useEffect(() => { 
-    debugAuth();
     fetchVendors(); 
   }, [fetchVendors]);
 
-  // Handle form submission
+  // Handle form submission - FIXED: Added /api/ prefix to all endpoints
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -660,11 +605,11 @@ export default function Vendor() {
     try {
       let response;
       if (isEdit && editVendor?.id) {
-        // Update existing vendor
-        response = await api.put(`/vendors/${editVendor.id}/`, vendorData);
+        // ✅ FIXED: Added /api/ prefix
+        response = await axiosInstance.put(`/api/vendors/${editVendor.id}/`, vendorData);
       } else {
-        // Create new vendor
-        response = await api.post('/vendors/', vendorData);
+        // ✅ FIXED: Added /api/ prefix
+        response = await axiosInstance.post('/api/vendors/', vendorData);
       }
 
       // Handle response
@@ -751,7 +696,7 @@ export default function Vendor() {
     }, 300);
   }, [resetFormStates]);
 
-  // Handle delete
+  // Handle delete - FIXED: Added /api/ prefix
   const handleDelete = (id) => {
     // Dismiss any existing toasts
     if (toastIdRef.current) {
@@ -780,7 +725,8 @@ export default function Vendor() {
                 toastIdRef.current = dt;
                 
                 try {
-                  await api.delete(`/vendors/${id}/`);
+                  // ✅ FIXED: Added /api/ prefix
+                  await axiosInstance.delete(`/api/vendors/${id}/`);
                   setVendors((prev) => prev.filter((v) => v.id !== id));
                   setSelectedIds((prev) => prev.filter((vid) => vid !== id));
                   toast.success("Vendor deleted successfully", { id: dt });
@@ -807,7 +753,7 @@ export default function Vendor() {
     toastIdRef.current = deleteToastId;
   };
 
-  // Handle bulk delete
+  // Handle bulk delete - FIXED: Added /api/ prefix
   const handleBulkDelete = () => {
     if (!selectedIds.length) { 
       toast.error("Please select at least one vendor"); 
@@ -843,7 +789,8 @@ export default function Vendor() {
                 const results = await Promise.all(
                   selectedIds.map(async (id) => {
                     try {
-                      await api.delete(`/vendors/${id}/`);
+                      // ✅ FIXED: Added /api/ prefix
+                      await axiosInstance.delete(`/api/vendors/${id}/`);
                       return { id, success: true };
                     } catch (error) {
                       // 403/401 are handled by interceptor, just mark as failed
@@ -932,16 +879,6 @@ export default function Vendor() {
 
   return (
     <div className="p-8 max-w-7xl mx-auto font-sans">
-      {/* Debug Button - Remove in production */}
-      <div className="mb-4 flex justify-end">
-        <button
-          onClick={debugAuth}
-          className="text-xs bg-gray-200 px-3 py-1 rounded hover:bg-gray-300"
-        >
-          Debug Auth
-        </button>
-      </div>
-
       {/* Header */}
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-8">
         <div className="flex items-center gap-3">

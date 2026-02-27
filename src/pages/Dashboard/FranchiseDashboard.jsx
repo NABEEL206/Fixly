@@ -1,3 +1,4 @@
+// src/pages/franchise/FranchiseDashboard.jsx
 import React, { useEffect, useState } from "react";
 import { Bar, Line } from "react-chartjs-2";
 import {
@@ -25,9 +26,8 @@ import {
   ChevronDown
 } from "lucide-react";
 import { useAuth } from "@/auth/AuthContext";
-import { BASE_URL } from "@/API/BaseURL";
 import toast from "react-hot-toast";
-import axios from "axios";
+import axiosInstance from "@/API/axiosInstance";
 
 ChartJS.register(
   BarElement,
@@ -39,64 +39,6 @@ ChartJS.register(
   Legend,
   Filler,
   Title
-);
-
-// Create axios instance with default config for DRF Token Authentication
-const api = axios.create({
-  baseURL: BASE_URL,
-  timeout: 10000,
-  headers: {
-    'Content-Type': 'application/json',
-  }
-});
-
-// Add request interceptor to add token in DRF format
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem("access_token");
-    if (token) {
-      config.headers.Authorization = `Token ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
-
-// Add response interceptor for global error handling
-api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
-    
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-      
-      try {
-        const refreshToken = localStorage.getItem("refresh_token");
-        if (refreshToken) {
-          const response = await axios.post(`${BASE_URL}/auth/token/refresh/`, {
-            refresh: refreshToken
-          });
-          
-          if (response.data.access) {
-            localStorage.setItem("access_token", response.data.access);
-            originalRequest.headers.Authorization = `Token ${response.data.access}`;
-            return api(originalRequest);
-          }
-        }
-      } catch (refreshError) {
-        console.error("Token refresh failed:", refreshError);
-        localStorage.removeItem("access_token");
-        localStorage.removeItem("refresh_token");
-        localStorage.removeItem("user");
-        window.location.href = "/login";
-      }
-    }
-    
-    return Promise.reject(error);
-  }
 );
 
 export default function FranchiseDashboard() {
@@ -139,7 +81,6 @@ export default function FranchiseDashboard() {
 
   const fetchYearMetaData = async () => {
     try {
-      const token = localStorage.getItem("access_token");
       const shopId = user?.id;
 
       if (!shopId) {
@@ -148,7 +89,7 @@ export default function FranchiseDashboard() {
       }
 
       console.log("Fetching year meta data for shop:", shopId);
-      const response = await api.get(`/api/shop/dashboard/meta/?shop_id=${shopId}`);
+      const response = await axiosInstance.get(`/api/shop/dashboard/meta/?shop_id=${shopId}`);
       
       console.log("Year meta data received:", response.data);
       setYearMetaData(response.data);
@@ -160,24 +101,23 @@ export default function FranchiseDashboard() {
       
     } catch (error) {
       console.error("Error fetching year meta data:", error);
-      toast.error("Failed to load year data");
+      
+      if (error.response?.status === 401) {
+        toast.error("Session expired. Please login again.");
+      } else if (error.response?.status === 403) {
+        toast.error("You don't have permission to access this data");
+      } else {
+        toast.error("Failed to load year data");
+      }
     }
   };
 
   const fetchDashboardData = async (year) => {
     setLoading(true);
     try {
-      const token = localStorage.getItem("access_token");
-      
-      if (!token) {
-        toast.error("No access token found. Please login again.");
-        setLoading(false);
-        return;
-      }
-
       console.log(`Fetching franchise dashboard data for year ${year}...`);
       
-      const response = await api.get(`/api/franchise/dashboard/?year=${year}`);
+      const response = await axiosInstance.get(`/api/franchise/dashboard/?year=${year}`);
       
       console.log("Dashboard data received:", response.data);
       setDashboardData(response.data);
@@ -188,10 +128,6 @@ export default function FranchiseDashboard() {
       if (error.response) {
         if (error.response.status === 401) {
           toast.error("Authentication failed. Please login again.");
-          localStorage.removeItem("access_token");
-          localStorage.removeItem("refresh_token");
-          localStorage.removeItem("user");
-          window.location.href = "/login";
         } else if (error.response.status === 403) {
           toast.error("You don't have permission to access this dashboard");
         } else if (error.response.status === 404) {
@@ -216,7 +152,6 @@ export default function FranchiseDashboard() {
 
   // Calculate revenue growth
   const calculateRevenueGrowth = () => {
-    // You can implement this based on your data structure
     return "0";
   };
 

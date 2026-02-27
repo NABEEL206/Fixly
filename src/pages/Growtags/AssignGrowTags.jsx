@@ -3,58 +3,12 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, ChevronDown, ChevronUp, ArrowLeft } from "lucide-react";
 import toast from "react-hot-toast";
-import { BASE_URL } from "@/API/BaseURL";
-import axios from "axios";
-
-// API Configuration
-const api = axios.create({
-  baseURL: `${BASE_URL}/api/`,
-});
-
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem("access_token");
-    const tokenType = localStorage.getItem("token_type") || "Bearer";
-    if (token) {
-      config.headers.Authorization = `${tokenType} ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
-api.interceptors.response.use(
-  (res) => res,
-  (err) => {
-    if (err.response?.status === 401) {
-      localStorage.removeItem("access_token");
-      toast.error("Session expired. Please login again.");
-      setTimeout(() => {
-        window.location.href = "/login";
-      }, 300);
-    } else if (err.response?.status === 403) {
-      toast.error("You don't have permission to perform this action");
-    }
-    return Promise.reject(err);
-  }
-);
-
-// Debug function to check auth state
-const debugAuth = () => {
-  const token = localStorage.getItem("access_token");
-  const tokenType = localStorage.getItem("token_type");
-  
-  console.log("=== AssignGrowTags Auth Debug ===");
-  console.log("Token exists:", !!token);
-  console.log("Token type:", tokenType || "not set (defaulting to Bearer)");
-  console.log("Token preview:", token ? `${token.substring(0, 20)}...` : "none");
-  console.log("==================================");
-};
+import axiosInstance from "@/API/axiosInstance";
 
 // API Endpoints
-const ASSIGNMENTS_API_URL = "growtag-assignments/";
-const GROWTAGS_API_URL = "growtags/";
-const SHOPS_API_URL = "shops/";
+const ASSIGNMENTS_API_URL = "/api/growtag-assignments/";
+const GROWTAGS_API_URL = "/api/growtags/";
+const SHOPS_API_URL = "/api/shops/";
 
 // Helper Functions
 const extractErrorMessage = (err) => {
@@ -371,9 +325,9 @@ export default function AssignGrowTags() {
 
     try {
       const [shopsRes, growtagsRes, assignmentsRes] = await Promise.all([
-        api.get(SHOPS_API_URL),
-        api.get(GROWTAGS_API_URL),
-        api.get(ASSIGNMENTS_API_URL),
+        axiosInstance.get(SHOPS_API_URL),
+        axiosInstance.get(GROWTAGS_API_URL),
+        axiosInstance.get(ASSIGNMENTS_API_URL),
       ]);
 
       setGrowTags(
@@ -391,7 +345,15 @@ export default function AssignGrowTags() {
       setAssigned(assignmentsRes.data);
     } catch (err) {
       console.error("Failed to fetch data:", err);
-      toast.error("Failed to load initial data.");
+      
+      if (err.response?.status === 401) {
+        toast.error("Session expired. Please login again.");
+        navigate("/login");
+      } else if (err.response?.status === 403) {
+        toast.error("You don't have permission to view this data");
+      } else {
+        toast.error("Failed to load initial data.");
+      }
     } finally {
       const elapsed = Date.now() - startTime;
       if (elapsed < MIN_SPINNER_TIME) {
@@ -402,7 +364,6 @@ export default function AssignGrowTags() {
   };
 
   useEffect(() => {
-    debugAuth();
     fetchAllData();
   }, []);
 
@@ -442,7 +403,7 @@ export default function AssignGrowTags() {
     const t = toast.loading("Assigning Grow Tag...");
 
     try {
-      await api.post(ASSIGNMENTS_API_URL, payload);
+      await axiosInstance.post(ASSIGNMENTS_API_URL, payload);
       toast.success("Grow Tag assigned successfully ✅", { id: t });
 
       setTimeout(async () => {
@@ -487,7 +448,7 @@ export default function AssignGrowTags() {
               onClick={async () => {
                 toast.dismiss(t.id);
                 try {
-                  await api.delete(`${ASSIGNMENTS_API_URL}${id}/`);
+                  await axiosInstance.delete(`${ASSIGNMENTS_API_URL}${id}/`);
                   toast.success("Grow Tag unassigned successfully ✅");
                   await fetchAllData();
                 } catch (err) {
@@ -550,7 +511,7 @@ export default function AssignGrowTags() {
                 try {
                   await Promise.all(
                     selectedIds.map((id) =>
-                      api.delete(`${ASSIGNMENTS_API_URL}${id}/`)
+                      axiosInstance.delete(`${ASSIGNMENTS_API_URL}${id}/`)
                     )
                   );
 
@@ -618,6 +579,18 @@ export default function AssignGrowTags() {
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
   };
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 md:p-6 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading assignments...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">

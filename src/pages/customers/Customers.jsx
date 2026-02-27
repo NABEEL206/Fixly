@@ -1,4 +1,4 @@
-// src/pages/customers/Customers.jsx
+// src/pages/customers/CustomerTable.jsx
 import React, { useEffect, useState } from "react";
 import {
   Search,
@@ -20,16 +20,17 @@ import {
   Calendar,
   User,
   Package,
-  Tag,
   Smartphone,
   AlertCircle,
+  DollarSign,
+  Tag,
+  Building
 } from "lucide-react";
 import toast from "react-hot-toast";
-import { BASE_URL } from "@/API/BaseURL";
-import { getAuthHeaders } from "@/utils/authHeaders";
+import axiosInstance from "@/API/axiosInstance";
 
 // --- API Endpoints ---
-const CUSTOMER_API = `${BASE_URL}/api/customers/`;
+const CUSTOMER_API = "/api/customers/";
 
 // --- MAIN COMPONENT ---
 export default function CustomerTable() {
@@ -50,30 +51,6 @@ export default function CustomerTable() {
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [selectedCustomerForView, setSelectedCustomerForView] = useState(null);
 
-  // Debug function to check auth state
-  const debugAuth = () => {
-    const token = localStorage.getItem("access_token");
-    const tokenType = localStorage.getItem("token_type");
-    const user = localStorage.getItem("user");
-    
-    console.log("=== Auth Debug ===");
-    console.log("Token exists:", !!token);
-    console.log("Token type:", tokenType || "not set");
-    console.log("Token preview:", token ? `${token.substring(0, 20)}...` : "none");
-    console.log("User exists:", !!user);
-    if (user) {
-      try {
-        const userData = JSON.parse(user);
-        console.log("User role:", userData.role);
-      } catch (e) {
-        console.log("Error parsing user:", e);
-      }
-    }
-    console.log("==================");
-    
-    return !!token;
-  };
-
   // Check authentication
   const checkAuth = () => {
     const token = localStorage.getItem("access_token");
@@ -90,60 +67,29 @@ export default function CustomerTable() {
       setLoading(true);
       setFetchError(null);
 
-      // Debug auth state
-      debugAuth();
-
       if (!checkAuth()) {
         setLoading(false);
         return;
       }
 
-      const headers = getAuthHeaders();
-      console.log("Request headers:", headers);
-
-      const res = await fetch(CUSTOMER_API, {
-        headers: headers,
-      });
-
-      console.log("Response status:", res.status);
-      console.log("Response status text:", res.statusText);
-
-      if (res.status === 401) {
-        toast.error("Session expired. Please login again.");
-        setCustomers([]);
-        return;
-      }
-
-      if (res.status === 403) {
-        const errorData = await res.text();
-        console.error("403 Forbidden response:", errorData);
-        
-        // Try to parse error as JSON if possible
-        try {
-          const jsonError = JSON.parse(errorData);
-          toast.error(jsonError.detail || "You don't have permission to view customers");
-        } catch {
-          toast.error("Access denied. You don't have permission to view customers.");
-        }
-        
-        setCustomers([]);
-        return;
-      }
-
-      if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
-      }
-
-      const data = await res.json();
-      console.log("Customers data received:", data);
-      setCustomers(data);
+      const response = await axiosInstance.get(CUSTOMER_API);
+      setCustomers(response.data);
       setSelectedRows(new Set());
       setSelectAll(false);
     } catch (err) {
       console.error("Fetch customers error:", err);
-      setFetchError(`Failed to load customer data: ${err.message}`);
-      setCustomers([]);
-      toast.error("Failed to load customers. Please try again.");
+      
+      if (err.response?.status === 401) {
+        toast.error("Session expired. Please login again.");
+        setCustomers([]);
+      } else if (err.response?.status === 403) {
+        toast.error(err.response.data?.detail || "You don't have permission to view customers");
+        setCustomers([]);
+      } else {
+        setFetchError(`Failed to load customer data: ${err.message}`);
+        setCustomers([]);
+        toast.error("Failed to load customers. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -229,14 +175,7 @@ export default function CustomerTable() {
 
       const deletePromises = idsToDelete.map(async (id) => {
         try {
-          const response = await fetch(`${CUSTOMER_API}${id}/`, {
-            method: "DELETE",
-            headers: getAuthHeaders(),
-          });
-
-          if (!response.ok && response.status !== 204) {
-            throw new Error();
-          }
+          await axiosInstance.delete(`${CUSTOMER_API}${id}/`);
           return true;
         } catch {
           return false;
@@ -298,14 +237,7 @@ export default function CustomerTable() {
     if (!checkAuth()) return;
 
     try {
-      const response = await fetch(`${CUSTOMER_API}${id}/`, {
-        method: "DELETE",
-        headers: getAuthHeaders(),
-      });
-
-      if (!response.ok && response.status !== 204) {
-        throw new Error();
-      }
+      await axiosInstance.delete(`${CUSTOMER_API}${id}/`);
 
       setCustomers((prev) => prev.filter((cust) => cust.id !== id));
       setSelectedRows((prev) => {
@@ -399,6 +331,58 @@ export default function CustomerTable() {
     });
   };
 
+  // Get assigned to display name with type
+  const getAssignedToWithType = (complaint) => {
+    let name = "Unassigned";
+    let type = "";
+    
+    if (complaint.assigned_to_details) {
+      name = complaint.assigned_to_details.name;
+      type = complaint.assigned_to_details.type || "";
+    } else if (complaint.assign_to === "franchise" && complaint.assigned_shop_details) {
+      name = complaint.assigned_shop_details.name;
+      type = "franchise";
+    } else if (complaint.assign_to === "othershop" && complaint.assigned_shop_details) {
+      name = complaint.assigned_shop_details.name;
+      type = "othershop";
+    } else if (complaint.assign_to === "growtag" && complaint.assigned_Growtags_details) {
+      name = complaint.assigned_Growtags_details.name;
+      type = "growtag";
+    }
+    
+    return { name, type };
+  };
+
+  // Get invoice status
+  const getInvoiceStatus = (complaint) => {
+    // Check if invoice exists and has status
+    if (complaint.invoice) {
+      if (complaint.invoice.status) {
+        return complaint.invoice.status;
+      }
+      return "Generated";
+    }
+    return "Not Generated";
+  };
+
+  // Get invoice status color
+  const getInvoiceStatusColor = (status) => {
+    switch(status?.toLowerCase()) {
+      case "paid":
+        return "bg-green-100 text-green-700 border border-green-200";
+      case "pending":
+        return "bg-yellow-100 text-yellow-700 border border-yellow-200";
+      case "overdue":
+        return "bg-red-100 text-red-700 border border-red-200";
+      case "generated":
+        return "bg-blue-100 text-blue-700 border border-blue-200";
+      case "not generated":
+        return "bg-gray-100 text-gray-500 border border-gray-200";
+      default:
+        return "bg-gray-100 text-gray-500 border border-gray-200";
+    }
+  };
+
   // ================= STANDARDIZED MODALS =================
 
   // View Modal Component
@@ -408,7 +392,7 @@ export default function CustomerTable() {
     return (
       <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-50 p-4">
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
-          {/* Modal Header - Gradient background like Leads.jsx */}
+          {/* Modal Header */}
           <div className="flex justify-between items-center p-6 border-b bg-gradient-to-r from-blue-50 to-indigo-50">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-100 rounded-lg">
@@ -430,15 +414,6 @@ export default function CustomerTable() {
           {/* Modal Body */}
           <div className="flex-grow overflow-y-auto p-6">
             <div className="space-y-6">
-              {/* Status Badge - if any status exists */}
-              {selectedCustomerForView.status && (
-                <div className="flex justify-end">
-                  <span className={`px-4 py-2 rounded-full text-sm font-semibold ${getStatusStyle(selectedCustomerForView.status)}`}>
-                    {selectedCustomerForView.status}
-                  </span>
-                </div>
-              )}
-
               {/* Customer Information Section */}
               <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
                 <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2 mb-4 pb-2 border-b border-gray-200">
@@ -464,6 +439,12 @@ export default function CustomerTable() {
                     <p className="text-base font-medium text-gray-900 bg-white p-3 rounded-lg border border-gray-200 flex items-center gap-2">
                       <Mail size={16} className="text-blue-500" />
                       {selectedCustomerForView.email}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Password</label>
+                    <p className="text-base font-medium text-gray-900 bg-white p-3 rounded-lg border border-gray-200 font-mono">
+                      ••••••••
                     </p>
                   </div>
                 </div>
@@ -520,7 +501,7 @@ export default function CustomerTable() {
                   <div className="space-y-1">
                     <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Created Date</label>
                     <p className="text-base font-medium text-gray-900 bg-white p-3 rounded-lg border border-gray-200 flex items-center gap-2">
-                      <Calendar size={14} className="text-gray-400" />
+                      <Calendar size={16} className="text-gray-400" />
                       {formatDate(selectedCustomerForView.created_at)}
                     </p>
                   </div>
@@ -567,14 +548,14 @@ export default function CustomerTable() {
     );
   };
 
-  // History Modal Component - Standardized to match View Modal
+  // History Modal Component - Updated with new columns
   const HistoryModal = () => {
     if (!selectedCustomer) return null;
 
     return (
       <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-50 p-4">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-          {/* Modal Header - Gradient background matching View Modal */}
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-7xl max-h-[90vh] overflow-hidden flex flex-col">
+          {/* Modal Header */}
           <div className="flex justify-between items-center p-6 border-b bg-gradient-to-r from-teal-50 to-emerald-50">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-teal-100 rounded-lg">
@@ -583,6 +564,7 @@ export default function CustomerTable() {
               <div>
                 <h2 className="text-2xl font-bold text-gray-800">Complaint History</h2>
                 <p className="text-sm text-gray-500">Customer: {selectedCustomer.customer_name}</p>
+                <p className="text-xs text-gray-400 mt-1">Email: {selectedCustomer.email} | Phone: {selectedCustomer.customer_phone}</p>
               </div>
             </div>
             <button
@@ -602,67 +584,84 @@ export default function CustomerTable() {
                 <p className="text-gray-500">This customer has no complaint records yet.</p>
               </div>
             ) : (
-              <div className="space-y-4">
-                {/* Summary Stats */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                    <p className="text-xs text-gray-500 uppercase">Total Complaints</p>
-                    <p className="text-2xl font-bold text-teal-600">{history.length}</p>
-                  </div>
-                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                    <p className="text-xs text-gray-500 uppercase">Pending</p>
-                    <p className="text-2xl font-bold text-yellow-600">
-                      {history.filter(h => h.status === "Pending").length}
-                    </p>
-                  </div>
-                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                    <p className="text-xs text-gray-500 uppercase">In Progress</p>
-                    <p className="text-2xl font-bold text-blue-600">
-                      {history.filter(h => h.status === "In Progress").length}
-                    </p>
-                  </div>
-                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                    <p className="text-xs text-gray-500 uppercase">Resolved</p>
-                    <p className="text-2xl font-bold text-green-600">
-                      {history.filter(h => h.status === "Resolved").length}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Complaints Table */}
-                <div className="border border-gray-200 rounded-xl overflow-hidden">
+              <div className="space-y-6">
+                {/* Complaints Table - Updated with new columns */}
+                <div className="border border-gray-200 rounded-xl overflow-x-auto">
                   <table className="min-w-full text-sm">
                     <thead className="bg-gray-100 border-b border-gray-200">
                       <tr>
                         <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">ID</th>
                         <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Date</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Customer Name</th>
                         <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Phone Model</th>
                         <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Issue</th>
                         <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Status</th>
-                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Assigned To</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Assign To Type</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Assign To Name</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Invoice Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {history.map((h) => (
-                        <tr key={h.id} className="hover:bg-gray-50 transition">
-                          <td className="px-4 py-3 font-mono text-slate-600 text-sm">#{h.id}</td>
-                          <td className="px-4 py-3 text-gray-600">
-                            {new Date(h.created_at).toLocaleDateString()}
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className="font-medium text-blue-600">{h.phone_model || "N/A"}</span>
-                          </td>
-                          <td className="px-4 py-3 text-gray-700 max-w-xs truncate">
-                            {h.issue_details}
-                          </td>
-                          <td className="px-4 py-3">
-                            {getStatusBadge(h.status)}
-                          </td>
-                          <td className="px-4 py-3 text-gray-700">
-                            {h.assign_to || "Unassigned"}
-                          </td>
-                        </tr>
-                      ))}
+                      {history.map((h) => {
+                        const assigned = getAssignedToWithType(h);
+                        const invoiceStatus = getInvoiceStatus(h);
+                        const invoiceStatusColor = getInvoiceStatusColor(invoiceStatus);
+                        
+                        return (
+                          <tr key={h.id} className="hover:bg-gray-50 transition">
+                            <td className="px-4 py-3 font-mono text-slate-600 text-sm">#{h.id}</td>
+                            <td className="px-4 py-3 text-gray-600">
+                              <div className="flex flex-col">
+                                <span>{new Date(h.created_at).toLocaleDateString()}</span>
+                                <span className="text-xs text-gray-400">
+                                  {new Date(h.created_at).toLocaleTimeString()}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className="font-medium text-gray-800">
+                                {h.customer_name || selectedCustomer.customer_name}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className="font-medium text-blue-600 flex items-center gap-1">
+                                <Smartphone size={14} />
+                                {h.phone_model || "N/A"}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-gray-700 max-w-xs">
+                              <div className="truncate" title={h.issue_details}>
+                                {h.issue_details}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              {getStatusBadge(h.status)}
+                            </td>
+                            <td className="px-4 py-3">
+                              {assigned.type ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-50 text-purple-700 rounded-full text-xs font-medium capitalize">
+                                  <Tag size={12} />
+                                  {assigned.type}
+                                </span>
+                              ) : (
+                                <span className="text-gray-400">—</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className="text-gray-700 font-medium flex items-center gap-1">
+                                <Building size={14} className="text-gray-400" />
+                                {assigned.name}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${invoiceStatusColor}`}>
+                                <DollarSign size={12} />
+                                {invoiceStatus}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -684,7 +683,7 @@ export default function CustomerTable() {
     );
   };
 
-  // Helper for status styles (if needed in View Modal)
+  // Helper for status styles
   const getStatusStyle = (status) => {
     if (status === "New") return "bg-yellow-100 text-yellow-800 border border-yellow-200";
     if (status === "Complaint Registered") return "bg-green-100 text-green-800 border border-green-200";
@@ -694,16 +693,6 @@ export default function CustomerTable() {
   // Main Component Return
   return (
     <div className="p-4 md:p-8 max-w-8xl mx-auto bg-gray-50 min-h-screen">
-      {/* Debug Button - Remove in production */}
-      <div className="mb-4 flex justify-end">
-        <button
-          onClick={debugAuth}
-          className="text-xs bg-gray-200 px-3 py-1 rounded hover:bg-gray-300"
-        >
-          Debug Auth
-        </button>
-      </div>
-
       {/* Header Section */}
       <div className="mb-6 border-b border-gray-200 pb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>

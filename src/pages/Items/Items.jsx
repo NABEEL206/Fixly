@@ -1,6 +1,5 @@
 // src/pages/Items/Items.jsx
 import React, { useState, useMemo, useEffect } from "react";
-import { BASE_URL } from "@/API/BaseURL";
 import {
   PlusCircle,
   Edit3,
@@ -20,55 +19,10 @@ import {
   AlertCircle,
   Filter,
   User,
+  Loader2,
 } from "lucide-react";
-import axios from "axios";
 import toast from "react-hot-toast";
-import { getAuthHeaders, getAuthHeadersMultipart } from "@/utils/authHeaders";
-
-const api = axios.create({
-  baseURL: BASE_URL,
-});
-
-// ✅ Updated interceptor to use token_type from localStorage
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem("access_token");
-    const tokenType = localStorage.getItem("token_type") || "Bearer";
-    if (token) {
-      config.headers.Authorization = `${tokenType} ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
-// Response interceptor to handle auth errors
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      toast.error("Session expired. Please login again.");
-      setTimeout(() => {
-        window.location.href = "/login";
-      }, 1500);
-    } else if (error.response?.status === 403) {
-      toast.error("You don't have permission to perform this action");
-    }
-    return Promise.reject(error);
-  }
-);
-
-// Debug function to check auth state
-const debugAuth = () => {
-  const token = localStorage.getItem("access_token");
-  const tokenType = localStorage.getItem("token_type");
-  
-  console.log("=== Items Auth Debug ===");
-  console.log("Token exists:", !!token);
-  console.log("Token type:", tokenType || "not set (defaulting to Bearer)");
-  console.log("Token preview:", token ? `${token.substring(0, 20)}...` : "none");
-  console.log("========================");
-};
+import axiosInstance from "@/API/axiosInstance";
 
 // ==================== CONSTANTS ====================
 const ITEMS_API_URL = "/zoho/local-items/";
@@ -143,6 +97,23 @@ const SearchInput = ({ value, onChange }) => (
   </div>
 );
 
+// ==================== LOADING BUTTON COMPONENT ====================
+const LoadingButton = ({ loading, children, onClick, className, disabled, type = "button" }) => {
+  return (
+    <button
+      type={type}
+      onClick={onClick}
+      disabled={loading || disabled}
+      className={`relative flex items-center justify-center gap-2 transition-all ${className} ${
+        loading ? "cursor-not-allowed opacity-70" : ""
+      }`}
+    >
+      {loading && <Loader2 size={18} className="animate-spin" />}
+      {children}
+    </button>
+  );
+};
+
 // ==================== MAIN COMPONENT ====================
 export default function Items() {
   const [items, setItems] = useState([]);
@@ -150,6 +121,7 @@ export default function Items() {
   const [editId, setEditId] = useState(null);
   const [activeTab, setActiveTab] = useState("General");
   const [loading, setLoading] = useState(false);
+  const [submitLoading, setSubmitLoading] = useState(false);
   const [syncStatus, setSyncStatus] = useState({});
   const [openViewModal, setOpenViewModal] = useState(false);
   const [viewedItem, setViewedItem] = useState(null);
@@ -157,6 +129,8 @@ export default function Items() {
   const [currentPage, setCurrentPage] = useState("list");
   const [searchTerm, setSearchTerm] = useState("");
   const [errors, setErrors] = useState({});
+  const [imageLoading, setImageLoading] = useState(false);
+  const [existingImageUrl, setExistingImageUrl] = useState(null);
 
   // Filter states
   const [filterProductType, setFilterProductType] = useState("");
@@ -190,9 +164,7 @@ export default function Items() {
     setLoading(true);
     
     try {
-      const response = await axios.get(`${BASE_URL}${ITEMS_API_URL}`, {
-        headers: getAuthHeaders()
-      });
+      const response = await axiosInstance.get(ITEMS_API_URL);
       const itemsData = response.data?.results || response.data || [];
       setItems(itemsData);
     } catch (error) {
@@ -210,7 +182,6 @@ export default function Items() {
   };
 
   useEffect(() => {
-    debugAuth();
     fetchItems();
   }, []);
 
@@ -415,6 +386,7 @@ export default function Items() {
       return;
     }
 
+    setSubmitLoading(true);
     const toastId = toast.loading(isEdit ? "Updating item..." : "Creating item...");
 
     try {
@@ -434,15 +406,15 @@ export default function Items() {
       });
 
       let response;
-      const url = `${BASE_URL}${ITEMS_API_URL}`;
+      const url = ITEMS_API_URL;
       
       if (isEdit && editId) {
-        response = await axios.patch(`${url}${editId}/`, formData, {
-          headers: getAuthHeadersMultipart()
+        response = await axiosInstance.patch(`${url}${editId}/`, formData, {
+          headers: { "Content-Type": "multipart/form-data" }
         });
       } else {
-        response = await axios.post(url, formData, {
-          headers: getAuthHeadersMultipart()
+        response = await axiosInstance.post(url, formData, {
+          headers: { "Content-Type": "multipart/form-data" }
         });
       }
 
@@ -467,6 +439,8 @@ export default function Items() {
                             "Failed to save item";
         toast.error(errorMessage, { id: toastId });
       }
+    } finally {
+      setSubmitLoading(false);
     }
   };
 
@@ -492,6 +466,7 @@ export default function Items() {
       preferred_vendor: "",
       is_active: true,
     });
+    setExistingImageUrl(null);
     setErrors({});
     setIsEdit(false);
     setEditId(null);
@@ -509,7 +484,7 @@ export default function Items() {
       tax_preference: item.tax_preference || "taxable",
       gst_treatment: item.gst_treatment || "NO_TAX",
       hsn_or_sac: item.hsn_or_sac || "",
-      item_image: null,
+      item_image: null, // Reset file input
       is_sellable: item.is_sellable ?? true,
       selling_price: item.selling_price?.toString() || "",
       service_charge: item.service_charge?.toString() || "0",
@@ -522,6 +497,14 @@ export default function Items() {
       preferred_vendor: item.preferred_vendor || "",
       is_active: item.is_active ?? true,
     });
+    
+    // Set existing image URL for preview
+    if (item.item_image) {
+      setExistingImageUrl(item.item_image.startsWith('http') ? item.item_image : item.item_image);
+    } else {
+      setExistingImageUrl(null);
+    }
+    
     setEditId(item.id);
     setIsEdit(true);
     setCurrentPage("form");
@@ -552,9 +535,7 @@ export default function Items() {
                 toast.dismiss(t.id);
                 const toastId = toast.loading(`Deleting "${itemName}"...`);
                 try {
-                  await axios.delete(`${BASE_URL}${ITEMS_API_URL}${id}/`, {
-                    headers: getAuthHeaders()
-                  });
+                  await axiosInstance.delete(`${ITEMS_API_URL}${id}/`);
                   setItems((prev) => prev.filter((item) => item.id !== id));
                   setSelectedItems((prev) => prev.filter((itemId) => itemId !== id));
                   toast.success(`"${itemName}" deleted successfully`, { id: toastId });
@@ -608,9 +589,7 @@ export default function Items() {
                 try {
                   const results = await Promise.allSettled(
                     selectedItems.map((id) => 
-                      axios.delete(`${BASE_URL}${ITEMS_API_URL}${id}/`, {
-                        headers: getAuthHeaders()
-                      })
+                      axiosInstance.delete(`${ITEMS_API_URL}${id}/`)
                     )
                   );
 
@@ -650,9 +629,7 @@ export default function Items() {
 
     try {
       setSyncStatus((prev) => ({ ...prev, [id]: "syncing" }));
-      const response = await axios.post(`${BASE_URL}${ITEMS_API_URL}${id}/sync-to-zoho/`, {}, {
-        headers: getAuthHeaders()
-      });
+      const response = await axiosInstance.post(`${ITEMS_API_URL}${id}/sync-to-zoho/`, {});
 
       if (response.data.success) {
         setSyncStatus((prev) => ({ ...prev, [id]: "synced" }));
@@ -746,13 +723,13 @@ export default function Items() {
           disabled={syncStatus[item.id] === "syncing"}
           className={`p-2 rounded-lg transition-colors ${
             syncStatus[item.id] === "syncing"
-              ? "bg-purple-50 text-purple-600"
+              ? "bg-purple-50 text-purple-600 cursor-not-allowed"
               : "bg-purple-50 text-purple-600 hover:bg-purple-100"
           }`}
           title="Sync to Zoho"
         >
           {syncStatus[item.id] === "syncing" ? (
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
+            <Loader2 size={18} className="animate-spin" />
           ) : (
             <Upload size={18} />
           )}
@@ -821,7 +798,7 @@ export default function Items() {
               <tr>
                 <td colSpan="6" className="text-center py-12">
                   <div className="flex flex-col items-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-3"></div>
+                    <Loader2 size={40} className="text-blue-600 animate-spin mb-3" />
                     <p className="text-gray-600">Loading items...</p>
                   </div>
                 </td>
@@ -872,7 +849,7 @@ export default function Items() {
                       <div className="flex-shrink-0">
                         {item.item_image ? (
                           <img
-                            src={item.item_image.startsWith('http') ? item.item_image : `${BASE_URL}${item.item_image}`}
+                            src={item.item_image.startsWith('http') ? item.item_image : item.item_image}
                             className="w-12 h-12 object-contain rounded-lg border border-gray-200"
                             alt={item.name}
                             onError={(e) => {
@@ -924,7 +901,7 @@ export default function Items() {
                       </span>
                     ) : syncStatus[item.id] === "syncing" ? (
                       <span className="inline-flex items-center gap-1 px-2 py-1 bg-yellow-100 text-yellow-700 rounded-lg text-xs font-medium">
-                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-yellow-700"></div>
+                        <Loader2 size={12} className="animate-spin" />
                         Syncing...
                       </span>
                     ) : (
@@ -996,7 +973,7 @@ export default function Items() {
             {viewedItem.item_image && (
               <div className="flex justify-center mb-6">
                 <img
-                  src={viewedItem.item_image.startsWith('http') ? viewedItem.item_image : `${BASE_URL}${viewedItem.item_image}`}
+                  src={viewedItem.item_image.startsWith('http') ? viewedItem.item_image : viewedItem.item_image}
                   alt={viewedItem.name}
                   className="max-h-48 object-contain rounded-lg border border-gray-200 p-2"
                   onError={(e) => {
@@ -1244,6 +1221,42 @@ export default function Items() {
                 <X size={16} />
               </button>
             </>
+          ) : existingImageUrl ? (
+            <>
+              <img
+                src={existingImageUrl}
+                alt="Current"
+                className="max-h-28 object-contain rounded mb-3"
+              />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setExistingImageUrl(null)}
+                  className="px-3 py-1.5 bg-red-500 text-white text-xs rounded-lg hover:bg-red-600"
+                >
+                  Remove Image
+                </button>
+                <label className="px-3 py-1.5 bg-blue-500 text-white text-xs rounded-lg hover:bg-blue-600 cursor-pointer">
+                  Change Image
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files[0];
+                      if (file) {
+                        if (file.size > 5 * 1024 * 1024) {
+                          toast.error("File size must be less than 5MB");
+                          return;
+                        }
+                        setForm((prev) => ({ ...prev, item_image: file }));
+                        setExistingImageUrl(null);
+                      }
+                    }}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+            </>
           ) : (
             <>
               <Image size={32} className="text-gray-400 mb-3" />
@@ -1253,21 +1266,23 @@ export default function Items() {
               <p className="text-xs text-gray-500">Supports JPG, PNG up to 5MB</p>
             </>
           )}
-          <input
-            type="file"
-            accept="image/*"
-            onChange={(e) => {
-              const file = e.target.files[0];
-              if (file) {
-                if (file.size > 5 * 1024 * 1024) {
-                  toast.error("File size must be less than 5MB");
-                  return;
+          {!form.item_image && !existingImageUrl && (
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                const file = e.target.files[0];
+                if (file) {
+                  if (file.size > 5 * 1024 * 1024) {
+                    toast.error("File size must be less than 5MB");
+                    return;
+                  }
+                  setForm((prev) => ({ ...prev, item_image: file }));
                 }
-                setForm((prev) => ({ ...prev, item_image: file }));
-              }
-            }}
-            className="absolute inset-0 opacity-0 cursor-pointer"
-          />
+              }}
+              className="absolute inset-0 opacity-0 cursor-pointer"
+            />
+          )}
         </div>
       </div>
     </div>
@@ -1523,26 +1538,18 @@ export default function Items() {
                 type="button"
                 onClick={resetForm}
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-                disabled={loading}
+                disabled={submitLoading}
               >
                 Cancel
               </button>
-              <button
+              <LoadingButton
                 type="submit"
-                className="px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                disabled={loading || Object.keys(errors).length > 0}
+                loading={submitLoading}
+                disabled={submitLoading || Object.keys(errors).length > 0}
+                className="px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    {isEdit ? "Updating..." : "Saving..."}
-                  </>
-                ) : isEdit ? (
-                  "Update Item"
-                ) : (
-                  "Save Item"
-                )}
-              </button>
+                {isEdit ? "Update Item" : "Save Item"}
+              </LoadingButton>
             </div>
           </form>
         </div>
@@ -1554,16 +1561,6 @@ export default function Items() {
   const renderListPage = () => (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4">
-        {/* Debug Button - Remove in production */}
-        <div className="mb-4 flex justify-end">
-          <button
-            onClick={debugAuth}
-            className="text-xs bg-gray-200 px-3 py-1 rounded hover:bg-gray-300"
-          >
-            Debug Auth
-          </button>
-        </div>
-
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">

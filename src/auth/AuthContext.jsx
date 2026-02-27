@@ -64,34 +64,24 @@ export const AuthProvider = ({ children }) => {
         throw new Error(data.message || data.detail || "Invalid credentials");
       }
 
-      // Determine token type from response
-      // For JWT, token_type might be "Bearer" or not present
-      // For DRF token, token_type might be "Token"
-      let tokenType = "Bearer"; // Default
-      
-      if (data.token_type) {
-        tokenType = data.token_type;
-      } else if (data.access_token && !data.access_token.startsWith("eyJ")) {
-        // If it's not a JWT (doesn't start with eyJ), it might be a DRF token
-        tokenType = "Token";
-      }
+// Save token
+localStorage.setItem("access_token", data.access_token);
 
-      // Save tokens and token type
-      localStorage.setItem("access_token", data.access_token);
-      localStorage.setItem("token_type", tokenType);
-      
-      if (data.refresh_token) {
-        localStorage.setItem("refresh_token", data.refresh_token);
-      }
-
-      // Save user data - including shop_type for SHOP role
+if (data.refresh_token) {
+  // JWT user (ADMIN)
+  localStorage.setItem("refresh_token", data.refresh_token);
+  localStorage.setItem("token_type", "Bearer");
+} else {
+  // DRF Token user (FRANCHISE, GROWTAG, CUSTOMER, etc.)
+  localStorage.setItem("token_type", "Token");
+}
+      // Save user data with all fields from API
       const userData = {
         id: data.user.id,
-        username: data.user.username,
-        name: data.user.name,
         email: data.user.email,
-        role: data.user.role,
-        shop_type: data.user.shop_type, // Important for SHOP role
+        name: data.user.name,
+        role: data.user.role, // This will be "FRANCHISE" or "OTHERSHOP" or others
+        shop_type: data.user.shop_type, // Keep for reference if needed
         permissions: data.user.permissions || [],
         is_active: data.user.is_active
       };
@@ -100,7 +90,6 @@ export const AuthProvider = ({ children }) => {
       setUser(userData);
 
       console.log("4. Login successful, user data:", userData);
-      console.log("5. Token type:", tokenType);
 
       return { 
         success: true, 
@@ -130,10 +119,8 @@ export const AuthProvider = ({ children }) => {
   /* 🔁 REFRESH TOKEN */
   const refreshAccessToken = async () => {
     const refreshToken = localStorage.getItem("refresh_token");
-    const tokenType = localStorage.getItem("token_type");
     
-    if (!refreshToken || tokenType !== "Bearer") {
-      // Only JWT tokens can be refreshed
+    if (!refreshToken) {
       logout();
       return null;
     }

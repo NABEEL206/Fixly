@@ -2,42 +2,10 @@
 import React, { useState, useCallback, useEffect } from "react";
 import toast from "react-hot-toast";
 import { Eye, EyeOff, Loader } from "lucide-react";
-import axios from "axios";
-import { getAuthHeaders } from "@/utils/authHeaders";
+import axiosInstance from "@/API/axiosInstance";
 
 // --- STATUS OPTIONS ---
 const STATUS_OPTIONS = ["Pending", "Assigned", "In Progress", "Resolved"];
-
-const api = axios.create({
-  baseURL: "http://127.0.0.1:8000",
-});
-
-// 🔐 AUTO ATTACH TOKEN TO EVERY REQUEST with correct token type
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem("access_token");
-    const tokenType = localStorage.getItem("token_type") || "Bearer";
-    if (token) {
-      config.headers.Authorization = `${tokenType} ${token}`;
-    }
-    console.log("API Request:", config.method.toUpperCase(), config.url, config.data);
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
-// Response interceptor to handle auth errors
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      toast.error("Session expired. Please login again.");
-    } else if (error.response?.status === 403) {
-      toast.error("You don't have permission to perform this action");
-    }
-    return Promise.reject(error);
-  }
-);
 
 const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
   // Form states
@@ -78,18 +46,6 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
 
   // Track if we've loaded prefilled data
   const [prefillLoaded, setPrefillLoaded] = useState(false);
-
-  // Debug function to check auth state
-  const debugAuth = () => {
-    const token = localStorage.getItem("access_token");
-    const tokenType = localStorage.getItem("token_type");
-    
-    console.log("=== ComplaintRegistrationModal Auth Debug ===");
-    console.log("Token exists:", !!token);
-    console.log("Token type:", tokenType || "not set (defaulting to Bearer)");
-    console.log("Token preview:", token ? `${token.substring(0, 20)}...` : "none");
-    console.log("=============================================");
-  };
 
   // ----------------------------------------------------------------
   // 🟢 VALIDATION UTILITY FUNCTIONS
@@ -162,34 +118,9 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
     setIsLoadingPrefill(true);
     
     try {
-      const token = localStorage.getItem("access_token");
-      const tokenType = localStorage.getItem("token_type") || "Bearer";
+      const response = await axiosInstance.get(`/api/leads/${leadId}/complaint_prefill/`);
       
-      const url = `http://127.0.0.1:8000/api/leads/${leadId}/complaint_prefill/`;
-      console.log("Fetching prefill data from:", url);
-      
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `${tokenType} ${token}`,
-          'Content-Type': 'application/json',
-        }
-      });
-
-      if (response.status === 401) {
-        toast.error("Session expired. Please login again.");
-        return;
-      }
-
-      if (response.status === 403) {
-        toast.error("You don't have permission to access this data");
-        return;
-      }
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
+      const data = response.data;
       console.log("Prefill data received:", data);
 
       // Map the prefill data to form fields
@@ -232,7 +163,14 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
 
     } catch (error) {
       console.error("Prefill API Error:", error);
-      toast.error("Failed to load lead data");
+      
+      if (error.response?.status === 401) {
+        toast.error("Session expired. Please login again.");
+      } else if (error.response?.status === 403) {
+        toast.error("You don't have permission to access this data");
+      } else {
+        toast.error("Failed to load lead data");
+      }
     } finally {
       setIsLoadingPrefill(false);
     }
@@ -250,34 +188,11 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
     setAvailableTags([]);
 
     try {
-      const token = localStorage.getItem("access_token");
-      const tokenType = localStorage.getItem("token_type") || "Bearer";
+      const response = await axiosInstance.get(
+        `/api/complaints/nearest-options/?area=${encodeURIComponent(selectedArea)}&pincode=${pcode}`
+      );
       
-      const url = `http://127.0.0.1:8000/api/complaints/nearest-options/?area=${encodeURIComponent(selectedArea)}&pincode=${pcode}`;
-      console.log("Fetching nearest options from:", url);
-      
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `${tokenType} ${token}`,
-          'Content-Type': 'application/json',
-        }
-      });
-
-      if (response.status === 401) {
-        toast.error("Session expired. Please login again.");
-        return;
-      }
-
-      if (response.status === 403) {
-        toast.error("You don't have permission to fetch nearest options");
-        return;
-      }
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
+      const data = response.data;
       console.log("Nearest options response:", data);
 
       setFranchises(data.franchise_shops || []);
@@ -285,7 +200,14 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
       setAvailableTags(data.growtags || []);
     } catch (error) {
       console.error("Nearest Options API Error:", error);
-      toast.error("Failed to fetch nearest options");
+      
+      if (error.response?.status === 401) {
+        toast.error("Session expired. Please login again.");
+      } else if (error.response?.status === 403) {
+        toast.error("You don't have permission to fetch nearest options");
+      } else {
+        toast.error("Failed to fetch nearest options");
+      }
     } finally {
       setIsFetchingNearest(false);
     }
@@ -367,7 +289,6 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
   useEffect(() => {
     if (open && leadData) {
       console.log("Opening modal for lead:", leadData);
-      debugAuth();
       
       // Reset form first
       resetFormStates();
@@ -500,11 +421,10 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
     
     try {
       // Use the lead-specific endpoint for registration
-      const response = await api.post(`/api/leads/${leadData.id}/register_complaint/`, payload);
+      const response = await axiosInstance.post(`/api/leads/${leadData.id}/register_complaint/`, payload);
       
       console.log("✅ Complaint registered successfully:", response.data);
 
-      // Update the loading toast to success
       toast.success("Complaint registered successfully!", {
         id: loadingToastId,
       });

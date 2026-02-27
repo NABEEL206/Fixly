@@ -1,97 +1,8 @@
 // src/pages/Purchases/Bill.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Plus, Trash2, Save, Edit, Eye, Search, Filter, User, Building, ChevronDown, ChevronUp, CreditCard } from 'lucide-react';
-import axios from 'axios';
 import toast from 'react-hot-toast';
-import { BASE_URL } from "@/API/BaseURL";
-import { getAuthHeaders } from "@/utils/authHeaders";
-
-const API_BASE_URL = BASE_URL;
-const ZOHO_BASE_URL = `${BASE_URL}/zoho`;
-
-// Create axios instance with default config
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-// Create axios instance for zoho endpoints
-const zohoApi = axios.create({
-  baseURL: ZOHO_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-// Request interceptor to add auth token with correct type
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem("access_token");
-    const tokenType = localStorage.getItem("token_type") || "Bearer";
-    if (token) {
-      config.headers.Authorization = `${tokenType} ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
-zohoApi.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem("access_token");
-    const tokenType = localStorage.getItem("token_type") || "Bearer";
-    if (token) {
-      config.headers.Authorization = `${tokenType} ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
-// Response interceptor to handle errors
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 403) {
-      toast.error("You don't have permission to perform this action");
-    } else if (error.response?.status === 401) {
-      toast.error("Session expired. Please login again.");
-      setTimeout(() => {
-        window.location.href = '/login';
-      }, 1500);
-    }
-    return Promise.reject(error);
-  }
-);
-
-zohoApi.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 403) {
-      toast.error("You don't have permission to perform this action");
-    } else if (error.response?.status === 401) {
-      toast.error("Session expired. Please login again.");
-      setTimeout(() => {
-        window.location.href = '/login';
-      }, 1500);
-    }
-    return Promise.reject(error);
-  }
-);
-
-// Debug function to check auth state
-const debugAuth = () => {
-  const token = localStorage.getItem("access_token");
-  const tokenType = localStorage.getItem("token_type");
-  
-  console.log("=== Bill Auth Debug ===");
-  console.log("Token exists:", !!token);
-  console.log("Token type:", tokenType || "not set (defaulting to Bearer)");
-  console.log("Token preview:", token ? `${token.substring(0, 20)}...` : "none");
-  console.log("=======================");
-};
+import axiosInstance from "@/API/axiosInstance";
 
 const STATUS_OPTIONS = [
   { value: "DRAFT", label: "Draft" },
@@ -131,7 +42,7 @@ const ACCOUNT_TYPES = [
   'Raw Materials'
 ];
 
-// Payment Modal Component - Standalone component to prevent re-renders
+// ==================== PAYMENT MODAL COMPONENT ====================
 const PaymentModal = ({ 
   selectedBill, 
   paymentForm, 
@@ -141,7 +52,6 @@ const PaymentModal = ({
   recordPayment, 
   closePaymentModal 
 }) => {
-  // Don't render if no bill selected
   if (!selectedBill) return null;
 
   return (
@@ -304,6 +214,336 @@ const PaymentModal = ({
   );
 };
 
+// ==================== VIEW MODAL COMPONENT ====================
+const ViewBillModal = ({ formData, shops, growtags, getStatusColor, getPaymentStatusColor, onClose, onEdit, onPayment }) => {
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+      <div className="bg-white rounded-xl w-full max-w-5xl shadow-2xl my-8">
+        {/* Modal Header */}
+        <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <div className="bg-blue-600 p-2 rounded-lg mr-3">
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-800">
+                  Bill Details
+                </h3>
+                <p className="text-xs text-gray-500 mt-1">
+                  {formData.bill_number}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 p-2 rounded-lg hover:bg-white/50 transition-colors"
+              title="Close"
+            >
+              <X size={20} />
+            </button>
+          </div>
+        </div>
+
+        {/* Modal Body */}
+        <div className="p-6 max-h-[calc(100vh-200px)] overflow-y-auto">
+          {/* Bill Info & Status */}
+          <div className="flex items-start justify-between mb-6 pb-4 border-b">
+            <div>
+              <h4 className="text-2xl font-bold text-gray-900 mb-2">
+                {formData.bill_number}
+              </h4>
+              <div className="flex items-center gap-4 text-sm text-gray-600">
+                <span>Bill Date: {formData.bill_date}</span>
+                <span>•</span>
+                <span>Due Date: {formData.due_date}</span>
+              </div>
+              {formData.order_number && (
+                <div className="text-xs text-gray-500 mt-2">
+                  Order Number: {formData.order_number}
+                </div>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <span className={`px-3 py-1 text-sm rounded-full font-medium ${getStatusColor(formData.status)}`}>
+                {formData.status}
+              </span>
+              <span className={`px-3 py-1 text-sm rounded-full font-medium ${getPaymentStatusColor(formData.payment_status)}`}>
+                {formData.payment_status}
+              </span>
+            </div>
+          </div>
+
+          {/* Owner Information */}
+          <div className="mb-6">
+            <h5 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide flex items-center">
+              <User size={16} className="mr-2" />
+              Owner Information
+            </h5>
+            <div className="bg-gray-50 rounded-lg p-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-1">Owner Type</p>
+                  <p className="text-sm text-gray-900 font-medium capitalize">{formData.owner_type}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-1">Owner</p>
+                  <p className="text-sm text-gray-900">
+                    {formData.owner_type === 'shop' 
+                      ? shops.find(s => s.id === formData.shop)?.shopname || 'N/A'
+                      : growtags.find(g => g.id === formData.growtag)?.name || 'N/A'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Vendor Information */}
+          <div className="mb-6">
+            <h5 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide flex items-center">
+              <Building size={16} className="mr-2" />
+              Vendor Information
+            </h5>
+            <div className="bg-gray-50 rounded-lg p-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-1">Vendor Name</p>
+                  <p className="text-sm text-gray-900 font-medium">{formData.vendor_name || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-1">Email</p>
+                  <p className="text-sm text-gray-900">{formData.vendor_email || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-1">Phone</p>
+                  <p className="text-sm text-gray-900">{formData.vendor_phone || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-1">GSTIN</p>
+                  <p className="text-sm text-gray-900">{formData.vendor_gstin || 'N/A'}</p>
+                </div>
+                <div className="md:col-span-2">
+                  <p className="text-xs font-medium text-gray-500 mb-1">Address</p>
+                  <p className="text-sm text-gray-900">{formData.vendor_address || 'N/A'}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Shipping & Billing */}
+          {(formData.ship_to || formData.bill_to) && (
+            <div className="mb-6">
+              <h5 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
+                Shipping & Billing
+              </h5>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {formData.ship_to && (
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <p className="text-xs font-medium text-gray-500 mb-2">Ship To</p>
+                    <p className="text-sm text-gray-900 whitespace-pre-line">{formData.ship_to}</p>
+                  </div>
+                )}
+                {formData.bill_to && (
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <p className="text-xs font-medium text-gray-500 mb-2">Bill To</p>
+                    <p className="text-sm text-gray-900 whitespace-pre-line">{formData.bill_to}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Items */}
+          <div className="mb-6">
+            <h5 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
+              Items
+            </h5>
+            <div className="overflow-x-auto border rounded-lg">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Item</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Account</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Qty</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Rate</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Tax %</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Disc %</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {formData.items && formData.items.length > 0 ? (
+                    formData.items.map((item, index) => (
+                      <tr key={index}>
+                        <td className="px-4 py-3">
+                          <p className="text-sm font-medium text-gray-900">{item.name || 'N/A'}</p>
+                          {item.item && (
+                            <p className="text-xs text-gray-500">ID: {item.item}</p>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="text-sm text-gray-600">{item.description || '-'}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="text-sm text-gray-600">{item.account || 'Cost of Goods Sold'}</p>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-900 text-right">{item.qty}</td>
+                        <td className="px-4 py-3 text-sm text-gray-900 text-right">₹{parseFloat(item.rate).toFixed(2)}</td>
+                        <td className="px-4 py-3 text-sm text-gray-900 text-right">{item.tax_percent}%</td>
+                        <td className="px-4 py-3 text-sm text-gray-900 text-right">{item.discount_percent}%</td>
+                        <td className="px-4 py-3 text-sm font-medium text-gray-900 text-right">₹{parseFloat(item.amount).toFixed(2)}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="8" className="px-4 py-3 text-center text-gray-500">
+                        No items added
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Payments */}
+          {formData.payments && formData.payments.length > 0 && (
+            <div className="mb-6">
+              <h5 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide flex items-center">
+                <CreditCard size={16} className="mr-2" />
+                Payment History
+              </h5>
+              <div className="overflow-x-auto border rounded-lg">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Method</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reference</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {formData.payments.map((payment, index) => (
+                      <tr key={index}>
+                        <td className="px-4 py-3 text-sm text-gray-900">{payment.payment_date}</td>
+                        <td className="px-4 py-3 text-sm text-gray-900">{payment.method}</td>
+                        <td className="px-4 py-3 text-sm text-gray-600">{payment.reference || '-'}</td>
+                        <td className="px-4 py-3 text-sm font-medium text-green-600 text-right">₹{payment.amount.toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Totals */}
+          <div className="mb-6">
+            <div className="flex justify-end">
+              <div className="w-full md:w-1/2 bg-gray-50 rounded-lg p-4 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Subtotal:</span>
+                  <span className="font-medium">₹{parseFloat(formData.subtotal).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Total Discount:</span>
+                  <span className="font-medium text-red-600">-₹{parseFloat(formData.total_discount).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Total Tax:</span>
+                  <span className="font-medium">₹{parseFloat(formData.total_tax).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">TDS ({formData.tds_percent}%):</span>
+                  <span className="font-medium text-red-600">-₹{parseFloat(formData.tds_amount).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Shipping:</span>
+                  <span className="font-medium">₹{parseFloat(formData.shipping_charges).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Adjustment:</span>
+                  <span className="font-medium">₹{parseFloat(formData.adjustment).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between pt-2 border-t-2 border-gray-300">
+                  <span className="text-base font-bold text-gray-800">Total:</span>
+                  <span className="text-base font-bold text-blue-600">₹{parseFloat(formData.total).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Amount Paid:</span>
+                  <span className="font-medium text-green-600">₹{parseFloat(formData.amount_paid).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between pt-2 border-t border-gray-300">
+                  <span className="text-base font-bold text-gray-800">Balance Due:</span>
+                  <span className="text-base font-bold text-red-600">₹{parseFloat(formData.balance_due).toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Terms & Notes */}
+          {(formData.terms_and_conditions || formData.notes) && (
+            <div className="mb-6">
+              <h5 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
+                Additional Information
+              </h5>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {formData.terms_and_conditions && (
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <p className="text-xs font-medium text-gray-500 mb-2">Terms & Conditions</p>
+                    <p className="text-sm text-gray-900 whitespace-pre-line">{formData.terms_and_conditions}</p>
+                  </div>
+                )}
+                {formData.notes && (
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <p className="text-xs font-medium text-gray-500 mb-2">Notes</p>
+                    <p className="text-sm text-gray-900 whitespace-pre-line">{formData.notes}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Modal Footer */}
+        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50">
+          <div className="flex justify-between items-center">
+            <div className="flex gap-2">
+              <button
+                onClick={onEdit}
+                className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors flex items-center"
+              >
+                <Edit size={16} className="mr-2" />
+                Edit Bill
+              </button>
+              {formData.payment_status !== 'PAID' && formData.balance_due > 0 && (
+                <button
+                  onClick={onPayment}
+                  className="px-4 py-2 text-sm font-medium text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors flex items-center"
+                >
+                  <CreditCard size={16} className="mr-2" />
+                  Record Payment
+                </button>
+              )}
+            </div>
+            <button
+              onClick={onClose}
+              className="px-5 py-2 text-sm font-medium bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==================== MAIN COMPONENT ====================
 const Bill = () => {
   const [showForm, setShowForm] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -324,7 +564,7 @@ const Bill = () => {
   const [isLoadingItems, setIsLoadingItems] = useState(false);
   const [expandedRows, setExpandedRows] = useState({});
 
-  // Payment form state - completely independent from selectedBill
+  // Payment form state
   const [paymentForm, setPaymentForm] = useState({
     payment_date: new Date().toISOString().split('T')[0],
     amount: '',
@@ -391,9 +631,8 @@ const Bill = () => {
   const [formData, setFormData] = useState(initialFormState);
   const [errors, setErrors] = useState({});
 
-  // Fetch vendors, shops, growtags, items on component mount
+  // Fetch data on component mount
   useEffect(() => {
-    debugAuth();
     fetchVendors();
     fetchShops();
     fetchGrowtags();
@@ -401,7 +640,7 @@ const Bill = () => {
     fetchBills();
   }, []);
 
-  // Initialize payment form when selectedBill changes - but only once
+  // Initialize payment form when selectedBill changes
   useEffect(() => {
     if (selectedBill) {
       setPaymentForm({
@@ -412,7 +651,7 @@ const Bill = () => {
       });
       setPaymentErrors({});
     }
-  }, [selectedBill?.id]); // Only depend on selectedBill.id, not the entire object
+  }, [selectedBill?.id]);
 
   // Toggle expanded row
   const toggleRow = (index) => {
@@ -422,10 +661,10 @@ const Bill = () => {
     }));
   };
 
-  // Fetch vendors from API - FIXED: Added /api/ prefix
+  // Fetch vendors from API
   const fetchVendors = async () => {
     try {
-      const response = await api.get('/api/vendors/');
+      const response = await axiosInstance.get('/api/vendors/');
       const data = response.data;
       let vendorsList = [];
       
@@ -446,10 +685,10 @@ const Bill = () => {
     }
   };
 
-  // Fetch shops from API - FIXED: Added /api/ prefix
+  // Fetch shops from API
   const fetchShops = async () => {
     try {
-      const response = await api.get('/api/shops/');
+      const response = await axiosInstance.get('/api/shops/');
       const data = response.data;
       let shopsList = [];
       
@@ -467,10 +706,10 @@ const Bill = () => {
     }
   };
 
-  // Fetch growtags from API - FIXED: Added /api/ prefix
+  // Fetch growtags from API
   const fetchGrowtags = async () => {
     try {
-      const response = await api.get('/api/growtags/');
+      const response = await axiosInstance.get('/api/growtags/');
       const data = response.data;
       let growtagsList = [];
       
@@ -488,11 +727,11 @@ const Bill = () => {
     }
   };
 
-  // Fetch items from Zoho API - FIXED: Added /api/ prefix
+  // Fetch items from API
   const fetchItems = async () => {
     setIsLoadingItems(true);
     try {
-      const response = await zohoApi.get('/local-items/');
+      const response = await axiosInstance.get('/zoho/local-items/');
       const data = response.data;
       let itemsList = [];
       
@@ -536,7 +775,7 @@ const Bill = () => {
     }
   };
 
-  // Fetch single bill details - FIXED: Added /api/ prefix
+  // Fetch single bill details
   const fetchBillDetails = async (id) => {
     try {
       // Check cache first
@@ -544,7 +783,7 @@ const Bill = () => {
         return billDetailsCache[id];
       }
 
-      const response = await api.get(`/api/bills/${id}/`);
+      const response = await axiosInstance.get(`/api/bills/${id}/`);
       const data = response.data;
       const bill = data.data || data;
 
@@ -628,12 +867,12 @@ const Bill = () => {
     }
   };
 
-  // Fetch bills from API - FIXED: Added /api/ prefix
+  // Fetch bills from API
   const fetchBills = async () => {
     setIsLoading(true);
     
     try {
-      const response = await api.get('/api/bills/');
+      const response = await axiosInstance.get('/api/bills/');
       const data = response.data;
       let billsList = [];
       
@@ -713,7 +952,7 @@ const Bill = () => {
     }
   };
 
-  // Refresh single bill after payment - FIXED: Added /api/ prefix
+  // Refresh single bill after payment
   const refreshBillAfterPayment = async (billId) => {
     try {
       // Clear cache for this bill
@@ -1161,9 +1400,8 @@ const Bill = () => {
     });
   };
 
-  // Record Payment - FIXED: Added /api/ prefix
+  // Record Payment
   const recordPayment = async () => {
-    // Strict validation before API call
     if (!selectedBill) {
       toast.error('No bill selected');
       return;
@@ -1195,7 +1433,7 @@ const Bill = () => {
         reference: paymentForm.reference || ''
       };
 
-      const response = await api.post(`/api/bills/${selectedBill.id}/add-payment/`, paymentData);
+      await axiosInstance.post(`/api/bills/${selectedBill.id}/add-payment/`, paymentData);
       
       // Refresh the bill data from backend to get updated state
       await refreshBillAfterPayment(selectedBill.id);
@@ -1257,7 +1495,7 @@ const Bill = () => {
       bill_to: data.bill_to,
       // Items
       items: data.items.map(item => ({
-        item: item.item, // This links to the LocalItem
+        item: item.item,
         name: item.name,
         description: item.description || '',
         account: item.account || 'Cost of Goods Sold',
@@ -1266,7 +1504,7 @@ const Bill = () => {
         tax_percent: item.tax_percent,
         discount_percent: item.discount_percent
       })),
-      // Totals (will be calculated on backend)
+      // Totals
       tds_percent: data.tds_percent,
       shipping_charges: data.shipping_charges,
       adjustment: data.adjustment,
@@ -1277,7 +1515,7 @@ const Bill = () => {
     return apiData;
   };
 
-  // Create Bill - FIXED: Added /api/ prefix
+  // Create Bill
   const createBill = async () => {
     if (!validateForm()) {
       toast.error('Please fix all errors before submitting');
@@ -1289,7 +1527,7 @@ const Bill = () => {
 
     try {
       const apiData = transformToAPIFormat(formData);
-      const response = await api.post('/api/bills/', apiData);
+      const response = await axiosInstance.post('/api/bills/', apiData);
       
       const responseData = response.data;
       const newBill = responseData.data || responseData;
@@ -1397,7 +1635,7 @@ const Bill = () => {
     }
   };
 
-  // Update Bill - FIXED: Added /api/ prefix
+  // Update Bill
   const updateBill = async () => {
     if (!validateForm()) {
       toast.error('Please fix all errors before updating');
@@ -1409,7 +1647,7 @@ const Bill = () => {
 
     try {
       const apiData = transformToAPIFormat(formData);
-      const response = await api.put(`/api/bills/${formData.id}/`, apiData);
+      const response = await axiosInstance.put(`/api/bills/${formData.id}/`, apiData);
       
       const responseData = response.data;
       const updatedBill = responseData.data || responseData;
@@ -1519,7 +1757,7 @@ const Bill = () => {
     }
   };
 
-  // Delete Bill - FIXED: Added /api/ prefix
+  // Delete Bill
   const deleteBill = (id) => {
     toast(
       (t) => (
@@ -1539,7 +1777,7 @@ const Bill = () => {
                 const loadingToast = toast.loading("Deleting bill...");
                 
                 try {
-                  await api.delete(`/api/bills/${id}/`);
+                  await axiosInstance.delete(`/api/bills/${id}/`);
                   setBillDetailsCache(prev => {
                     const newCache = { ...prev };
                     delete newCache[id];
@@ -1739,352 +1977,9 @@ const Bill = () => {
     }
   };
 
-  // View Modal Component
-  const ViewModal = () => (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-      <div className="bg-white rounded-xl w-full max-w-5xl shadow-2xl my-8">
-        {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <div className="bg-blue-600 p-2 rounded-lg mr-3">
-                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-gray-800">
-                  Bill Details
-                </h3>
-                <p className="text-xs text-gray-500 mt-1">
-                  {formData.bill_number}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={resetForm}
-              className="text-gray-400 hover:text-gray-600 p-2 rounded-lg hover:bg-white/50 transition-colors"
-              title="Close"
-            >
-              <X size={20} />
-            </button>
-          </div>
-        </div>
-
-        {/* Modal Body */}
-        <div className="p-6 max-h-[calc(100vh-200px)] overflow-y-auto">
-          {/* Bill Info & Status */}
-          <div className="flex items-start justify-between mb-6 pb-4 border-b">
-            <div>
-              <h4 className="text-2xl font-bold text-gray-900 mb-2">
-                {formData.bill_number}
-              </h4>
-              <div className="flex items-center gap-4 text-sm text-gray-600">
-                <span>Bill Date: {formData.bill_date}</span>
-                <span>•</span>
-                <span>Due Date: {formData.due_date}</span>
-              </div>
-              {formData.order_number && (
-                <div className="text-xs text-gray-500 mt-2">
-                  Order Number: {formData.order_number}
-                </div>
-              )}
-            </div>
-            <div className="flex gap-2">
-              <span className={`px-3 py-1 text-sm rounded-full font-medium ${getStatusColor(formData.status)}`}>
-                {formData.status}
-              </span>
-              <span className={`px-3 py-1 text-sm rounded-full font-medium ${getPaymentStatusColor(formData.payment_status)}`}>
-                {formData.payment_status}
-              </span>
-            </div>
-          </div>
-
-          {/* Owner Information */}
-          <div className="mb-6">
-            <h5 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide flex items-center">
-              <User size={16} className="mr-2" />
-              Owner Information
-            </h5>
-            <div className="bg-gray-50 rounded-lg p-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs font-medium text-gray-500 mb-1">Owner Type</p>
-                  <p className="text-sm text-gray-900 font-medium capitalize">{formData.owner_type}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-gray-500 mb-1">Owner</p>
-                  <p className="text-sm text-gray-900">
-                    {formData.owner_type === 'shop' 
-                      ? shops.find(s => s.id === formData.shop)?.shopname || 'N/A'
-                      : growtags.find(g => g.id === formData.growtag)?.name || 'N/A'}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Vendor Information */}
-          <div className="mb-6">
-            <h5 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide flex items-center">
-              <Building size={16} className="mr-2" />
-              Vendor Information
-            </h5>
-            <div className="bg-gray-50 rounded-lg p-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs font-medium text-gray-500 mb-1">Vendor Name</p>
-                  <p className="text-sm text-gray-900 font-medium">{formData.vendor_name || 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-gray-500 mb-1">Email</p>
-                  <p className="text-sm text-gray-900">{formData.vendor_email || 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-gray-500 mb-1">Phone</p>
-                  <p className="text-sm text-gray-900">{formData.vendor_phone || 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-gray-500 mb-1">GSTIN</p>
-                  <p className="text-sm text-gray-900">{formData.vendor_gstin || 'N/A'}</p>
-                </div>
-                <div className="md:col-span-2">
-                  <p className="text-xs font-medium text-gray-500 mb-1">Address</p>
-                  <p className="text-sm text-gray-900">{formData.vendor_address || 'N/A'}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Shipping & Billing */}
-          {(formData.ship_to || formData.bill_to) && (
-            <div className="mb-6">
-              <h5 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
-                Shipping & Billing
-              </h5>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {formData.ship_to && (
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <p className="text-xs font-medium text-gray-500 mb-2">Ship To</p>
-                    <p className="text-sm text-gray-900 whitespace-pre-line">{formData.ship_to}</p>
-                  </div>
-                )}
-                {formData.bill_to && (
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <p className="text-xs font-medium text-gray-500 mb-2">Bill To</p>
-                    <p className="text-sm text-gray-900 whitespace-pre-line">{formData.bill_to}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Items */}
-          <div className="mb-6">
-            <h5 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
-              Items
-            </h5>
-            <div className="overflow-x-auto border rounded-lg">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Item</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Account</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Qty</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Rate</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Tax %</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Disc %</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {formData.items && formData.items.length > 0 ? (
-                    formData.items.map((item, index) => (
-                      <tr key={index}>
-                        <td className="px-4 py-3">
-                          <p className="text-sm font-medium text-gray-900">{item.name || 'N/A'}</p>
-                          {item.item && (
-                            <p className="text-xs text-gray-500">ID: {item.item}</p>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          <p className="text-sm text-gray-600">{item.description || '-'}</p>
-                        </td>
-                        <td className="px-4 py-3">
-                          <p className="text-sm text-gray-600">{item.account || 'Cost of Goods Sold'}</p>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-900 text-right">{item.qty}</td>
-                        <td className="px-4 py-3 text-sm text-gray-900 text-right">₹{parseFloat(item.rate).toFixed(2)}</td>
-                        <td className="px-4 py-3 text-sm text-gray-900 text-right">{item.tax_percent}%</td>
-                        <td className="px-4 py-3 text-sm text-gray-900 text-right">{item.discount_percent}%</td>
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900 text-right">₹{parseFloat(item.amount).toFixed(2)}</td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan="8" className="px-4 py-3 text-center text-gray-500">
-                        No items added
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Payments */}
-          {formData.payments && formData.payments.length > 0 && (
-            <div className="mb-6">
-              <h5 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide flex items-center">
-                <CreditCard size={16} className="mr-2" />
-                Payment History
-              </h5>
-              <div className="overflow-x-auto border rounded-lg">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Method</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reference</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {formData.payments.map((payment, index) => (
-                      <tr key={index}>
-                        <td className="px-4 py-3 text-sm text-gray-900">{payment.payment_date}</td>
-                        <td className="px-4 py-3 text-sm text-gray-900">{payment.method}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{payment.reference || '-'}</td>
-                        <td className="px-4 py-3 text-sm font-medium text-green-600 text-right">₹{payment.amount.toFixed(2)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Totals */}
-          <div className="mb-6">
-            <div className="flex justify-end">
-              <div className="w-full md:w-1/2 bg-gray-50 rounded-lg p-4 space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Subtotal:</span>
-                  <span className="font-medium">₹{parseFloat(formData.subtotal).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Total Discount:</span>
-                  <span className="font-medium text-red-600">-₹{parseFloat(formData.total_discount).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Total Tax:</span>
-                  <span className="font-medium">₹{parseFloat(formData.total_tax).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">TDS ({formData.tds_percent}%):</span>
-                  <span className="font-medium text-red-600">-₹{parseFloat(formData.tds_amount).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Shipping:</span>
-                  <span className="font-medium">₹{parseFloat(formData.shipping_charges).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Adjustment:</span>
-                  <span className="font-medium">₹{parseFloat(formData.adjustment).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between pt-2 border-t-2 border-gray-300">
-                  <span className="text-base font-bold text-gray-800">Total:</span>
-                  <span className="text-base font-bold text-blue-600">₹{parseFloat(formData.total).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Amount Paid:</span>
-                  <span className="font-medium text-green-600">₹{parseFloat(formData.amount_paid).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between pt-2 border-t border-gray-300">
-                  <span className="text-base font-bold text-gray-800">Balance Due:</span>
-                  <span className="text-base font-bold text-red-600">₹{parseFloat(formData.balance_due).toFixed(2)}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Terms & Notes */}
-          {(formData.terms_and_conditions || formData.notes) && (
-            <div className="mb-6">
-              <h5 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
-                Additional Information
-              </h5>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {formData.terms_and_conditions && (
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <p className="text-xs font-medium text-gray-500 mb-2">Terms & Conditions</p>
-                    <p className="text-sm text-gray-900 whitespace-pre-line">{formData.terms_and_conditions}</p>
-                  </div>
-                )}
-                {formData.notes && (
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <p className="text-xs font-medium text-gray-500 mb-2">Notes</p>
-                    <p className="text-sm text-gray-900 whitespace-pre-line">{formData.notes}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Modal Footer */}
-        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50">
-          <div className="flex justify-between items-center">
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  setViewMode(false);
-                  setEditMode(true);
-                }}
-                className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors flex items-center"
-              >
-                <Edit size={16} className="mr-2" />
-                Edit Bill
-              </button>
-              {formData.payment_status !== 'PAID' && formData.balance_due > 0 && (
-                <button
-                  onClick={() => {
-                    setViewMode(false);
-                    openPaymentModal(formData);
-                  }}
-                  className="px-4 py-2 text-sm font-medium text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors flex items-center"
-                >
-                  <CreditCard size={16} className="mr-2" />
-                  Record Payment
-                </button>
-              )}
-            </div>
-            <button
-              onClick={resetForm}
-              className="px-5 py-2 text-sm font-medium bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
   return (
     <div className="min-h-screen bg-gray-50 p-6">
-      {/* Debug Button - Remove in production */}
-      <div className="max-w-7xl mx-auto mb-4 flex justify-end">
-        <button
-          onClick={debugAuth}
-          className="text-xs bg-gray-200 px-3 py-1 rounded hover:bg-gray-300"
-        >
-          Debug Auth
-        </button>
-      </div>
-
-      {/* Payment Modal - Now using the standalone component */}
+      {/* Payment Modal */}
       {showPaymentModal && (
         <PaymentModal
           selectedBill={selectedBill}
@@ -2094,6 +1989,26 @@ const Bill = () => {
           handlePaymentInputChange={handlePaymentInputChange}
           recordPayment={recordPayment}
           closePaymentModal={closePaymentModal}
+        />
+      )}
+
+      {/* View Modal */}
+      {viewMode && (
+        <ViewBillModal
+          formData={formData}
+          shops={shops}
+          growtags={growtags}
+          getStatusColor={getStatusColor}
+          getPaymentStatusColor={getPaymentStatusColor}
+          onClose={resetForm}
+          onEdit={() => {
+            setViewMode(false);
+            setEditMode(true);
+          }}
+          onPayment={() => {
+            setViewMode(false);
+            openPaymentModal(formData);
+          }}
         />
       )}
 
@@ -2293,9 +2208,6 @@ const Bill = () => {
           </div>
         </div>
       )}
-
-      {/* View Modal */}
-      {viewMode && <ViewModal />}
 
       {/* Bill Form */}
       {showForm && !viewMode && (
@@ -2586,7 +2498,6 @@ const Bill = () => {
             <div className="mb-6">
               <h3 className="text-lg font-semibold mb-4">Shipping & Billing Addresses</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Bill To <span className="text-red-500">*</span>
@@ -2604,7 +2515,7 @@ const Bill = () => {
                   {errors.bill_to && <p className="text-red-500 text-xs mt-1">{errors.bill_to}</p>}
                 </div>
 
-                                <div>
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Ship To
                   </label>
@@ -2618,7 +2529,6 @@ const Bill = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                   />
                 </div>
-
               </div>
             </div>
 
@@ -3001,30 +2911,9 @@ const Bill = () => {
                 </button>
               </div>
             )}
-
-            {viewMode && (
-              <div className="flex justify-end gap-4">
-                <button
-                  onClick={resetForm}
-                  className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
-                >
-                  Close
-                </button>
-                <button
-                  onClick={() => {
-                    setViewMode(false);
-                    setEditMode(true);
-                  }}
-                  className="flex items-center gap-2 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
-                >
-                  <Edit size={20} />
-                  Edit Bill
-                </button>
-              </div>
-            )}
           </div>
         </div>
-      )} 
+      )}
     </div>
   );
 };

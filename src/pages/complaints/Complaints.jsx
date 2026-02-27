@@ -12,12 +12,11 @@ import {
   UserCheck
 } from "lucide-react";
 import toast from "react-hot-toast";
-import { BASE_URL } from "@/API/BaseURL";
-import { getAuthHeaders, getAuthHeadersMultipart } from "@/utils/authHeaders";
+import axiosInstance from "@/API/axiosInstance";
 
-const COMPLAINT_API = `${BASE_URL}/api/complaints/`;
-const CUSTOMER_API = `${BASE_URL}/api/customers/`;
-const NEAREST_OPTIONS_API = `${BASE_URL}/api/complaints/nearest-options/`;
+const COMPLAINT_API = "/api/complaints/";
+const CUSTOMER_API = "/api/customers/";
+const NEAREST_OPTIONS_API = "/api/complaints/nearest-options/";
 
 const STATUS_OPTIONS = ["Pending", "Assigned", "In Progress", "Resolved"];
 
@@ -62,6 +61,7 @@ export default function Complaints() {
   const [existingCustomers, setExistingCustomers] = useState([]);
   const [selectedExistingCustomer, setSelectedExistingCustomer] = useState(null);
   const [isCheckingCustomer, setIsCheckingCustomer] = useState(false);
+  const [isNewCustomer, setIsNewCustomer] = useState(true);
 
   // Form fields
   const [name, setName] = useState("");
@@ -117,6 +117,7 @@ export default function Complaints() {
     setSelectedExistingCustomer(null);
     setShowCustomerSearch(false);
     setExistingCustomers([]);
+    setIsNewCustomer(true);
     setIsSubmitting(false);
   }, []);
 
@@ -143,7 +144,8 @@ export default function Complaints() {
     if (!name.trim()) errors.name = "Customer name is required";
     if (!mobile.trim()) errors.mobile = "Mobile number is required";
     if (!email.trim()) errors.email = "Email is required";
-    if (!password.trim()) errors.password = "Password is required";
+    // Only require password for new customers (not during edit)
+    if (!isEdit && isNewCustomer && !password.trim()) errors.password = "Password is required for new customer";
     if (!model.trim()) errors.model = "Phone model is required";
     if (!issue.trim()) errors.issue = "Issue details are required";
     if (!addressLine.trim()) errors.addressLine = "Address is required";
@@ -162,9 +164,8 @@ export default function Complaints() {
   const fetchComplaints = useCallback(async () => {
     setIsFetchingData(true);
     try {
-      const res = await fetch(COMPLAINT_API, { headers: getAuthHeaders() });
-      if (!res.ok) throw new Error();
-      const data = await res.json();
+      const response = await axiosInstance.get(COMPLAINT_API);
+      const data = response.data;
       if (Array.isArray(data)) setComplaints(data);
       else if (data?.results) setComplaints(data.results);
       else setComplaints([]);
@@ -178,9 +179,8 @@ export default function Complaints() {
 
   const fetchCustomers = useCallback(async () => {
     try {
-      const res = await fetch(CUSTOMER_API, { headers: getAuthHeaders() });
-      if (!res.ok) throw new Error();
-      const data = await res.json();
+      const response = await axiosInstance.get(CUSTOMER_API);
+      const data = response.data;
       if (Array.isArray(data)) setCustomers(data);
       else if (data?.results) setCustomers(data.results);
       else setCustomers([]);
@@ -195,13 +195,9 @@ export default function Complaints() {
     fetchCustomers();
   }, [fetchComplaints, fetchCustomers]);
 
-  // Check for existing customer - ONLY when exact email or mobile is entered
-  const checkExistingCustomer = useCallback(async (emailValue, mobileValue) => {
-    // Only check if we have a complete email or complete mobile
-    const isEmailComplete = emailValue && validateEmail(emailValue) && emailError === "";
-    const isMobileComplete = mobileValue && mobileValue.length === 10 && /^\d{10}$/.test(mobileValue);
-    
-    if (!isEmailComplete && !isMobileComplete) {
+  // Check for existing customer by email
+  const checkExistingCustomer = useCallback(async (emailValue) => {
+    if (!emailValue || !validateEmail(emailValue)) {
       setExistingCustomers([]);
       setShowCustomerSearch(false);
       return;
@@ -211,38 +207,27 @@ export default function Complaints() {
     try {
       // Search in already fetched customers first
       const matchedCustomers = customers.filter(c => 
-        (emailValue && c.email?.toLowerCase() === emailValue.toLowerCase()) ||
-        (mobileValue && c.customer_phone === mobileValue)
+        c.email?.toLowerCase() === emailValue.toLowerCase()
       );
 
       if (matchedCustomers.length > 0) {
         setExistingCustomers(matchedCustomers);
         setShowCustomerSearch(true);
       } else {
-        // If not found in local cache, try API search with exact match
-        const searchParams = new URLSearchParams();
-        if (emailValue) searchParams.append('email', emailValue);
-        if (mobileValue) searchParams.append('phone', mobileValue);
+        // If not found in local cache, try API search
+        const response = await axiosInstance.get(`${CUSTOMER_API}?email=${encodeURIComponent(emailValue)}`);
+        const data = response.data;
+        const foundCustomers = Array.isArray(data) ? data : data.results || [];
+        const exactMatches = foundCustomers.filter(c => 
+          c.email?.toLowerCase() === emailValue.toLowerCase()
+        );
         
-        const res = await fetch(`${CUSTOMER_API}?${searchParams.toString()}`, { 
-          headers: getAuthHeaders() 
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const foundCustomers = Array.isArray(data) ? data : data.results || [];
-          // Additional exact match filter for API response
-          const exactMatches = foundCustomers.filter(c => 
-            (emailValue && c.email?.toLowerCase() === emailValue.toLowerCase()) ||
-            (mobileValue && c.customer_phone === mobileValue)
-          );
-          
-          if (exactMatches.length > 0) {
-            setExistingCustomers(exactMatches);
-            setShowCustomerSearch(true);
-          } else {
-            setExistingCustomers([]);
-            setShowCustomerSearch(false);
-          }
+        if (exactMatches.length > 0) {
+          setExistingCustomers(exactMatches);
+          setShowCustomerSearch(true);
+        } else {
+          setExistingCustomers([]);
+          setShowCustomerSearch(false);
         }
       }
     } catch (error) {
@@ -250,28 +235,30 @@ export default function Complaints() {
     } finally {
       setIsCheckingCustomer(false);
     }
-  }, [customers, emailError]);
+  }, [customers]);
 
-  // Check customer when email or mobile changes - but only when they lose focus or after typing stops
+  // Check customer when email changes
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (email || mobile) {
-        checkExistingCustomer(email, mobile);
+      if (email && !isEdit) {
+        checkExistingCustomer(email);
       }
-    }, 800); // Slightly longer debounce to ensure user has finished typing
+    }, 800);
 
     return () => clearTimeout(timer);
-  }, [email, mobile, checkExistingCustomer]);
+  }, [email, checkExistingCustomer, isEdit]);
 
   const selectExistingCustomer = (customer) => {
     setSelectedExistingCustomer(customer);
     setName(customer.customer_name || "");
     setMobile(customer.customer_phone || "");
     setEmail(customer.email || "");
-    setPassword(customer.password || "");
+    // Don't set password for existing customer
+    setPassword("");
     setAddressLine(customer.address || "");
     setState(customer.state || "");
     setPincode(customer.pincode || "");
+    setIsNewCustomer(false);
     
     // If pincode is present, fetch areas
     if (customer.pincode && /^\d{6}$/.test(customer.pincode)) {
@@ -290,6 +277,14 @@ export default function Complaints() {
     toast.success(`Customer "${customer.customer_name}" selected`);
   };
 
+  // Clear existing customer selection and create new
+  const createNewCustomer = () => {
+    setSelectedExistingCustomer(null);
+    setIsNewCustomer(true);
+    setShowCustomerSearch(false);
+    setExistingCustomers([]);
+  };
+
   // Fetch nearest options
   const fetchNearestOptions = useCallback(async (pcode, selectedArea, complaint = null) => {
     if (!/^\d{6}$/.test(pcode) || !selectedArea) return;
@@ -298,14 +293,14 @@ export default function Complaints() {
     setIsFetchingNearest(true);
 
     try {
-      const url = new URL(NEAREST_OPTIONS_API);
-      url.searchParams.set("pincode", pcode);
-      url.searchParams.set("area", selectedArea);
-
-      const res = await fetch(url.toString(), { headers: getAuthHeaders() });
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-
+      const response = await axiosInstance.get(NEAREST_OPTIONS_API, {
+        params: {
+          pincode: pcode,
+          area: selectedArea
+        }
+      });
+      
+      const data = response.data;
       const fetchedFranchises = Array.isArray(data.franchise_shops) ? data.franchise_shops : [];
       const fetchedOtherShops = Array.isArray(data.other_shops) ? data.other_shops : [];
       const fetchedTags = Array.isArray(data.growtags) ? data.growtags : [];
@@ -391,13 +386,20 @@ export default function Complaints() {
     setName(editComplaint.customer_name || "");
     setMobile(editComplaint.customer_phone || "");
     setEmail(editComplaint.email || "");
-    setPassword(editComplaint.password || "");
+    // Don't set password when editing
+    setPassword("");
     setModel(editComplaint.phone_model || "");
     setIssue(editComplaint.issue_details || "");
     setAddressLine(editComplaint.address || "");
     setStatus(editComplaint.status || "Assigned");
     setPincode(editComplaint.pincode || "");
     setState(editComplaint.state || "");
+    setIsNewCustomer(false);
+    
+    // Set the selected customer
+    if (editComplaint.customer) {
+      setSelectedExistingCustomer(editComplaint.customer);
+    }
 
     const restoreLocation = async () => {
       if (!editComplaint.pincode) return;
@@ -439,7 +441,10 @@ export default function Complaints() {
       toast.error("Please correct the highlighted form errors.");
       return;
     }
-    if (!area) { toast.error("Please select an Area after entering the Pincode."); return; }
+    if (!area) { 
+      toast.error("Please select an Area after entering the Pincode."); 
+      return; 
+    }
 
     // Map frontend assignedType to API value
     let assignTypeAPI = assignedType;
@@ -447,19 +452,25 @@ export default function Complaints() {
     let assignedID = "";
 
     if (assignedType === "franchise") {
-      assignedID = selectedShopId; fkFieldName = "assigned_shop"; assignTypeAPI = "franchise";
+      assignedID = selectedShopId; 
+      fkFieldName = "assigned_shop"; 
+      assignTypeAPI = "franchise";
     } else if (assignedType === "other_shops") {
-      assignedID = selectedShopId; fkFieldName = "assigned_shop"; assignTypeAPI = "othershop";
+      assignedID = selectedShopId; 
+      fkFieldName = "assigned_shop"; 
+      assignTypeAPI = "othershop";
     } else if (assignedType === "growtag") {
-      assignedID = selectedGrowTagId; fkFieldName = "assigned_Growtags"; assignTypeAPI = "growtag";
+      assignedID = selectedGrowTagId; 
+      fkFieldName = "assigned_Growtags"; 
+      assignTypeAPI = "growtag";
     }
 
+    // Prepare complaint data
     const complaintData = {
       customer_name: name, 
       customer_phone: mobile, 
       phone_model: model,
       issue_details: issue, 
-      password, 
       email, 
       address: addressLine,
       state, 
@@ -469,12 +480,27 @@ export default function Complaints() {
       assign_to: assignTypeAPI,
     };
     
-    // If an existing customer was selected, include the customer ID
-    if (selectedExistingCustomer) {
-      complaintData.customer = selectedExistingCustomer.id;
+    // Handle customer and password based on context
+    if (!isEdit) {
+      // New complaint
+      if (selectedExistingCustomer) {
+        // For existing customer, include customer ID but NOT password
+        complaintData.customer = selectedExistingCustomer.id;
+      } else {
+        // For new customer, include password
+        complaintData.password = password;
+      }
+    } else {
+      // Edit complaint
+      if (selectedExistingCustomer) {
+        complaintData.customer = selectedExistingCustomer.id;
+      }
+      // Never include password during edit
     }
     
     if (fkFieldName && assignedID) complaintData[fkFieldName] = parseInt(assignedID, 10);
+
+    console.log("Submitting complaint data:", complaintData);
 
     const method = isEdit ? "PUT" : "POST";
     const url = isEdit ? `${COMPLAINT_API}${editComplaint.id}/` : COMPLAINT_API;
@@ -483,25 +509,15 @@ export default function Complaints() {
     const toastId = toast.loading(isEdit ? "Updating complaint..." : "Registering complaint...");
 
     try {
-      const res = await fetch(url, { 
-        method, 
-        headers: getAuthHeaders(), 
-        body: JSON.stringify(complaintData) 
-      });
+      let response;
+      if (isEdit) {
+        response = await axiosInstance.put(url, complaintData);
+      } else {
+        response = await axiosInstance.post(url, complaintData);
+      }
       
-      if (res.status === 403) {
-        toast.error("You don't have permission to edit this complaint.", { id: toastId });
-        setIsSubmitting(false);
-        return;
-      }
-      if (res.status === 404) {
-        toast.error("Complaint not found. It may have been deleted.", { id: toastId });
-        setIsSubmitting(false);
-        return;
-      }
-      if (!res.ok) throw new Error();
-
-      const savedComplaint = await res.json();
+      const savedComplaint = response.data;
+      console.log("Success response:", savedComplaint);
 
       if (isEdit) {
         setComplaints(prev => 
@@ -512,7 +528,7 @@ export default function Complaints() {
         setComplaints(prev => [savedComplaint, ...prev]);
         toast.success("Complaint registered successfully!", { id: toastId });
         
-        // Refresh customers list to include new customer
+        // Refresh customers list to include new customer if created
         fetchCustomers();
       }
 
@@ -521,8 +537,56 @@ export default function Complaints() {
       setEditComplaint(null); 
       resetFormStates();
       
-    } catch {
-      toast.error(`${isEdit ? "Update" : "Register"} failed. Please try again.`, { id: toastId });
+    } catch (error) {
+      console.error("Error submitting complaint:", error);
+      console.error("Error response data:", error.response?.data);
+      console.error("Error status:", error.response?.status);
+      
+      if (error.response?.status === 400) {
+        // Handle validation errors
+        const validationErrors = error.response.data;
+        let errorMessage = "Validation failed: ";
+        
+        if (typeof validationErrors === 'object') {
+          const errorMessages = [];
+          Object.keys(validationErrors).forEach(key => {
+            const messages = Array.isArray(validationErrors[key]) 
+              ? validationErrors[key].join(', ') 
+              : validationErrors[key];
+            errorMessages.push(`${key}: ${messages}`);
+          });
+          errorMessage = errorMessages.join(' | ');
+          
+          // Set field-specific errors
+          setFieldErrors(prev => ({
+            ...prev,
+            ...Object.keys(validationErrors).reduce((acc, key) => {
+              const fieldMap = {
+                'customer_name': 'name',
+                'customer_phone': 'mobile',
+                'phone_model': 'model',
+                'issue_details': 'issue',
+                'address': 'addressLine',
+              };
+              const formField = fieldMap[key] || key;
+              acc[formField] = Array.isArray(validationErrors[key]) 
+                ? validationErrors[key][0] 
+                : validationErrors[key];
+              return acc;
+            }, {})
+          }));
+        } else {
+          errorMessage = error.response.data.message || "Validation failed";
+        }
+        
+        toast.error(errorMessage, { id: toastId });
+      } else if (error.response?.status === 403) {
+        toast.error("You don't have permission to do this.", { id: toastId });
+      } else if (error.response?.status === 404) {
+        toast.error("Resource not found.", { id: toastId });
+      } else {
+        toast.error(`${isEdit ? "Update" : "Register"} failed. Please try again.`, { id: toastId });
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -533,12 +597,7 @@ export default function Complaints() {
     setComplaints((prev) => prev.map((c) => c.id === complaintId ? { ...c, status: newStatus } : c));
     const t = toast.loading(`Updating status to ${newStatus}...`);
     try {
-      const res = await fetch(`${COMPLAINT_API}${complaintId}/`, {
-        method: "PATCH", 
-        headers: getAuthHeaders(), 
-        body: JSON.stringify({ status: newStatus }),
-      });
-      if (!res.ok) { setComplaints(original); throw new Error(); }
+      await axiosInstance.patch(`${COMPLAINT_API}${complaintId}/`, { status: newStatus });
       toast.success(`Status updated to: ${newStatus}`, { id: t });
     } catch {
       setComplaints(original);
@@ -546,81 +605,53 @@ export default function Complaints() {
     }
   };
 
-const handleOrderConfirmation = async (complaintId) => {
-  const original = complaints;
-  const complaint = complaints.find(c => c.id === complaintId);
-  const newStatus = complaint?.confirm_status === "CONFIRMED" ? "NOT CONFIRMED" : "CONFIRMED";
-  
-  // Optimistic update
-  setComplaints((prev) => 
-    prev.map((c) => 
-      c.id === complaintId 
-        ? { 
-            ...c, 
-            confirm_status: newStatus,
-            confirmed_at: newStatus === "CONFIRMED" ? new Date().toISOString() : null,
-            confirmed_by: newStatus === "CONFIRMED" ? "admin" : null
-          } 
-        : c
-    )
-  );
-  
-  const t = toast.loading(newStatus === "CONFIRMED" ? "Confirming order..." : "Unconfirming order...");
-  
-  try {
-    console.log(`Sending PATCH request for complaint ${complaintId} with status: ${newStatus}`);
-    
-    const res = await fetch(`${COMPLAINT_API}${complaintId}/confirm/`, {
-      method: "PATCH",
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ 
-        confirm_status: newStatus  // Send the confirm_status field
-      })
-    });
-    
-    console.log("Response status:", res.status);
-    
-    if (!res.ok) {
-      setComplaints(original);
-      
-      // Try to get error details
-      const errorText = await res.text();
-      console.error("Error response:", errorText);
-      
-      let errorMessage = `Failed with status ${res.status}`;
-      try {
-        const errorData = JSON.parse(errorText);
-        errorMessage = errorData.message || errorData.detail || errorMessage;
-      } catch {
-        // Use default message
-      }
-      
-      throw new Error(errorMessage);
-    }
-    
-    const data = await res.json();
-    console.log("Success response:", data);
+  const handleOrderConfirmation = async (complaintId) => {
+    const original = complaints;
+    const complaint = complaints.find(c => c.id === complaintId);
+    const newStatus = complaint?.confirm_status === "CONFIRMED" ? "NOT CONFIRMED" : "CONFIRMED";
     
     setComplaints((prev) => 
       prev.map((c) => 
         c.id === complaintId 
           ? { 
               ...c, 
-              confirm_status: data.confirm_status,
-              confirmed_at: data.confirmed_at,
-              confirmed_by: data.confirmed_by
+              confirm_status: newStatus,
+              confirmed_at: newStatus === "CONFIRMED" ? new Date().toISOString() : null,
+              confirmed_by: newStatus === "CONFIRMED" ? "admin" : null
             } 
           : c
       )
     );
     
-    toast.success(data.message || "Order confirmation updated", { id: t });
-  } catch (err) {
-    console.error("Order confirmation error:", err);
-    setComplaints(original);
-    toast.error(err.message || "Failed to update order confirmation.", { id: t });
-  }
-};
+    const t = toast.loading(newStatus === "CONFIRMED" ? "Confirming order..." : "Unconfirming order...");
+    
+    try {
+      const response = await axiosInstance.patch(`${COMPLAINT_API}${complaintId}/confirm/`, { 
+        confirm_status: newStatus
+      });
+      
+      const data = response.data;
+      
+      setComplaints((prev) => 
+        prev.map((c) => 
+          c.id === complaintId 
+            ? { 
+                ...c, 
+                confirm_status: data.confirm_status,
+                confirmed_at: data.confirmed_at,
+                confirmed_by: data.confirmed_by
+              } 
+            : c
+        )
+      );
+      
+      toast.success(data.message || "Order confirmation updated", { id: t });
+    } catch (err) {
+      console.error("Order confirmation error:", err);
+      setComplaints(original);
+      toast.error(err.response?.data?.message || err.message || "Failed to update order confirmation.", { id: t });
+    }
+  };
 
   const handleDelete = (id) => {
     toast.dismiss();
@@ -636,8 +667,7 @@ const handleOrderConfirmation = async (complaintId) => {
                 toast.dismiss(t.id);
                 const dt = toast.loading(`Deleting complaint #${id}...`);
                 try {
-                  const res = await fetch(`${COMPLAINT_API}${id}/`, { method: "DELETE", headers: getAuthHeaders() });
-                  if (!res.ok) throw new Error();
+                  await axiosInstance.delete(`${COMPLAINT_API}${id}/`);
                   setComplaints((prev) => prev.filter((c) => c.id !== id));
                   toast.success(`Complaint #${id} deleted`, { id: dt });
                 } catch {
@@ -675,10 +705,10 @@ const handleOrderConfirmation = async (complaintId) => {
                 const results = await Promise.all(
                   selectedIds.map(async (id) => {
                     try {
-                      const res = await fetch(`${COMPLAINT_API}${id}/`, { method: "DELETE", headers: getAuthHeaders() });
-                      return { id, ok: res.ok, status: res.status };
-                    } catch {
-                      return { id, ok: false, status: 0 };
+                      await axiosInstance.delete(`${COMPLAINT_API}${id}/`);
+                      return { id, ok: true };
+                    } catch (error) {
+                      return { id, ok: false, status: error.response?.status || 0 };
                     }
                   })
                 );
@@ -769,14 +799,14 @@ const handleOrderConfirmation = async (complaintId) => {
                 <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-xs font-medium text-blue-700 flex items-center gap-1">
-                      <UserCheck size={14} /> Check Existing Customer
+                      <UserCheck size={14} /> Check Existing Customer by Email
                     </label>
                     {isCheckingCustomer && (
                       <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-500"></div>
                     )}
                   </div>
                   <p className="text-xs text-gray-600 mb-2">
-                    Enter complete email or 10-digit mobile number
+                    Enter email address to check if customer already exists
                   </p>
                   
                   {/* Existing customer suggestions */}
@@ -786,8 +816,7 @@ const handleOrderConfirmation = async (complaintId) => {
                       {existingCustomers.map((cust) => (
                         <div 
                           key={cust.id}
-                          onClick={() => selectExistingCustomer(cust)}
-                          className="p-2 bg-white rounded-lg border border-green-200 cursor-pointer hover:bg-green-50 transition-colors"
+                          className="p-2 bg-white rounded-lg border border-green-200"
                         >
                           <div className="flex items-start gap-2">
                             <UserCheck size={14} className="text-green-500 mt-0.5 flex-shrink-0" />
@@ -795,19 +824,51 @@ const handleOrderConfirmation = async (complaintId) => {
                               <p className="text-sm font-medium text-gray-800">{cust.customer_name}</p>
                               <p className="text-xs text-gray-600">{cust.email} | {cust.customer_phone}</p>
                             </div>
-                            <button className="text-xs bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 font-medium flex-shrink-0">
+                            <button 
+                              onClick={() => selectExistingCustomer(cust)}
+                              className="text-xs bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 font-medium flex-shrink-0"
+                            >
                               Select
                             </button>
                           </div>
                         </div>
                       ))}
+                      <div className="mt-2 text-center">
+                        <button 
+                          onClick={createNewCustomer}
+                          className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                        >
+                          + Create new customer instead
+                        </button>
+                      </div>
                     </div>
                   )}
                   
                   {showCustomerSearch && existingCustomers.length === 0 && !isCheckingCustomer && (
-                    <p className="text-xs text-gray-500 mt-1 bg-white p-2 rounded-lg border border-gray-200">
-                      No existing customer found. New customer will be created.
-                    </p>
+                    <div className="mt-2 p-2 bg-white rounded-lg border border-gray-200">
+                      <p className="text-xs text-gray-500">
+                        No existing customer found with this email. New customer will be created.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Show when existing customer is selected */}
+                  {selectedExistingCustomer && (
+                    <div className="mt-2 p-2 bg-green-50 rounded-lg border border-green-200">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs font-semibold text-green-700">Using existing customer:</p>
+                          <p className="text-sm text-gray-800">{selectedExistingCustomer.customer_name}</p>
+                          <p className="text-xs text-gray-600">{selectedExistingCustomer.email}</p>
+                        </div>
+                        <button 
+                          onClick={createNewCustomer}
+                          className="text-xs text-blue-600 hover:text-blue-800"
+                        >
+                          Change
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </div>
               )}
@@ -822,7 +883,7 @@ const handleOrderConfirmation = async (complaintId) => {
                       onChange={(e) => { setName(e.target.value); setFieldErrors((p) => ({ ...p, name: "" })); }}
                       className={`w-full px-3 py-2 text-sm border rounded-lg ${fieldErrors.name ? "border-red-500" : "border-gray-300"} focus:outline-none focus:ring-1 focus:ring-blue-200`}
                       placeholder="Customer Name *"
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || (selectedExistingCustomer && !isEdit)}
                     />
                     {fieldErrors.name && <p className="text-red-500 text-xs mt-0.5">{fieldErrors.name}</p>}
                   </div>
@@ -837,7 +898,7 @@ const handleOrderConfirmation = async (complaintId) => {
                       className={`w-full px-3 py-2 text-sm border rounded-lg ${mobileError ? "border-red-500" : "border-gray-300"} focus:outline-none focus:ring-1 focus:ring-blue-200`}
                       placeholder="Mobile Number * (10 digits)"
                       maxLength={10}
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || (selectedExistingCustomer && !isEdit)}
                     />
                     {(mobileError || fieldErrors.mobile) && <p className="text-red-500 text-xs mt-0.5">{mobileError || fieldErrors.mobile}</p>}
                   </div>
@@ -851,32 +912,45 @@ const handleOrderConfirmation = async (complaintId) => {
                       onBlur={(e) => validateEmail(e.target.value)}
                       className={`w-full px-3 py-2 text-sm border rounded-lg ${emailError ? "border-red-500" : "border-gray-300"} focus:outline-none focus:ring-1 focus:ring-blue-200`}
                       placeholder="Customer Email *"
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || (selectedExistingCustomer && !isEdit)}
                     />
                     {(emailError || fieldErrors.email) && <p className="text-red-500 text-xs mt-0.5">{emailError || fieldErrors.email}</p>}
                   </div>
 
-                  {/* Password */}
-                  <div>
-                    <div className="relative">
-                      <input
-                        type={showPassword ? "text" : "password"}
-                        value={password}
-                        onChange={(e) => { setPassword(e.target.value); setFieldErrors((p) => ({ ...p, password: "" })); }}
-                        className={`w-full px-3 py-2 text-sm border rounded-lg ${fieldErrors.password ? "border-red-500" : "border-gray-300"} focus:outline-none focus:ring-1 focus:ring-blue-200 pr-8`}
-                        placeholder="Password *"
-                        disabled={isSubmitting}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword((prev) => !prev)}
-                        className="absolute inset-y-0 right-2 flex items-center text-gray-500 hover:text-gray-700"
-                      >
-                        {showPassword ? <Eye size={14} /> : <EyeOff size={14} />}
-                      </button>
+                  {/* Password - Only show for new customers and hide during edit */}
+                  {(!selectedExistingCustomer && !isEdit) && (
+                    <div>
+                      <div className="relative">
+                        <input
+                          type={showPassword ? "text" : "password"}
+                          value={password}
+                          onChange={(e) => { setPassword(e.target.value); setFieldErrors((p) => ({ ...p, password: "" })); }}
+                          className={`w-full px-3 py-2 text-sm border rounded-lg ${fieldErrors.password ? "border-red-500" : "border-gray-300"} focus:outline-none focus:ring-1 focus:ring-blue-200 pr-8`}
+                          placeholder="Password *"
+                          disabled={isSubmitting}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword((prev) => !prev)}
+                          className="absolute inset-y-0 right-2 flex items-center text-gray-500 hover:text-gray-700"
+                        >
+                          {showPassword ? <Eye size={14} /> : <EyeOff size={14} />}
+                        </button>
+                      </div>
+                      {fieldErrors.password && <p className="text-red-500 text-xs mt-0.5">{fieldErrors.password}</p>}
                     </div>
-                    {fieldErrors.password && <p className="text-red-500 text-xs mt-0.5">{fieldErrors.password}</p>}
-                  </div>
+                  )}
+
+                  {/* Show a message when editing that password can't be changed here */}
+                  {isEdit && (
+                    <div className="md:col-span-1">
+                      <div className="bg-gray-50 p-2 rounded-lg border border-gray-200 h-full flex items-center">
+                        <p className="text-xs text-gray-600">
+                          <span className="font-medium">🔒 Password:</span> Not editable in complaints
+                        </p>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Phone Model */}
                   <div>
@@ -909,7 +983,7 @@ const handleOrderConfirmation = async (complaintId) => {
                     rows={1}
                     className={`w-full px-3 py-2 text-sm border rounded-lg ${fieldErrors.addressLine ? "border-red-500" : "border-gray-300"} focus:outline-none focus:ring-1 focus:ring-blue-200 resize-none`}
                     placeholder="Address Line *"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || (selectedExistingCustomer && !isEdit)}
                   />
                   {fieldErrors.addressLine && <p className="text-red-500 text-xs mt-0.5">{fieldErrors.addressLine}</p>}
                 </div>
@@ -1083,7 +1157,7 @@ const handleOrderConfirmation = async (complaintId) => {
                     ["Name", selectedComplaint.customer_name],
                     ["Email", selectedComplaint.email],
                     ["Mobile", selectedComplaint.customer_phone],
-                    ["Password", selectedComplaint.password || "N/A"],
+                    // ["Password", selectedComplaint.password || "N/A"],
                   ].map(([label, val]) => (
                     <div key={label}>
                       <label className="block text-sm font-medium text-gray-600">{label}</label>

@@ -11,45 +11,11 @@ import {
   FileText,
   CheckCircle,
   XCircle,
+  Loader2
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
-import { BASE_URL } from "@/API/BaseURL";
-import { getAuthHeaders } from "@/utils/authHeaders";
-
-const api = axios.create({
-  baseURL: `${BASE_URL}/api`,
-});
-
-// ✅ auto attach token with correct token type
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("access_token");
-  const tokenType = localStorage.getItem("token_type") || "Bearer";
-  if (token) {
-    config.headers.Authorization = `${tokenType} ${token}`;
-  }
-  console.log("API Request:", config.method.toUpperCase(), config.url);
-  return config;
-});
-
-// Response interceptor to handle auth errors - SINGLE SOURCE OF TRUTH for auth errors
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    // Handle auth errors here - ONLY ONCE
-    if (error.response?.status === 401) {
-      toast.error("Session expired. Please login again.");
-      // Optional: Redirect to login after a delay
-      setTimeout(() => {
-        window.location.href = '/login';
-      }, 1500);
-    } else if (error.response?.status === 403) {
-      toast.error("You don't have permission to perform this action");
-    }
-    return Promise.reject(error);
-  }
-);
+import axiosInstance from "@/API/axiosInstance";
 
 // ----------------------------------------------------
 // 1. Password Input Component (Eye Icon Toggle)
@@ -59,8 +25,11 @@ const PasswordInput = ({ name, label, value, onChange, error, isEdit }) => {
 
   return (
     <div>
-      <label className="text-sm">
-        {label} {isEdit ? "(leave empty to keep old)" : "*"}
+      <label className="text-sm font-medium text-gray-700 mb-1 block">
+        {label} {!isEdit && <span className="text-red-500">*</span>}
+        {isEdit && (
+          <span className="text-xs text-gray-500 ml-2">(leave empty to keep old)</span>
+        )}
       </label>
       <div className="relative">
         <input
@@ -68,19 +37,19 @@ const PasswordInput = ({ name, label, value, onChange, error, isEdit }) => {
           name={name}
           value={value}
           onChange={onChange}
-          className={`w-full p-1 pr-10 border rounded text-sm focus:outline-none focus:ring-1 ${
+          className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 ${
             error
               ? "border-red-500 focus:ring-red-500"
-              : "focus:border-blue-400 focus:ring-blue-400"
+              : "border-gray-300 focus:ring-blue-500"
           }`}
-          placeholder={isEdit ? "(leave empty to keep old)" : ""}
+          placeholder={isEdit ? "Leave empty to keep current" : "Enter password"}
         />
         <button
           type="button"
           onClick={() => setShowPassword(!showPassword)}
-          className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500"
+          className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-gray-700"
         >
-          {showPassword ? <Eye size={16} /> : <EyeOff size={16} />}
+          {showPassword ? <Eye size={18} /> : <EyeOff size={18} />}
         </button>
       </div>
       {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
@@ -104,12 +73,10 @@ const ViewModal = ({ shop, onClose }) => {
   const fetchShopDetails = async (shopId) => {
     setLoading(true);
     try {
-      // Fix: Use path parameter instead of query parameter
-      const res = await api.get(`/shops-popup/${shopId}/`);
+      const res = await axiosInstance.get(`/api/shops-popup/${shopId}/`);
       setShopDetails(res.data);
     } catch (error) {
       console.error("Error fetching shop details:", error);
-      // Don't show toast for 401/403 - they're handled by interceptor
       if (error.response?.status !== 401 && error.response?.status !== 403) {
         toast.error("Failed to load shop details");
       }
@@ -138,19 +105,30 @@ const ViewModal = ({ shop, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/30 flex justify-center items-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-50 p-4">
       <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl border border-gray-200 max-h-[90vh] overflow-hidden">
-        <div className="flex justify-between items-center p-6 border-b">
-          <h2 className="text-2xl font-bold text-blue-700">
-            Shop Details - {displayData.shopname} (ID: {displayData.id})
-          </h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-red-600 text-lg">✖</button>
+        <div className="flex justify-between items-center p-6 border-b bg-gradient-to-r from-blue-50 to-indigo-50">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <Building className="w-6 h-6 text-blue-600" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-gray-800">Shop Details</h2>
+              <p className="text-sm text-gray-500">ID: {displayData.id}</p>
+            </div>
+          </div>
+          <button 
+            onClick={onClose} 
+            className="text-gray-400 hover:text-red-500 transition-colors p-2 hover:bg-red-50 rounded-full"
+          >
+            <XCircle size={24} />
+          </button>
         </div>
 
         <div className="p-6 overflow-y-auto" style={{ maxHeight: "calc(90vh - 100px)" }}>
           {loading ? (
             <div className="flex justify-center items-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <Loader2 className="animate-spin h-8 w-8 text-blue-600" />
               <span className="ml-3 text-gray-600">Loading shop details...</span>
             </div>
           ) : (
@@ -159,72 +137,117 @@ const ViewModal = ({ shop, onClose }) => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                 {/* Basic Information */}
                 <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">Basic Information</h3>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600">Shop Type</label>
-                    <p className="mt-1 p-2 bg-gray-50 rounded-lg">
-                      {displayData.shop_type_display || (displayData.shop_type === 'franchise' ? 'Franchise' : 'Other Shop')}
-                    </p>
+                  <h3 className="text-lg font-semibold text-gray-800 border-b pb-2 flex items-center gap-2">
+                    <Tag size={18} className="text-blue-600" />
+                    Basic Information
+                  </h3>
+                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <div className="grid grid-cols-1 gap-3">
+                      <div>
+                        <p className="text-xs font-medium text-gray-500 uppercase">Shop Type</p>
+                        <p className="text-sm font-medium text-gray-900 mt-1">
+                          <span className={`px-2 py-1 rounded-full text-xs ${
+                            displayData.shop_type === 'franchise' 
+                              ? 'bg-purple-100 text-purple-700' 
+                              : 'bg-orange-100 text-orange-700'
+                          }`}>
+                            {displayData.shop_type_display || (displayData.shop_type === 'franchise' ? 'Franchise' : 'Other Shop')}
+                          </span>
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium text-gray-500 uppercase">Status</p>
+                        <p className="mt-1">
+                          <span className={`px-2 py-1 rounded-full text-xs ${
+                            displayData.status 
+                              ? "bg-green-100 text-green-700" 
+                              : "bg-red-100 text-red-700"
+                          }`}>
+                            {displayData.status ? "Active" : "Inactive"}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600">Status</label>
-                    <p className={`mt-1 p-2 bg-gray-50 rounded-lg ${displayData.status ? "text-green-600 font-semibold" : "text-red-600 font-semibold"}`}>
-                      {displayData.status ? "Active" : "Inactive"}
-                    </p>
-                  </div>
-                
                 </div>
 
                 {/* Owner Information */}
                 <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">Owner Information</h3>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600">Owner Name</label>
-                    <p className="mt-1 p-2 bg-gray-50 rounded-lg">{displayData.owner}</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600">Email</label>
-                    <p className="mt-1 p-2 bg-gray-50 rounded-lg">{displayData.email || "N/A"}</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600">Phone</label>
-                    <p className="mt-1 p-2 bg-gray-50 rounded-lg">{displayData.phone}</p>
+                  <h3 className="text-lg font-semibold text-gray-800 border-b pb-2 flex items-center gap-2">
+                    <User size={18} className="text-purple-600" />
+                    Owner Information
+                  </h3>
+                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <div className="grid grid-cols-1 gap-3">
+                      <div>
+                        <p className="text-xs font-medium text-gray-500 uppercase">Owner Name</p>
+                        <p className="text-sm font-medium text-gray-900 mt-1">{displayData.owner}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium text-gray-500 uppercase">Email</p>
+                        <p className="text-sm text-gray-900 mt-1">{displayData.email || "N/A"}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium text-gray-500 uppercase">Phone</p>
+                        <p className="text-sm text-gray-900 mt-1">{displayData.phone}</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
                 {/* Address Information */}
                 <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">Address Information</h3>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600">Address</label>
-                    <p className="mt-1 p-2 bg-gray-50 rounded-lg">{displayData.address}</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600">Area</label>
-                    <p className="mt-1 p-2 bg-gray-50 rounded-lg">{displayData.area}</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600">Pincode</label>
-                    <p className="mt-1 p-2 bg-gray-50 rounded-lg">{displayData.pincode}</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600">State</label>
-                    <p className="mt-1 p-2 bg-gray-50 rounded-lg">{displayData.state}</p>
+                  <h3 className="text-lg font-semibold text-gray-800 border-b pb-2 flex items-center gap-2">
+                    <MapPin size={18} className="text-green-600" />
+                    Address Information
+                  </h3>
+                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <div className="grid grid-cols-1 gap-3">
+                      <div>
+                        <p className="text-xs font-medium text-gray-500 uppercase">Address</p>
+                        <p className="text-sm text-gray-900 mt-1">{displayData.address}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium text-gray-500 uppercase">Area</p>
+                        <p className="text-sm text-gray-900 mt-1">{displayData.area}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium text-gray-500 uppercase">Pincode</p>
+                        <p className="text-sm text-gray-900 mt-1">{displayData.pincode}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium text-gray-500 uppercase">State</p>
+                        <p className="text-sm text-gray-900 mt-1">{displayData.state}</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
                 {/* System Information */}
                 <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">System Information</h3>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600">GST PIN</label>
-                    <p className="mt-1 p-2 bg-gray-50 rounded-lg">{displayData.gst_pin || "—"}</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600">Created By</label>
-                    <p className="mt-1 p-2 bg-gray-50 rounded-lg">
-                      {displayData.created_by?.username || displayData.created_by?.email || displayData.created_by || "—"}
-                    </p>
+                  <h3 className="text-lg font-semibold text-gray-800 border-b pb-2 flex items-center gap-2">
+                    <FileText size={18} className="text-orange-600" />
+                    System Information
+                  </h3>
+                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <div className="grid grid-cols-1 gap-3">
+                      <div>
+                        <p className="text-xs font-medium text-gray-500 uppercase">GST PIN</p>
+                        <p className="text-sm font-medium text-gray-900 mt-1">{displayData.gst_pin || "—"}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium text-gray-500 uppercase">Created By</p>
+                        <p className="text-sm text-gray-900 mt-1">
+                          {displayData.created_by?.username || displayData.created_by?.email || displayData.created_by || "—"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium text-gray-500 uppercase">Created At</p>
+                        <p className="text-sm text-gray-900 mt-1">
+                          {displayData.created_at ? new Date(displayData.created_at).toLocaleString() : "—"}
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -241,17 +264,21 @@ const ViewModal = ({ shop, onClose }) => {
                 {displayData.assigned_growtags && displayData.assigned_growtags.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                     {displayData.assigned_growtags.map((tag) => (
-                      <div key={tag.id} className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                      <div key={tag.id} className="bg-purple-50 border border-purple-200 rounded-lg p-4 hover:shadow-md transition-shadow">
                         <p className="font-medium text-purple-700">{tag.name}</p>
-                        <p className="text-xs text-purple-600 mt-1">ID: {tag.grow_id}</p>
-                        <p className="text-xs text-purple-600">{tag.phone}</p>
-                        {tag.email && <p className="text-xs text-purple-600 truncate">{tag.email}</p>}
-                        <p className="text-xs text-purple-600 mt-1">{tag.area}, {tag.pincode}</p>
+                        <div className="mt-2 space-y-1">
+                          <p className="text-xs text-purple-600">ID: {tag.grow_id}</p>
+                          <p className="text-xs text-purple-600">Phone: {tag.phone}</p>
+                          {tag.email && <p className="text-xs text-purple-600 truncate">Email: {tag.email}</p>}
+                          <p className="text-xs text-purple-600">{tag.area}, {tag.pincode}</p>
+                        </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-gray-500 italic bg-gray-50 p-3 rounded-lg">No grow tags assigned</p>
+                  <p className="text-gray-500 italic bg-gray-50 p-4 rounded-lg border border-gray-200 text-center">
+                    No grow tags assigned to this shop
+                  </p>
                 )}
               </div>
 
@@ -267,73 +294,76 @@ const ViewModal = ({ shop, onClose }) => {
                 {displayData.assigned_complaints && displayData.assigned_complaints.length > 0 ? (
                   <div className="space-y-3">
                     {displayData.assigned_complaints.map((complaint) => (
-                      <div key={complaint.id} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="text-xs font-mono text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                                {complaint.complaint_id}
-                              </span>
-                              <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusClasses(complaint.status)}`}>
-                                {complaint.status}
-                              </span>
-                              <span className={`px-2 py-1 rounded-full text-xs font-semibold flex items-center gap-1 ${
-                                complaint.confirm_status === "CONFIRMED" 
-                                  ? "bg-green-100 text-green-800" 
-                                  : "bg-red-100 text-red-800"
-                              }`}>
-                                {complaint.confirm_status === "CONFIRMED" ? (
-                                  <>
-                                    <CheckCircle size={12} /> Confirmed
-                                  </>
-                                ) : (
-                                  <>
-                                    <XCircle size={12} /> Not Confirmed
-                                  </>
-                                )}
-                              </span>
-                            </div>
-                            
-                            <h4 className="font-medium text-gray-800 mb-1">{complaint.title}</h4>
-                            
-                            <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
-                              <div>
-                                <span className="font-medium">Area:</span> {complaint.area}
-                              </div>
-                              <div>
-                                <span className="font-medium">Pincode:</span> {complaint.pincode}
-                              </div>
-                              <div>
-                                <span className="font-medium">Assigned To:</span> {complaint.assign_to}
-                              </div>
-                              <div>
-                                <span className="font-medium">Created:</span> {complaint.created_on}
-                              </div>
-                            </div>
-                            
-                            <div className="mt-2 text-xs text-gray-500">
-                              <span className="font-medium">Created at:</span> {complaint.created_at_time}
-                            </div>
+                      <div key={complaint.id} className="bg-white border border-gray-200 rounded-lg p-5 hover:shadow-md transition-shadow">
+                        <div className="flex flex-wrap items-center gap-2 mb-3">
+                          <span className="text-xs font-mono bg-gray-100 text-gray-600 px-2 py-1 rounded border border-gray-200">
+                            {complaint.complaint_id}
+                          </span>
+                          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusClasses(complaint.status)}`}>
+                            {complaint.status}
+                          </span>
+                          <span className={`px-2 py-1 rounded-full text-xs font-semibold flex items-center gap-1 ${
+                            complaint.confirm_status === "CONFIRMED" 
+                              ? "bg-green-100 text-green-800 border border-green-200" 
+                              : "bg-red-100 text-red-800 border border-red-200"
+                          }`}>
+                            {complaint.confirm_status === "CONFIRMED" ? (
+                              <>
+                                <CheckCircle size={12} /> Confirmed
+                              </>
+                            ) : (
+                              <>
+                                <XCircle size={12} /> Not Confirmed
+                              </>
+                            )}
+                          </span>
+                        </div>
+                        
+                        <h4 className="font-medium text-gray-800 mb-3">{complaint.title}</h4>
+                        
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                          <div>
+                            <p className="text-xs text-gray-500">Area</p>
+                            <p className="font-medium text-gray-700">{complaint.area}</p>
                           </div>
+                          <div>
+                            <p className="text-xs text-gray-500">Pincode</p>
+                            <p className="font-medium text-gray-700">{complaint.pincode}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500">Assigned To</p>
+                            <p className="font-medium text-gray-700">{complaint.assign_to}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500">Created On</p>
+                            <p className="font-medium text-gray-700">{complaint.created_on}</p>
+                          </div>
+                        </div>
+                        
+                        <div className="mt-3 text-xs text-gray-500 border-t pt-2">
+                          <span className="font-medium">Created at:</span> {complaint.created_at_time}
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-gray-500 italic bg-gray-50 p-3 rounded-lg">No complaints assigned</p>
+                  <p className="text-gray-500 italic bg-gray-50 p-4 rounded-lg border border-gray-200 text-center">
+                    No complaints assigned to this shop
+                  </p>
                 )}
-              </div>
-
-              <div className="mt-8 flex justify-end gap-3">
-                <button
-                  onClick={onClose}
-                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
-                >
-                  Close
-                </button>
               </div>
             </>
           )}
+        </div>
+
+        {/* Modal Footer */}
+        <div className="flex justify-end p-6 border-t bg-gray-50">
+          <button
+            onClick={onClose}
+            className="px-6 py-2.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
+          >
+            Close
+          </button>
         </div>
       </div>
     </div>
@@ -359,18 +389,6 @@ export default function Shops() {
   const [filterStatus, setFilterStatus] = useState("");
   const [filterCreatedBy, setFilterCreatedBy] = useState("");
   const [search, setSearch] = useState("");
-
-  // Debug function to check auth state
-  const debugAuth = () => {
-    const token = localStorage.getItem("access_token");
-    const tokenType = localStorage.getItem("token_type");
-    
-    console.log("=== Shops Auth Debug ===");
-    console.log("Token exists:", !!token);
-    console.log("Token type:", tokenType || "not set (defaulting to Bearer)");
-    console.log("Token preview:", token ? `${token.substring(0, 20)}...` : "none");
-    console.log("========================");
-  };
 
   const toggleSelect = (id) => {
     setSelectedIds((prev) =>
@@ -460,11 +478,10 @@ export default function Shops() {
   const loadShops = async () => {
     setIsLoading(true);
     try {
-      const res = await api.get("/shops/");
+      const res = await axiosInstance.get("/api/shops/");
       setShops(res.data || []);
     } catch (err) {
       console.error("Load shops error:", err);
-      // Don't show toast for 401/403 - they're handled by interceptor
       if (err.response?.status !== 401 && err.response?.status !== 403) {
         toast.error("Failed to load shops");
       }
@@ -475,7 +492,6 @@ export default function Shops() {
   };
 
   useEffect(() => {
-    debugAuth();
     loadShops();
   }, []);
 
@@ -511,9 +527,9 @@ export default function Shops() {
       setPincodeError("");
 
       try {
-        const res = await axios.get(
+        const res = await axiosInstance.get(
           `https://api.postalpincode.in/pincode/${value}`,
-          { timeout: 8000 },
+          { timeout: 8000 }
         );
 
         if (res.data[0]?.Status !== "Success") {
@@ -538,13 +554,11 @@ export default function Shops() {
         setPincodeError("");
       } catch (error) {
         console.error("Pincode API Error:", error);
-
         setAreaList([]);
         setForm((prev) => ({
           ...prev,
           area: "",
         }));
-
         setPincodeError("Network connection lost. Please check your internet.");
       } finally {
         setIsPincodeLoading(false);
@@ -647,10 +661,10 @@ export default function Shops() {
 
     try {
       if (isEdit) {
-        await api.put(`/shops/${editId}/`, payload);
+        await axiosInstance.put(`/shops/${editId}/`, payload);
         toast.success(`Shop "${form.name}" updated successfully!`, { id: toastId });
       } else {
-        const res = await api.post("/shops/", payload);
+        await axiosInstance.post("/shops/", payload);
         toast.success(`Shop "${form.name}" created successfully!`, { id: toastId });
       }
 
@@ -662,13 +676,11 @@ export default function Shops() {
     } catch (err) {
       console.error("Submit error:", err);
       
-      // Don't show toast for 401/403 - they're handled by interceptor
       if (err.response?.status === 401 || err.response?.status === 403) {
         toast.dismiss(toastId);
         return;
       }
       
-      // Handle validation errors (400)
       if (err.response?.status === 400) {
         const apiErrors = err.response.data;
         const errorMessages = [];
@@ -683,7 +695,6 @@ export default function Shops() {
 
         toast.error(errorMessages.join('\n') || "Validation failed", { id: toastId });
       } else {
-        // Generic error for other status codes
         toast.error("Failed to save shop. Please try again.", { id: toastId });
       }
     } finally {
@@ -704,7 +715,7 @@ export default function Shops() {
           <div className="flex justify-end gap-2">
             <button 
               onClick={() => toast.dismiss(t.id)} 
-              className="px-3 py-1.5 bg-gray-200 rounded-md text-sm"
+              className="px-3 py-1.5 bg-gray-200 rounded-md text-sm hover:bg-gray-300 transition"
             >
               Cancel
             </button>
@@ -713,13 +724,12 @@ export default function Shops() {
                 toast.dismiss(t.id);
                 const dt = toast.loading(`Deleting "${shopName}"...`);
                 try {
-                  await api.delete(`/shops/${id}/`);
+                  await axiosInstance.delete(`/shops/${id}/`);
                   toast.success(`"${shopName}" deleted successfully`, { id: dt });
                   loadShops();
                   setSelectedIds(prev => prev.filter(x => x !== id));
                 } catch (error) {
                   console.error("Delete error:", error);
-                  // Don't show toast for 401/403 - they're handled by interceptor
                   if (error.response?.status === 401 || error.response?.status === 403) {
                     toast.dismiss(dt);
                   } else {
@@ -727,7 +737,7 @@ export default function Shops() {
                   }
                 }
               }}
-              className="px-3 py-1.5 bg-red-600 text-white rounded-md text-sm"
+              className="px-3 py-1.5 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 transition"
             >
               Delete
             </button>
@@ -753,7 +763,7 @@ export default function Shops() {
           <div className="flex justify-end gap-2">
             <button 
               onClick={() => toast.dismiss(t.id)} 
-              className="px-3 py-1.5 bg-gray-200 rounded-md text-sm"
+              className="px-3 py-1.5 bg-gray-200 rounded-md text-sm hover:bg-gray-300 transition"
             >
               Cancel
             </button>
@@ -766,8 +776,8 @@ export default function Shops() {
                   const results = await Promise.all(
                     selectedIds.map(async (id) => {
                       try {
-                        const res = await api.delete(`/shops/${id}/`);
-                        return { id, ok: true, status: res.status };
+                        await axiosInstance.delete(`/shops/${id}/`);
+                        return { id, ok: true };
                       } catch (error) {
                         return { id, ok: false, status: error.response?.status || 0 };
                       }
@@ -788,15 +798,12 @@ export default function Shops() {
                   } else {
                     toast.dismiss(dt);
                     if (deleted.length > 0) toast.success(`${deleted.length} deleted successfully`);
-                    // Don't show error toasts for 403/401 - they're already shown by interceptor
                     if (forbidden.length > 0 || unauthorized.length > 0) {
-                      // Just show a summary without additional toasts
                       console.log(`Skipped ${forbidden.length + unauthorized.length} items due to permissions`);
                     }
                   }
                 } catch (error) {
                   console.error("Bulk delete error:", error);
-                  // Don't show error for 401/403 - they're handled by interceptor
                   if (error.response?.status !== 401 && error.response?.status !== 403) {
                     toast.error("Bulk delete failed", { id: dt });
                   } else {
@@ -804,7 +811,7 @@ export default function Shops() {
                   }
                 }
               }}
-              className="px-3 py-1.5 bg-red-600 text-white rounded-md text-sm"
+              className="px-3 py-1.5 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 transition"
             >
               Delete
             </button>
@@ -836,7 +843,7 @@ export default function Shops() {
     });
 
     if (shop.pincode) {
-      axios
+      axiosInstance
         .get(`https://api.postalpincode.in/pincode/${shop.pincode}`)
         .then((res) => {
           if (res.data[0]?.Status === "Success") {
@@ -870,8 +877,8 @@ export default function Shops() {
     rows = 3,
   ) => (
     <div>
-      <label className="text-sm">
-        {label} {isOptional ? "(optional)" : "*"}
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        {label} {!isOptional && <span className="text-red-500">*</span>}
       </label>
       {type === "textarea" ? (
         <textarea
@@ -879,11 +886,12 @@ export default function Shops() {
           rows={rows}
           value={form[name]}
           onChange={handleChange}
-          className={`w-full p-1 border rounded text-sm focus:outline-none focus:ring-1 resize-none ${
+          className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 resize-none ${
             errors[name]
               ? "border-red-500 focus:ring-red-500"
-              : "focus:border-blue-400 focus:ring-blue-400"
+              : "border-gray-300 focus:ring-blue-500"
           }`}
+          disabled={isSubmitting}
         />
       ) : (
         <input
@@ -892,11 +900,12 @@ export default function Shops() {
           maxLength={maxLength}
           value={form[name]}
           onChange={handleChange}
-          className={`w-full p-1 border rounded text-sm focus:outline-none focus:ring-1 ${
+          className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 ${
             errors[name]
               ? "border-red-500 focus:ring-red-500"
-              : "focus:border-blue-400 focus:ring-blue-400"
+              : "border-gray-300 focus:ring-blue-500"
           }`}
+          disabled={isSubmitting}
         />
       )}
       {errors[name] && (
@@ -907,23 +916,21 @@ export default function Shops() {
 
   return (
     <div className="p-8 max-w-7xl mx-auto font-sans">
-      {/* Debug Button - Remove in production */}
-      <div className="mb-4 flex justify-end">
-        <button
-          onClick={debugAuth}
-          className="text-xs bg-gray-200 px-3 py-1 rounded hover:bg-gray-300"
-        >
-          Debug Auth
-        </button>
-      </div>
-
       {viewShop && (
         <ViewModal shop={viewShop} onClose={() => setViewShop(null)} />
       )}
       
       {/* HEADER */}
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-8">
-        <h1 className="text-3xl font-bold text-gray-800">Manage Shops</h1>
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-blue-100 rounded-xl">
+            <Building size={24} className="text-blue-600" />
+          </div>
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Manage Shops</h1>
+            <p className="text-sm text-gray-600 mt-1">Manage and track shop records and assignments</p>
+          </div>
+        </div>
         {!openForm && (
           <button
             onClick={() => {
@@ -931,10 +938,10 @@ export default function Shops() {
               setIsEdit(false);
               resetForm();
             }}
-            className="bg-blue-600 text-white px-6 py-2.5 rounded-xl shadow-md hover:bg-blue-700 transition-all w-full md:w-auto font-medium"
+            className="bg-blue-600 text-white px-6 py-2.5 rounded-xl shadow-md hover:bg-blue-700 transition-all w-full md:w-auto font-medium flex items-center justify-center gap-2"
             disabled={isSubmitting}
           >
-            + Add Shop
+            <span className="text-xl">+</span> Add Shop
           </button>
         )}
       </div>
@@ -942,7 +949,10 @@ export default function Shops() {
       {/* FILTER SECTION */}
       <div className="mb-6 bg-white p-5 rounded-xl shadow-md border border-gray-200">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <h3 className="text-lg font-semibold text-gray-700">Filters</h3>
+          <h3 className="text-lg font-semibold text-gray-700 flex items-center gap-2">
+            <Search size={18} className="text-blue-600" />
+            Filters
+          </h3>
           <div className="flex flex-col sm:flex-row sm:flex-wrap gap-4 w-full md:w-auto">
             <div className="flex flex-col sm:flex-row sm:items-center gap-2">
               <label className="text-sm font-medium text-gray-600">Filter By</label>
@@ -1035,8 +1045,8 @@ export default function Shops() {
       </div>
 
       {/* SEARCH AND RESULTS SECTION */}
-      <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center gap-3">
-        <div className="relative w-full sm:w-80">
+      <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="relative w-full sm:w-96">
           <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
             <Search size={18} className="text-gray-400" />
           </div>
@@ -1052,11 +1062,13 @@ export default function Shops() {
         <div className="text-sm text-gray-600 bg-gray-50 px-4 py-2.5 rounded-lg border border-gray-200">
           {isLoading ? (
             <span className="flex items-center gap-2">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+              <Loader2 className="animate-spin h-4 w-4 text-blue-600" />
               Loading...
             </span>
           ) : (
-            `${filteredShops.length} shop${filteredShops.length !== 1 ? "s" : ""} found`
+            <>
+              <span className="font-medium">{filteredShops.length}</span> shop{filteredShops.length !== 1 ? "s" : ""} found
+            </>
           )}
         </div>
       </div>
@@ -1064,7 +1076,8 @@ export default function Shops() {
       {/* BULK DELETE BAR */}
       {selectedIds.length > 0 && (
         <div className="mb-4 flex items-center justify-between bg-red-50 border border-red-200 rounded-lg px-5 py-3">
-          <span className="text-sm text-red-700 font-medium">
+          <span className="text-sm text-red-700 font-medium flex items-center gap-2">
+            <Trash2 size={16} />
             {selectedIds.length} shop(s) selected
           </span>
           <button
@@ -1080,8 +1093,9 @@ export default function Shops() {
 
       {/* DESKTOP TABLE */}
       <div className="hidden md:block bg-white border border-gray-200 rounded-2xl shadow-lg overflow-hidden">
-        <div className="p-4 bg-gray-50 border-b">
-          <h2 className="font-semibold text-gray-700 text-base">Shop Records ({filteredShops.length})</h2>
+        <div className="p-4 bg-gray-50 border-b flex items-center justify-between">
+          <h2 className="font-semibold text-gray-700 text-base">Shop Records</h2>
+          <span className="text-sm text-gray-500">Total: {filteredShops.length}</span>
         </div>
 
         <div className="overflow-x-auto">
@@ -1093,7 +1107,7 @@ export default function Shops() {
                     type="checkbox" 
                     checked={filteredShops.length > 0 && selectedIds.length === filteredShops.length} 
                     onChange={() => toggleSelectAll(filteredShops)} 
-                    className="accent-blue-600 w-4 h-4" 
+                    className="accent-blue-600 w-4 h-4 cursor-pointer" 
                   />
                 </th>
                 <th className="px-3 py-4 text-center font-semibold text-gray-600 w-16">ID</th>
@@ -1110,7 +1124,7 @@ export default function Shops() {
                 <tr>
                   <td colSpan={8} className="py-12 text-center text-gray-500 font-semibold">
                     <div className="flex justify-center items-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                      <Loader2 className="animate-spin h-8 w-8 text-blue-600" />
                       <span className="ml-3">Loading shops...</span>
                     </div>
                   </td>
@@ -1135,15 +1149,15 @@ export default function Shops() {
                         type="checkbox" 
                         checked={selectedIds.includes(shop.id)} 
                         onChange={() => toggleSelect(shop.id)} 
-                        className="accent-blue-600 w-4 h-4" 
+                        className="accent-blue-600 w-4 h-4 cursor-pointer" 
                       />
                     </td>
                     <td className="px-3 py-4 text-center font-mono text-xs text-gray-600 align-middle">#{shop.id}</td>
                     <td className="px-4 py-4 align-middle">
                       <span className={`px-2.5 py-1.5 rounded-full text-xs font-semibold ${
                         shop.shop_type === 'franchise' 
-                          ? 'bg-purple-100 text-purple-700' 
-                          : 'bg-orange-100 text-orange-700'
+                          ? 'bg-purple-100 text-purple-700 border border-purple-200' 
+                          : 'bg-orange-100 text-orange-700 border border-orange-200'
                       }`}>
                         {shop.shop_type === 'franchise' ? 'Franchise' : 'Other Shop'}
                       </span>
@@ -1201,10 +1215,8 @@ export default function Shops() {
       <div className="md:hidden space-y-4">
         {isLoading ? (
           <div className="bg-white rounded-xl shadow border p-8 text-center">
-            <div className="flex justify-center items-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              <span className="ml-2 text-gray-600">Loading shops...</span>
-            </div>
+            <Loader2 className="animate-spin h-8 w-8 text-blue-600 mx-auto mb-2" />
+            <p className="text-gray-600">Loading shops...</p>
           </div>
         ) : filteredShops.length > 0 ? (
           filteredShops.map((shop) => (
@@ -1221,8 +1233,8 @@ export default function Shops() {
                 </div>
                 <span className={`px-2.5 py-1.5 rounded-full text-xs font-semibold ${
                   shop.status 
-                    ? "bg-green-100 text-green-700" 
-                    : "bg-red-100 text-red-700"
+                    ? "bg-green-100 text-green-700 border border-green-200" 
+                    : "bg-red-100 text-red-700 border border-red-200"
                 }`}>
                   {shop.status ? "Active" : "Inactive"}
                 </span>
@@ -1232,8 +1244,8 @@ export default function Shops() {
                 <span className="text-xs text-gray-500">Type:</span>
                 <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
                   shop.shop_type === 'franchise' 
-                    ? 'bg-purple-100 text-purple-700' 
-                    : 'bg-orange-100 text-orange-700'
+                    ? 'bg-purple-100 text-purple-700 border border-purple-200' 
+                    : 'bg-orange-100 text-orange-700 border border-orange-200'
                 }`}>
                   {shop.shop_type === 'franchise' ? 'Franchise' : 'Other Shop'}
                 </span>
@@ -1293,15 +1305,18 @@ export default function Shops() {
       {/* FORM MODAL */}
       {openForm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-2">
-          <div className="bg-white w-full max-w-[700px] rounded-xl shadow-2xl border border-gray-200 max-h-[95vh] overflow-hidden">
+          <div className="bg-white w-full max-w-[800px] rounded-xl shadow-2xl border border-gray-200 max-h-[95vh] overflow-hidden">
             {/* Modal Header */}
-            <div className="flex justify-between items-center px-5 py-3 border-b bg-gray-50">
-              <h2 className="text-lg font-semibold text-blue-700">
-                {isEdit ? "Edit Shop" : "Add New Shop"}
-              </h2>
+            <div className="flex justify-between items-center px-6 py-4 border-b bg-gray-50">
+              <div className="flex items-center gap-2">
+                <Building size={20} className="text-blue-600" />
+                <h2 className="text-xl font-semibold text-blue-700">
+                  {isEdit ? "Edit Shop" : "Add New Shop"}
+                </h2>
+              </div>
               <button 
                 onClick={() => setOpenForm(false)} 
-                className="text-gray-500 hover:text-red-600 text-xl"
+                className="text-gray-500 hover:text-red-600 text-xl p-1 hover:bg-red-50 rounded-full transition"
                 disabled={isSubmitting}
               >
                 ✖
@@ -1309,112 +1324,38 @@ export default function Shops() {
             </div>
 
             {/* Modal Body */}
-            <div className="p-5 overflow-y-auto" style={{ maxHeight: "calc(95vh - 120px)" }}>
-              <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="p-6 overflow-y-auto" style={{ maxHeight: "calc(95vh - 120px)" }}>
+              <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {/* LEFT COLUMN */}
-                <div className="space-y-2">
+                <div className="space-y-4">
                   <div>
-                    <label className="text-sm">Shop Type *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Shop Type <span className="text-red-500">*</span>
+                    </label>
                     <select
                       name="shoptype"
                       value={form.shoptype}
                       onChange={handleChange}
                       className={`w-full px-3 py-2 text-sm border rounded-lg ${
                         errors.shoptype ? "border-red-500" : "border-gray-300"
-                      } focus:outline-none focus:ring-1 focus:ring-blue-200`}
+                      } focus:outline-none focus:ring-2 focus:ring-blue-500`}
                       disabled={isSubmitting}
                     >
                       <option value="franchise">Franchise</option>
                       <option value="othershop">Other Shop</option>
                     </select>
                     {errors.shoptype && (
-                      <p className="text-red-500 text-xs mt-0.5">{errors.shoptype}</p>
+                      <p className="text-red-500 text-xs mt-1">{errors.shoptype}</p>
                     )}
                   </div>
 
                   {renderInputField("name", "Shop Name")}
-
-                  <div>
-                    <label className="text-sm">Pincode *</label>
-                    <input
-                      type="text"
-                      name="pincode"
-                      maxLength={6}
-                      value={form.pincode}
-                      onChange={handleChange}
-                      className={`w-full px-3 py-2 text-sm border rounded-lg ${
-                        pincodeError || errors.pincode ? "border-red-500" : "border-gray-300"
-                      } focus:outline-none focus:ring-1 focus:ring-blue-200`}
-                      placeholder="Enter 6-digit pincode"
-                      disabled={isSubmitting}
-                    />
-                    {isPincodeLoading && (
-                      <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
-                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-500"></div>
-                        Fetching location...
-                      </p>
-                    )}
-                    {(pincodeError || errors.pincode) && (
-                      <p className="text-red-500 text-xs mt-0.5">
-                        {pincodeError || errors.pincode}
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="text-sm">Area *</label>
-                    {areaList.length > 0 ? (
-                      <select
-                        name="area"
-                        value={form.area}
-                        onChange={handleChange}
-                        className={`w-full px-3 py-2 text-sm border rounded-lg ${
-                          errors.area ? "border-red-500" : "border-gray-300"
-                        } focus:outline-none focus:ring-1 focus:ring-blue-200`}
-                        disabled={isSubmitting}
-                      >
-                        <option value="">Select Area</option>
-                        {areaList.map((a, i) => (
-                          <option key={i} value={a}>{a}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      <input
-                        value={form.area}
-                        disabled
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-gray-50"
-                        placeholder="Enter pincode first"
-                      />
-                    )}
-                    {errors.area && (
-                      <p className="text-red-500 text-xs mt-0.5">{errors.area}</p>
-                    )}
-                  </div>
-
-                  {/* GST PIN Field */}
-                  <div>
-                    <label className="text-sm">GST PIN *</label>
-                    <input
-                      type="text"
-                      name="gst_pin"
-                      maxLength={15}
-                      value={form.gst_pin}
-                      onChange={handleChange}
-                      placeholder="Enter 15 alphanumeric characters"
-                      className={`w-full px-3 py-2 text-sm border rounded-lg ${
-                        errors.gst_pin ? "border-red-500" : "border-gray-300"
-                      } focus:outline-none focus:ring-1 focus:ring-blue-200`}
-                      disabled={isSubmitting}
-                    />
-                    {errors.gst_pin && (
-                      <p className="text-red-500 text-xs mt-0.5">{errors.gst_pin}</p>
-                    )}
-                  </div>
+                  {renderInputField("owner", "Owner Name")}
+                  {renderInputField("phone", "Phone", "text", 10)}
                 </div>
 
                 {/* RIGHT COLUMN */}
-                <div className="space-y-2">
-                  {renderInputField("phone", "Phone", "text", 10)}
+                <div className="space-y-4">
                   {renderInputField("email", "Email", "email")}
                   <PasswordInput
                     name="password"
@@ -1424,14 +1365,38 @@ export default function Shops() {
                     error={errors.password}
                     isEdit={isEdit}
                   />
-                  {renderInputField("owner", "Owner")}
+                  
+                  {/* GST PIN Field */}
                   <div>
-                    <label className="text-sm">Status *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      GST PIN <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="gst_pin"
+                      maxLength={15}
+                      value={form.gst_pin}
+                      onChange={handleChange}
+                      placeholder="Enter 15 alphanumeric characters"
+                      className={`w-full px-3 py-2 text-sm border rounded-lg ${
+                        errors.gst_pin ? "border-red-500" : "border-gray-300"
+                      } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                      disabled={isSubmitting}
+                    />
+                    {errors.gst_pin && (
+                      <p className="text-red-500 text-xs mt-1">{errors.gst_pin}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Status <span className="text-red-500">*</span>
+                    </label>
                     <select
                       name="status"
                       value={form.status}
                       onChange={handleChange}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-200"
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       disabled={isSubmitting}
                     >
                       <option value="Active">Active</option>
@@ -1440,25 +1405,109 @@ export default function Shops() {
                   </div>
                 </div>
 
-                <div className="col-span-1 md:col-span-2">
-                  {renderInputField("address", "Address", "textarea", undefined, false, 3)}
+                {/* FULL WIDTH FIELDS */}
+                <div className="col-span-1 md:col-span-2 space-y-4">
+                  {/* Address */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Address <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      name="address"
+                      rows={2}
+                      value={form.address}
+                      onChange={handleChange}
+                      className={`w-full px-3 py-2 text-sm border rounded-lg resize-none ${
+                        errors.address ? "border-red-500" : "border-gray-300"
+                      } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                      disabled={isSubmitting}
+                    />
+                    {errors.address && (
+                      <p className="text-red-500 text-xs mt-1">{errors.address}</p>
+                    )}
+                  </div>
+
+                  {/* Pincode & Area */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Pincode <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="pincode"
+                        maxLength={6}
+                        value={form.pincode}
+                        onChange={handleChange}
+                        className={`w-full px-3 py-2 text-sm border rounded-lg ${
+                          pincodeError || errors.pincode ? "border-red-500" : "border-gray-300"
+                        } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                        placeholder="Enter 6-digit pincode"
+                        disabled={isSubmitting}
+                      />
+                      {isPincodeLoading && (
+                        <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                          <Loader2 className="animate-spin h-3 w-3" />
+                          Fetching location...
+                        </p>
+                      )}
+                      {(pincodeError || errors.pincode) && (
+                        <p className="text-red-500 text-xs mt-1">
+                          {pincodeError || errors.pincode}
+                        </p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Area <span className="text-red-500">*</span>
+                      </label>
+                      {areaList.length > 0 ? (
+                        <select
+                          name="area"
+                          value={form.area}
+                          onChange={handleChange}
+                          className={`w-full px-3 py-2 text-sm border rounded-lg ${
+                            errors.area ? "border-red-500" : "border-gray-300"
+                          } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                          disabled={isSubmitting}
+                        >
+                          <option value="">Select Area</option>
+                          {areaList.map((a, i) => (
+                            <option key={i} value={a}>{a}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          value={form.area}
+                          disabled
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-gray-50"
+                          placeholder="Enter pincode first"
+                        />
+                      )}
+                      {errors.area && (
+                        <p className="text-red-500 text-xs mt-1">{errors.area}</p>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
-                <div className="col-span-1 md:col-span-2 pt-2">
+                {/* Submit Button */}
+                <div className="col-span-1 md:col-span-2 pt-4">
                   <button
                     type="submit"
-                    className={`w-full bg-green-600 text-white py-2.5 rounded-lg hover:bg-green-700 font-semibold text-sm flex items-center justify-center gap-2 transition-colors ${
+                    className={`w-full bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 font-semibold text-sm flex items-center justify-center gap-2 transition-colors ${
                       isSubmitting ? 'opacity-70 cursor-not-allowed' : ''
                     }`}
                     disabled={isSubmitting}
                   >
                     {isSubmitting ? (
                       <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                        {isEdit ? "Updating..." : "Submitting..."}
+                        <Loader2 className="animate-spin h-4 w-4" />
+                        {isEdit ? "Updating..." : "Creating..."}
                       </>
                     ) : (
-                      isEdit ? "Update Shop" : "Save Shop"
+                      isEdit ? "Update Shop" : "Create Shop"
                     )}
                   </button>
                 </div>

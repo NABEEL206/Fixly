@@ -21,14 +21,13 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const { login, user, loading: authLoading } = useAuth();
 
-  // Form states
   const [loginValue, setLoginValue] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  /* 🔐 Redirect if already logged in */
+  // Redirect if already logged in
   useEffect(() => {
     if (user) {
       redirectBasedOnRole(user);
@@ -38,34 +37,34 @@ export default function LoginPage() {
   const redirectBasedOnRole = (userData) => {
     console.log("Redirecting user:", userData);
     
-    // Handle different role types
-    if (userData.role === "ADMIN") {
-      navigate("/admindashboard");
-    } 
-    else if (userData.role === "GROWTAG") {
-      navigate("/growtagdashboard");
-    }
-    else if (userData.role === "CUSTOMER") {
-      navigate("/customerdashboard");
-    }
-    else if (userData.role === "SHOP") {
-      // For shops, check shop_type to determine which dashboard
-      if (userData.shop_type === "franchise") {
+    // Handle different roles based on API response
+    switch(userData.role) {
+      case "ADMIN":
+        navigate("/admindashboard");
+        break;
+        
+      case "GROWTAG":
+        navigate("/growtagdashboard");
+        break;
+        
+      case "CUSTOMER":
+        navigate("/customerdashboard");
+        break;
+        
+      case "FRANCHISE":
         navigate("/franchisedashboard");
-      } else if (userData.shop_type === "othershop") {
+        break;
+        
+      case "OTHERSHOP":
         navigate("/othershopdashboard");
-      } else {
-        // Default shop dashboard if type not specified
-        navigate("/othershopdashboard");
-      }
-    }
-    else {
-      console.error("Unknown role:", userData.role);
-      navigate("/login");
+        break;
+        
+      default:
+        console.error("Unknown role:", userData.role);
+        navigate("/login");
     }
   };
 
-  // Validation
   const validateInput = () => {
     if (!loginValue.trim()) {
       setError("Please enter your login ID");
@@ -82,7 +81,6 @@ export default function LoginPage() {
     return true;
   };
 
-  /* 🔐 LOGIN HANDLER */
   const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
@@ -100,7 +98,7 @@ export default function LoginPage() {
 
       if (result.success) {
         toast.success(result.message || "Login successful!");
-        // Navigation will happen automatically via the useEffect above
+        // Navigation will happen automatically via useEffect
       } else {
         setError(result.message);
         toast.error(result.message || "Login failed");
@@ -146,7 +144,6 @@ export default function LoginPage() {
             )}
 
             <form onSubmit={handleLogin} className="space-y-4">
-              {/* Login Field */}
               <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-700">
                   Login ID <span className="text-xs text-gray-500">(username or email)</span>
@@ -171,7 +168,6 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              {/* Password Field */}
               <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-700">
                   Password
@@ -199,7 +195,6 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              {/* Forgot Password Link */}
               <div className="flex justify-end">
                 <button
                   type="button"
@@ -211,7 +206,6 @@ export default function LoginPage() {
                 </button>
               </div>
 
-              {/* Submit Button */}
               <Button
                 type="submit"
                 className="w-full py-6 text-lg font-semibold bg-blue-600 hover:bg-blue-700"
@@ -228,7 +222,6 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            {/* Registration Link */}
             <div className="text-center pt-2 border-t border-gray-200">
               <p className="text-gray-600 text-sm">
                 New customer?{" "}

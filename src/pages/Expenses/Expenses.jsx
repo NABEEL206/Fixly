@@ -2,8 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Pencil, Trash2, Search, Filter, Calendar, DollarSign, Tag, FileText, CreditCard, X, ArrowLeft, CheckCircle, XCircle, Info, AlertCircle, Check, Eye, User } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { BASE_URL } from "@/API/BaseURL";
-import { getAuthHeaders } from "@/utils/authHeaders";
+import axiosInstance from "@/API/axiosInstance";
 
 // View Modal Component
 const ViewModal = ({ expense, onClose }) => {
@@ -106,18 +105,6 @@ const ViewModal = ({ expense, onClose }) => {
   );
 };
 
-// Debug function to check auth state
-const debugAuth = () => {
-  const token = localStorage.getItem("access_token");
-  const tokenType = localStorage.getItem("token_type");
-  
-  console.log("=== Expense Auth Debug ===");
-  console.log("Token exists:", !!token);
-  console.log("Token type:", tokenType || "not set (defaulting to Bearer)");
-  console.log("Token preview:", token ? `${token.substring(0, 20)}...` : "none");
-  console.log("========================");
-};
-
 const ExpenseTracker = () => {
   const [expenses, setExpenses] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -162,24 +149,18 @@ const ExpenseTracker = () => {
   const fetchExpenses = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${BASE_URL}/api/expenses/`, {
-        headers: getAuthHeaders()
-      });
-      
-      if (response.status === 401) {
-        toast.error("Session expired. Please login again.");
-        return;
-      }
-      if (response.status === 403) {
-        toast.error("You don't have permission to view expenses");
-        return;
-      }
-      if (!response.ok) throw new Error('Failed to fetch expenses');
-      
-      const data = await response.json();
-      setExpenses(data);
+      const response = await axiosInstance.get('/api/expenses/');
+      setExpenses(response.data);
     } catch (error) {
-      toast.error(error.message);
+      console.error("Fetch expenses error:", error);
+      
+      if (error.response?.status === 401) {
+        toast.error("Session expired. Please login again.");
+      } else if (error.response?.status === 403) {
+        toast.error("You don't have permission to view expenses");
+      } else {
+        toast.error(error.response?.data?.detail || "Failed to fetch expenses");
+      }
     } finally {
       setLoading(false);
     }
@@ -188,24 +169,18 @@ const ExpenseTracker = () => {
   // Fetch categories from API
   const fetchCategories = async () => {
     try {
-      const response = await fetch(`${BASE_URL}/api/expense-categories/`, {
-        headers: getAuthHeaders()
-      });
-      
-      if (response.status === 401) {
-        toast.error("Session expired. Please login again.");
-        return;
-      }
-      if (response.status === 403) {
-        toast.error("You don't have permission to view categories");
-        return;
-      }
-      if (!response.ok) throw new Error('Failed to fetch categories');
-      
-      const data = await response.json();
-      setCategories(data);
+      const response = await axiosInstance.get('/api/expense-categories/');
+      setCategories(response.data);
     } catch (error) {
-      toast.error(error.message);
+      console.error("Fetch categories error:", error);
+      
+      if (error.response?.status === 401) {
+        toast.error("Session expired. Please login again.");
+      } else if (error.response?.status === 403) {
+        toast.error("You don't have permission to view categories");
+      } else {
+        toast.error(error.response?.data?.detail || "Failed to fetch categories");
+      }
     }
   };
 
@@ -217,31 +192,12 @@ const ExpenseTracker = () => {
     }
 
     try {
-      const response = await fetch(`${BASE_URL}/api/expense-categories/`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ 
-          name: newCategoryName.trim(),
-          is_active: true 
-        }),
+      const response = await axiosInstance.post('/api/expense-categories/', {
+        name: newCategoryName.trim(),
+        is_active: true
       });
 
-      if (response.status === 401) {
-        toast.error("Session expired. Please login again.");
-        return;
-      }
-      if (response.status === 403) {
-        toast.error("You don't have permission to add categories");
-        return;
-      }
-      if (response.status === 400) {
-        const errorData = await response.json();
-        toast.error(errorData.name?.[0] || 'Failed to add category');
-        return;
-      }
-      if (!response.ok) throw new Error('Failed to add category');
-      
-      const newCategory = await response.json();
+      const newCategory = response.data;
       setCategories([...categories, newCategory]);
       setFormData({...formData, category_id: newCategory.id});
       setNewCategoryName('');
@@ -249,7 +205,17 @@ const ExpenseTracker = () => {
       setErrors({...errors, category_id: ''});
       toast.success(`Category "${newCategory.name}" added successfully`);
     } catch (error) {
-      toast.error(error.message);
+      console.error("Add category error:", error);
+      
+      if (error.response?.status === 401) {
+        toast.error("Session expired. Please login again.");
+      } else if (error.response?.status === 403) {
+        toast.error("You don't have permission to add categories");
+      } else if (error.response?.status === 400) {
+        toast.error(error.response.data.name?.[0] || 'Failed to add category');
+      } else {
+        toast.error(error.response?.data?.detail || 'Failed to add category');
+      }
     }
   };
 
@@ -269,31 +235,9 @@ const ExpenseTracker = () => {
         receipt: null
       };
 
-      const response = await fetch(`${BASE_URL}/api/expenses/`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(expenseData),
-      });
-
-      if (response.status === 401) {
-        toast.error("Session expired. Please login again.", { id: toastId });
-        return;
-      }
-      if (response.status === 403) {
-        toast.error("You don't have permission to add expenses", { id: toastId });
-        return;
-      }
-      if (response.status === 400) {
-        const errorData = await response.json();
-        const errorMessages = Object.entries(errorData)
-          .map(([field, errors]) => `${field}: ${Array.isArray(errors) ? errors.join(', ') : errors}`)
-          .join('\n');
-        toast.error(errorMessages || 'Failed to add expense', { id: toastId });
-        return;
-      }
-      if (!response.ok) throw new Error('Failed to add expense');
+      const response = await axiosInstance.post('/api/expenses/', expenseData);
       
-      const newExpense = await response.json();
+      const newExpense = response.data;
       // Fetch the complete expense with category details
       const completeExpense = {
         ...newExpense,
@@ -303,7 +247,21 @@ const ExpenseTracker = () => {
       toast.success(`Expense "${formData.title}" added successfully`, { id: toastId });
       resetForm();
     } catch (error) {
-      toast.error(error.message, { id: toastId });
+      console.error("Add expense error:", error);
+      
+      if (error.response?.status === 401) {
+        toast.error("Session expired. Please login again.", { id: toastId });
+      } else if (error.response?.status === 403) {
+        toast.error("You don't have permission to add expenses", { id: toastId });
+      } else if (error.response?.status === 400) {
+        const errorData = error.response.data;
+        const errorMessages = Object.entries(errorData)
+          .map(([field, errors]) => `${field}: ${Array.isArray(errors) ? errors.join(', ') : errors}`)
+          .join('\n');
+        toast.error(errorMessages || 'Failed to add expense', { id: toastId });
+      } else {
+        toast.error(error.response?.data?.detail || 'Failed to add expense', { id: toastId });
+      }
     }
   };
 
@@ -323,35 +281,9 @@ const ExpenseTracker = () => {
         receipt: null
       };
 
-      const response = await fetch(`${BASE_URL}/api/expenses/${editingExpense.id}/`, {
-        method: 'PUT',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(expenseData),
-      });
-
-      if (response.status === 401) {
-        toast.error("Session expired. Please login again.", { id: toastId });
-        return;
-      }
-      if (response.status === 403) {
-        toast.error("You don't have permission to edit this expense", { id: toastId });
-        return;
-      }
-      if (response.status === 404) {
-        toast.error("Expense not found. It may have been deleted.", { id: toastId });
-        return;
-      }
-      if (response.status === 400) {
-        const errorData = await response.json();
-        const errorMessages = Object.entries(errorData)
-          .map(([field, errors]) => `${field}: ${Array.isArray(errors) ? errors.join(', ') : errors}`)
-          .join('\n');
-        toast.error(errorMessages || 'Failed to update expense', { id: toastId });
-        return;
-      }
-      if (!response.ok) throw new Error('Failed to update expense');
+      const response = await axiosInstance.put(`/api/expenses/${editingExpense.id}/`, expenseData);
       
-      const updatedExpense = await response.json();
+      const updatedExpense = response.data;
       // Fetch the complete expense with category details
       const completeExpense = {
         ...updatedExpense,
@@ -363,7 +295,23 @@ const ExpenseTracker = () => {
       toast.success(`Expense "${formData.title}" updated successfully`, { id: toastId });
       resetForm();
     } catch (error) {
-      toast.error(error.message, { id: toastId });
+      console.error("Update expense error:", error);
+      
+      if (error.response?.status === 401) {
+        toast.error("Session expired. Please login again.", { id: toastId });
+      } else if (error.response?.status === 403) {
+        toast.error("You don't have permission to edit this expense", { id: toastId });
+      } else if (error.response?.status === 404) {
+        toast.error("Expense not found. It may have been deleted.", { id: toastId });
+      } else if (error.response?.status === 400) {
+        const errorData = error.response.data;
+        const errorMessages = Object.entries(errorData)
+          .map(([field, errors]) => `${field}: ${Array.isArray(errors) ? errors.join(', ') : errors}`)
+          .join('\n');
+        toast.error(errorMessages || 'Failed to update expense', { id: toastId });
+      } else {
+        toast.error(error.response?.data?.detail || 'Failed to update expense', { id: toastId });
+      }
     }
   };
 
@@ -390,26 +338,21 @@ const ExpenseTracker = () => {
                 const dt = toast.loading(`Deleting expense...`);
                 
                 try {
-                  const response = await fetch(`${BASE_URL}/api/expenses/${id}/`, {
-                    method: 'DELETE',
-                    headers: getAuthHeaders(),
-                  });
-
-                  if (response.status === 401) {
-                    toast.error("Session expired. Please login again.", { id: dt });
-                    return;
-                  }
-                  if (response.status === 403) {
-                    toast.error("You don't have permission to delete this expense", { id: dt });
-                    return;
-                  }
-                  if (!response.ok) throw new Error('Failed to delete expense');
+                  await axiosInstance.delete(`/api/expenses/${id}/`);
                   
                   setExpenses(expenses.filter(exp => exp.id !== id));
                   setSelectedExpenses(prev => prev.filter(expId => expId !== id));
                   toast.success(`Expense "${expenseToDelete?.title}" deleted successfully`, { id: dt });
                 } catch (error) {
-                  toast.error(error.message, { id: dt });
+                  console.error("Delete expense error:", error);
+                  
+                  if (error.response?.status === 401) {
+                    toast.error("Session expired. Please login again.", { id: dt });
+                  } else if (error.response?.status === 403) {
+                    toast.error("You don't have permission to delete this expense", { id: dt });
+                  } else {
+                    toast.error(error.response?.data?.detail || 'Failed to delete expense', { id: dt });
+                  }
                 }
               }}
               className="px-3 py-1.5 bg-red-600 text-white rounded-md text-sm"
@@ -459,13 +402,10 @@ const ExpenseTracker = () => {
                   const results = await Promise.all(
                     selectedExpenses.map(async (id) => {
                       try {
-                        const res = await fetch(`${BASE_URL}/api/expenses/${id}/`, {
-                          method: 'DELETE',
-                          headers: getAuthHeaders(),
-                        });
-                        return { id, ok: res.ok, status: res.status };
-                      } catch {
-                        return { id, ok: false, status: 0 };
+                        await axiosInstance.delete(`/api/expenses/${id}/`);
+                        return { id, ok: true };
+                      } catch (error) {
+                        return { id, ok: false, status: error.response?.status || 0 };
                       }
                     })
                   );
@@ -510,7 +450,6 @@ const ExpenseTracker = () => {
 
   // Initial data fetch
   useEffect(() => {
-    debugAuth();
     fetchExpenses();
     fetchCategories();
   }, []);
@@ -860,16 +799,6 @@ const ExpenseTracker = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6">
-      {/* Debug Button - Remove in production */}
-      <div className="mb-4 flex justify-end">
-        <button
-          onClick={debugAuth}
-          className="text-xs bg-gray-200 px-3 py-1 rounded hover:bg-gray-300"
-        >
-          Debug Auth
-        </button>
-      </div>
-
       {/* View Modal */}
       {viewingExpense && (
         <ViewModal

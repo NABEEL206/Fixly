@@ -18,16 +18,16 @@ import {
   MapPin,
   Calendar,
   Tag,
-  Package
+  Package,
+  Loader2
 } from "lucide-react";
 import ComplaintRegistrationModal from "./ComplaintRegistrationModal";
 import toast from "react-hot-toast";
-import { getAuthHeaders } from "@/utils/authHeaders";
-
-// ================= API CONFIG =================
-const API_BASE = "http://127.0.0.1:8000/api/leads/";
+import axiosInstance from "@/API/axiosInstance";
 
 // ================= CONSTANTS =================
+const LEADS_API_URL = "/api/leads/";
+
 const getFormattedDate = (timestamp) =>
   new Date(timestamp).toLocaleString("en-US", {
     year: "numeric",
@@ -66,6 +66,7 @@ const Leads = () => {
   // ---------- State Management ----------
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [submitLoading, setSubmitLoading] = useState(false);
   
   // UI States
   const [selectedLeads, setSelectedLeads] = useState([]);
@@ -103,21 +104,8 @@ const Leads = () => {
   const [areaOptions, setAreaOptions] = useState([]);
   const [loadingArea, setLoadingArea] = useState(false);
 
-  // Debug function to check auth state
-  const debugAuth = () => {
-    const token = localStorage.getItem("access_token");
-    const tokenType = localStorage.getItem("token_type");
-    
-    console.log("=== Leads Auth Debug ===");
-    console.log("Token exists:", !!token);
-    console.log("Token type:", tokenType || "not set (defaulting to Bearer)");
-    console.log("Token preview:", token ? `${token.substring(0, 20)}...` : "none");
-    console.log("========================");
-  };
-
   // ---------- Effects ----------
   useEffect(() => {
-    debugAuth();
     fetchLeads();
   }, []);
 
@@ -301,26 +289,11 @@ const Leads = () => {
   const fetchLeads = async () => {
     setLoading(true);
     try {
-      const res = await fetch(API_BASE, { headers: getAuthHeaders() });
+      const response = await axiosInstance.get(LEADS_API_URL);
       
-      if (res.status === 401) {
-        toast.error("Session expired. Please login again.");
-        setLeads([]);
-        return;
-      }
+      console.log("Fetched leads data:", response.data);
       
-      if (res.status === 403) {
-        toast.error("You don't have permission to view leads");
-        setLeads([]);
-        return;
-      }
-      
-      if (!res.ok) throw new Error("Failed to fetch leads");
-
-      const data = await res.json();
-      console.log("Fetched leads data:", data);
-      
-      const mappedLeads = data.map((lead) => ({
+      const mappedLeads = response.data.map((lead) => ({
         id: lead.id,
         leadId: lead.lead_code,
         name: lead.customer_name,
@@ -333,19 +306,24 @@ const Leads = () => {
         state: lead.state || "",
         issueDetail: lead.issue_detail,
         registrationDate: getFormattedDate(lead.created_at),
-        // FIXED: Map the correct status values from backend
         status: lead.status === "COMPLAINT_REGISTERED" ? "Complaint Registered" : "New",
         created_by: lead.created_by || null,
         source: lead.source || "MANUAL",
         created_at: lead.created_at,
-        // Store complaint ID if exists
         complaintId: lead.complaint || null,
       }));
 
       setLeads(mappedLeads);
     } catch (err) {
-      console.error(err);
-      toast.error("Failed to load leads");
+      console.error("Fetch leads error:", err);
+      
+      if (err.response?.status === 401) {
+        toast.error("Session expired. Please login again.");
+      } else if (err.response?.status === 403) {
+        toast.error("You don't have permission to view leads");
+      } else {
+        toast.error(err.response?.data?.detail || "Failed to load leads");
+      }
     } finally {
       setLoading(false);
     }
@@ -468,6 +446,9 @@ const Leads = () => {
       return;
     }
 
+    setSubmitLoading(true);
+    const toastId = toast.loading(editingLeadId ? "Updating lead..." : "Creating lead...");
+
     try {
       const payload = {
         customer_name: newLeadData.name,
@@ -483,61 +464,39 @@ const Leads = () => {
       };
 
       if (editingLeadId) {
-        const res = await fetch(`${API_BASE}${editingLeadId}/`, {
-          method: "PUT",
-          headers: getAuthHeaders(),
-          body: JSON.stringify(payload),
-        });
-        
-        if (res.status === 401) {
-          toast.error("Session expired. Please login again.");
-          return;
-        }
-        
-        if (res.status === 403) {
-          toast.error("You don't have permission to update leads");
-          return;
-        }
-        
-        if (!res.ok) throw new Error("Failed to update lead");
-        
-        toast.success("Lead updated successfully");
+        await axiosInstance.put(`${LEADS_API_URL}${editingLeadId}/`, payload);
+        toast.success("Lead updated successfully", { id: toastId });
       } else {
-        const res = await fetch(API_BASE, {
-          method: "POST",
-          headers: getAuthHeaders(),
-          body: JSON.stringify(payload),
-        });
-        
-        if (res.status === 401) {
-          toast.error("Session expired. Please login again.");
-          return;
-        }
-        
-        if (res.status === 403) {
-          toast.error("You don't have permission to create leads");
-          return;
-        }
-        
-        if (!res.ok) throw new Error("Failed to create lead");
-        
-        toast.success("Lead created successfully");
+        await axiosInstance.post(LEADS_API_URL, payload);
+        toast.success("Lead created successfully", { id: toastId });
       }
 
       await fetchLeads();
       setShowNewLeadModal(false);
       resetLeadForm();
     } catch (err) {
-      console.error(err);
-      toast.error(editingLeadId ? "Failed to update lead" : "Failed to create lead");
+      console.error("Save lead error:", err);
+      
+      if (err.response?.status === 401) {
+        toast.error("Session expired. Please login again.", { id: toastId });
+      } else if (err.response?.status === 403) {
+        toast.error("You don't have permission to perform this action", { id: toastId });
+      } else {
+        const errorMessage = err.response?.data?.detail || 
+                            err.response?.data?.message || 
+                            (editingLeadId ? "Failed to update lead" : "Failed to create lead");
+        toast.error(errorMessage, { id: toastId });
+      }
+    } finally {
+      setSubmitLoading(false);
     }
   };
 
-  const handleDeleteLead = async (leadId) => {
+  const handleDeleteLead = async (leadId, leadName) => {
     toast(
       (t) => (
         <div className="flex flex-col gap-3">
-          <p className="text-sm font-medium">Are you sure you want to delete this lead?</p>
+          <p className="text-sm font-medium">Delete lead "{leadName}"?</p>
           <p className="text-xs text-gray-500">This action cannot be undone.</p>
           <div className="flex justify-end gap-2">
             <button
@@ -549,29 +508,22 @@ const Leads = () => {
             <button
               onClick={async () => {
                 toast.dismiss(t.id);
+                const toastId = toast.loading("Deleting lead...");
+                
                 try {
-                  const res = await fetch(`${API_BASE}${leadId}/`, {
-                    method: "DELETE",
-                    headers: getAuthHeaders(),
-                  });
-                  
-                  if (res.status === 401) {
-                    toast.error("Session expired. Please login again.");
-                    return;
-                  }
-                  
-                  if (res.status === 403) {
-                    toast.error("You don't have permission to delete leads");
-                    return;
-                  }
-                  
-                  if (!res.ok) throw new Error("Failed to delete lead");
-                  
-                  toast.success("Lead deleted successfully ✅");
+                  await axiosInstance.delete(`${LEADS_API_URL}${leadId}/`);
+                  toast.success("Lead deleted successfully ✅", { id: toastId });
                   await fetchLeads();
                 } catch (error) {
-                  console.error(error);
-                  toast.error("Failed to delete lead ❌");
+                  console.error("Delete lead error:", error);
+                  
+                  if (error.response?.status === 401) {
+                    toast.error("Session expired. Please login again.", { id: toastId });
+                  } else if (error.response?.status === 403) {
+                    toast.error("You don't have permission to delete leads", { id: toastId });
+                  } else {
+                    toast.error("Failed to delete lead ❌", { id: toastId });
+                  }
                 }
               }}
               className="px-3 py-1.5 bg-red-600 text-white rounded text-sm"
@@ -606,29 +558,28 @@ const Leads = () => {
             <button
               onClick={async () => {
                 toast.dismiss(t.id);
+                const toastId = toast.loading(`Deleting ${selectedLeads.length} leads...`);
+                
                 try {
                   const results = await Promise.allSettled(
                     selectedLeads.map((id) =>
-                      fetch(`${API_BASE}${id}/`, {
-                        method: "DELETE",
-                        headers: getAuthHeaders(),
-                      })
+                      axiosInstance.delete(`${LEADS_API_URL}${id}/`)
                     )
                   );
                   
-                  const failed = results.filter(r => r.status === 'rejected' || (r.value && !r.value.ok)).length;
+                  const failed = results.filter(r => r.status === 'rejected').length;
                   
                   if (failed === 0) {
-                    toast.success("All leads deleted successfully ✅");
+                    toast.success("All leads deleted successfully ✅", { id: toastId });
                   } else {
-                    toast.success(`${selectedLeads.length - failed} leads deleted, ${failed} failed`);
+                    toast.success(`${selectedLeads.length - failed} leads deleted, ${failed} failed`, { id: toastId });
                   }
                   
                   await fetchLeads();
                   setSelectedLeads([]);
                 } catch (err) {
-                  console.error(err);
-                  toast.error("Failed to delete some leads ❌");
+                  console.error("Bulk delete error:", err);
+                  toast.error("Failed to delete some leads ❌", { id: toastId });
                 }
               }}
               className="px-3 py-1.5 bg-red-600 text-white rounded text-sm"
@@ -693,18 +644,15 @@ const Leads = () => {
   const handleViewOrRegisterComplaint = (lead) => {
     if (lead.status === "Complaint Registered") {
       toast.success(`Complaint already registered for this lead. Complaint ID: ${lead.complaintId || 'N/A'}`);
-      // You could also navigate to the complaint view here
     } else {
       setSelectedLeadForComplaint(lead);
       setShowComplaintModal(true);
     }
   };
 
-  // FIXED: Updated to refresh leads from server
   const handleComplaintRegistrationSuccess = async (responseData) => {
     console.log("Complaint registration success, response:", responseData);
     
-    // Refresh all leads to get the latest status from backend
     await fetchLeads();
     
     setShowComplaintModal(false);
@@ -761,20 +709,27 @@ const Leads = () => {
     });
   };
 
+  // Loading Button Component
+  const LoadingButton = ({ loading, children, onClick, className, disabled, type = "button" }) => {
+    return (
+      <button
+        type={type}
+        onClick={onClick}
+        disabled={loading || disabled}
+        className={`relative flex items-center justify-center gap-2 transition-all ${className} ${
+          loading ? "cursor-not-allowed opacity-70" : ""
+        }`}
+      >
+        {loading && <Loader2 size={18} className="animate-spin" />}
+        {children}
+      </button>
+    );
+  };
+
   // ---------- Render ----------
   return (
     <div className="p-4 md:p-6 bg-gray-100 min-h-screen">
       <div className="max-w-7xl mx-auto">
-        {/* Debug Button - Remove in production */}
-        <div className="mb-4 flex justify-end">
-          <button
-            onClick={debugAuth}
-            className="text-xs bg-gray-200 px-3 py-1 rounded hover:bg-gray-300"
-          >
-            Debug Auth
-          </button>
-        </div>
-
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
           <h1 className="text-2xl md:text-3xl font-bold text-blue-700 flex items-center gap-3">
@@ -862,7 +817,16 @@ const Leads = () => {
               </thead>
 
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredLeads.length > 0 ? (
+                {loading ? (
+                  <tr>
+                    <td colSpan="8" className="text-center py-12">
+                      <div className="flex flex-col items-center">
+                        <Loader2 size={40} className="text-blue-600 animate-spin mb-3" />
+                        <p className="text-gray-600">Loading leads...</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : filteredLeads.length > 0 ? (
                   filteredLeads.map((lead) => (
                     <tr
                       key={lead.id}
@@ -960,7 +924,7 @@ const Leads = () => {
 
                           {/* Delete Button */}
                           <button
-                            onClick={() => handleDeleteLead(lead.id)}
+                            onClick={() => handleDeleteLead(lead.id, lead.name)}
                             className="p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
                             title="Delete Lead"
                           >
@@ -988,7 +952,12 @@ const Leads = () => {
 
         {/* Mobile Cards */}
         <div className="md:hidden space-y-4">
-          {filteredLeads.length > 0 ? (
+          {loading ? (
+            <div className="text-center py-10 bg-white rounded-xl shadow border">
+              <Loader2 size={40} className="text-blue-600 animate-spin mx-auto mb-3" />
+              <p className="text-gray-600">Loading leads...</p>
+            </div>
+          ) : filteredLeads.length > 0 ? (
             filteredLeads.map((lead) => (
               <div key={lead.id} className="bg-white rounded-xl shadow border p-4 space-y-3">
                 <div className="flex justify-between items-start">
@@ -1057,7 +1026,7 @@ const Leads = () => {
 
                   {/* Delete Button */}
                   <button
-                    onClick={() => handleDeleteLead(lead.id)}
+                    onClick={() => handleDeleteLead(lead.id, lead.name)}
                     className="flex flex-col items-center justify-center p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100"
                   >
                     <Trash2 size={20} />
@@ -1074,14 +1043,6 @@ const Leads = () => {
             </div>
           )}
         </div>
-
-        {/* Loading State */}
-        {loading && (
-          <div className="text-center py-10">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <p className="mt-2 text-gray-600">Loading leads...</p>
-          </div>
-        )}
 
         {/* VIEW MODAL */}
         {viewModalOpen && selectedLead && (
@@ -1329,7 +1290,7 @@ const Leads = () => {
                           </label>
                           <input
                             value={newLeadData.name}
-                            disabled={leadModalMode === "view"}
+                            disabled={leadModalMode === "view" || submitLoading}
                             onChange={(e) => leadModalMode !== "view" && handleNewLeadChange("name", e.target.value)}
                             onBlur={() => leadModalMode !== "view" && handleFieldBlur("name")}
                             className={`w-full border p-2 rounded-lg ${
@@ -1354,7 +1315,7 @@ const Leads = () => {
                           <input
                             type="tel"
                             value={newLeadData.phone}
-                            disabled={leadModalMode === "view"}
+                            disabled={leadModalMode === "view" || submitLoading}
                             onChange={(e) =>
                               leadModalMode !== "view" &&
                               handleNewLeadChange("phone", e.target.value.replace(/\D/g, "").slice(0, 10))
@@ -1382,7 +1343,7 @@ const Leads = () => {
                           <input
                             type="email"
                             value={newLeadData.email}
-                            disabled={leadModalMode === "view"}
+                            disabled={leadModalMode === "view" || submitLoading}
                             onChange={(e) => leadModalMode !== "view" && handleNewLeadChange("email", e.target.value)}
                             onBlur={() => leadModalMode !== "view" && handleFieldBlur("email")}
                             className={`w-full border p-2 rounded-lg ${
@@ -1414,7 +1375,7 @@ const Leads = () => {
                           </label>
                           <input
                             value={newLeadData.phoneModel}
-                            disabled={leadModalMode === "view"}
+                            disabled={leadModalMode === "view" || submitLoading}
                             onChange={(e) => leadModalMode !== "view" && handleNewLeadChange("phoneModel", e.target.value)}
                             onBlur={() => leadModalMode !== "view" && handleFieldBlur("phoneModel")}
                             className={`w-full border p-2 rounded-lg ${
@@ -1438,7 +1399,7 @@ const Leads = () => {
                           </label>
                           <textarea
                             value={newLeadData.issueDetail}
-                            disabled={leadModalMode === "view"}
+                            disabled={leadModalMode === "view" || submitLoading}
                             onChange={(e) => leadModalMode !== "view" && handleNewLeadChange("issueDetail", e.target.value)}
                             onBlur={() => leadModalMode !== "view" && handleFieldBlur("issueDetail")}
                             rows="2"
@@ -1473,7 +1434,7 @@ const Leads = () => {
                       <textarea
                         rows="2"
                         value={newLeadData.address}
-                        disabled={leadModalMode === "view"}
+                        disabled={leadModalMode === "view" || submitLoading}
                         onChange={(e) => leadModalMode !== "view" && handleNewLeadChange("address", e.target.value)}
                         onBlur={() => leadModalMode !== "view" && handleFieldBlur("address")}
                         className={`w-full border p-2 rounded-lg ${
@@ -1512,7 +1473,7 @@ const Leads = () => {
                         <input
                           type="text"
                           value={newLeadData.pincode}
-                          disabled={leadModalMode === "view"}
+                          disabled={leadModalMode === "view" || submitLoading}
                           onChange={(e) => {
                             if (leadModalMode === "view") return;
                             const v = e.target.value.replace(/\D/g, "").slice(0, 6);
@@ -1541,7 +1502,7 @@ const Leads = () => {
                         </label>
                         <select
                           value={newLeadData.area}
-                          disabled={leadModalMode === "view" || areaOptions.length === 0}
+                          disabled={leadModalMode === "view" || submitLoading || areaOptions.length === 0}
                           onChange={(e) => leadModalMode !== "view" && handleNewLeadChange("area", e.target.value)}
                           onBlur={() => leadModalMode !== "view" && handleFieldBlur("area")}
                           className={`w-full border p-2 rounded-lg ${
@@ -1576,17 +1537,20 @@ const Leads = () => {
                         resetLeadForm();
                       }}
                       className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition"
+                      disabled={submitLoading}
                     >
                       {leadModalMode === "view" ? "Close" : "Cancel"}
                     </button>
 
                     {leadModalMode !== "view" && (
-                      <button
+                      <LoadingButton
+                        type="button"
+                        loading={submitLoading}
                         onClick={handleSaveNewLead}
                         className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
                       >
                         {editingLeadId ? "Update" : "Create"}
-                      </button>
+                      </LoadingButton>
                     )}
                   </div>
                 </div>

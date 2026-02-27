@@ -26,7 +26,6 @@ import {
   HelpCircle,
 } from "lucide-react";
 import { useAuth } from "/src/auth/AuthContext";
-import toast from "react-hot-toast";
 
 const isMobileView = () => window.innerWidth < 768;
 
@@ -34,7 +33,6 @@ export default function Sidebar({ isOpen, closeSidebar }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const role = user?.role;
-  const shopType = user?.shop_type; // Get shop_type for SHOP role
   const [openMenus, setOpenMenus] = useState({});
   const isNavigating = useRef(false);
 
@@ -42,78 +40,9 @@ export default function Sidebar({ isOpen, closeSidebar }) {
     setOpenMenus((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const handleLogout = () => {
-    // Don't show logout confirmation if already navigating
-    if (isNavigating.current) return;
 
-    toast.custom(
-      (t) => (
-        <div
-          className="flex flex-col gap-3 bg-white rounded-lg shadow-xl p-4 max-w-sm border border-gray-200"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <p className="text-sm font-medium text-gray-800">
-            Are you sure you want to logout?
-          </p>
-          <div className="flex justify-end gap-2">
-            <button
-              onClick={() => toast.dismiss(t.id)}
-              className="px-3 py-1.5 rounded-md text-sm bg-gray-200 hover:bg-gray-300 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={async () => {
-                // Set navigating flag to prevent multiple toasts
-                isNavigating.current = true;
 
-                // Dismiss the confirmation toast
-                toast.dismiss(t.id);
-
-                try {
-                  // Show loading state
-                  const loadingToast = toast.loading("Logging out...");
-
-                  // Perform logout
-                  await logout();
-
-                  // Update loading toast to success
-                  toast.success("Logged out successfully", {
-                    id: loadingToast,
-                    duration: 2000,
-                  });
-
-                  // Small delay to ensure toast is visible before navigation
-                  setTimeout(() => {
-                    navigate("/login", { replace: true });
-                    if (isMobileView()) closeSidebar();
-                    // Reset navigating flag after navigation
-                    setTimeout(() => {
-                      isNavigating.current = false;
-                    }, 500);
-                  }, 500);
-                } catch (error) {
-                  console.error("Logout error:", error);
-                  toast.error("Failed to logout. Please try again.");
-                  isNavigating.current = false;
-                }
-              }}
-              className="px-3 py-1.5 rounded-md text-sm bg-red-600 text-white hover:bg-red-700 transition-colors"
-            >
-              Logout
-            </button>
-          </div>
-        </div>
-      ),
-      {
-        duration: 8000,
-        position: "top-center",
-        className: "z-[9999]",
-      },
-    );
-  };
-
-  // Role-based menu items configuration
+  // Role-based menu items configuration - Updated with actual roles
   const roleBasedMenuItems = {
     // ADMIN - Full access
     ADMIN: [
@@ -166,12 +95,10 @@ export default function Sidebar({ isOpen, closeSidebar }) {
       },
       { path: "/customers", label: "Customers", icon: <Users2 size={20} /> },
       { path: "/shops", label: "Shops", icon: <Store size={20} /> },
-       {
+      {
         label: "Purchase",
         icon: <DollarSign size={20} />,
         children: [
-          // { path: "/vendors", label: "Vendors" },
-          // { path: "/expenses", label: "Expenses" },
           { path: "/purchase-orders", label: "Purchase Orders" },
           { path: "/bills", label: "Bills" },
         ],
@@ -179,7 +106,66 @@ export default function Sidebar({ isOpen, closeSidebar }) {
       { path: "/invoice", label: "Invoice", icon: <Receipt size={20} /> },
       { path: "/stock", label: "Stock", icon: <Boxes size={20} /> },
       { path: "/reports", label: "Reports", icon: <BarChart3 size={20} /> },
+    ],
 
+    // FRANCHISE - Franchise shops
+    FRANCHISE: [
+      {
+        path: "/franchisedashboard",
+        label: "Dashboard",
+        icon: <LayoutDashboard size={20} />,
+      },
+      {
+        path: "/complaints",
+        label: "Complaints",
+        icon: <FileWarning size={20} />,
+      },
+      { path: "/customers", label: "Customers", icon: <Users2 size={20} /> },
+      { path: "/shops", label: "Shops", icon: <Store size={20} /> },
+      { path: "/growtags", label: "Grow Tags", icon: <Users size={20} /> },
+      { path: "/invoice", label: "Invoice", icon: <Receipt size={20} /> },
+      { path: "/reports", label: "Reports", icon: <BarChart3 size={20} /> },
+      { path: "/stock", label: "Stock", icon: <Boxes size={20} /> },
+      {
+        label: "Purchase",
+        icon: <DollarSign size={20} />,
+        children: [
+          { path: "/vendors", label: "Vendors" },
+          { path: "/expenses", label: "Expenses" },
+          { path: "/purchase-orders", label: "Purchase Orders" },
+          { path: "/bills", label: "Bills" },
+        ],
+      },
+    ],
+
+    // OTHERSHOP - Other shops
+    OTHERSHOP: [
+      {
+        path: "/othershopdashboard",
+        label: "Dashboard",
+        icon: <LayoutDashboard size={20} />,
+      },
+      {
+        path: "/complaints",
+        label: "Complaints",
+        icon: <FileWarning size={20} />,
+      },
+      { path: "/customers", label: "Customers", icon: <Users2 size={20} /> },
+      { path: "/shops", label: "Shops", icon: <Store size={20} /> },
+      { path: "/growtags", label: "Grow Tags", icon: <Users size={20} /> },
+      { path: "/invoice", label: "Invoice", icon: <Receipt size={20} /> },
+      { path: "/reports", label: "Reports", icon: <BarChart3 size={20} /> },
+      { path: "/stock", label: "Stock", icon: <Boxes size={20} /> },
+      {
+        label: "Purchase",
+        icon: <DollarSign size={20} />,
+        children: [
+          { path: "/vendors", label: "Vendors" },
+          { path: "/expenses", label: "Expenses" },
+          { path: "/purchase-orders", label: "Purchase Orders" },
+          { path: "/bills", label: "Bills" },
+        ],
+      },
     ],
 
     // CUSTOMER - End users
@@ -211,63 +197,13 @@ export default function Sidebar({ isOpen, closeSidebar }) {
         icon: <HelpCircle size={20} />,
       },
     ],
-
-    // SHOP - Base shop menu (will be extended based on shop_type)
-    SHOP: [
-      {
-        path: "/dashboard",
-        label: "Dashboard",
-        icon: <LayoutDashboard size={20} />,
-      },
-      {
-        path: "/complaints",
-        label: "Complaints",
-        icon: <FileWarning size={20} />,
-      },
-      { path: "/customers", label: "Customers", icon: <Users2 size={20} /> },
-      { path: "/shops", label: "Shops", icon: <Store size={20} /> },
-      { path: "/growtags", label: "Grow Tags", icon: <Users size={20} /> },
-      { path: "/invoice", label: "Invoice", icon: <Receipt size={20} /> },
-      { path: "/reports", label: "Reports", icon: <BarChart3 size={20} /> },
-      { path: "/stock", label: "Stock", icon: <Boxes size={20} /> },
-      {
-        label: "Purchase",
-        icon: <DollarSign size={20} />,
-        children: [
-          { path: "/vendors", label: "Vendors" },
-          { path: "/expenses", label: "Expenses" },
-          { path: "/purchase-orders", label: "Purchase Orders" },
-          { path: "/bills", label: "Bills" },
-        ],
-      },
-    ],
   };
 
-  // Get menu items based on role and shop_type
+  // Get menu items based on role
   const getMenuItems = () => {
     if (!role) return [];
-
-    // Handle SHOP role with shop_type
-    if (role === "SHOP") {
-      const baseMenu = roleBasedMenuItems.SHOP || [];
-
-      // Customize dashboard path based on shop_type
-      const customizedMenu = baseMenu.map((item) => {
-        if (item.path === "/dashboard") {
-          // Set correct dashboard path based on shop_type
-          if (shopType === "franchise") {
-            return { ...item, path: "/franchisedashboard" };
-          } else if (shopType === "othershop") {
-            return { ...item, path: "/othershopdashboard" };
-          }
-        }
-        return item;
-      });
-
-      return customizedMenu;
-    }
-
-    // For other roles, return directly from mapping
+    
+    // Return menu items for the specific role
     return roleBasedMenuItems[role] || [];
   };
 
@@ -276,22 +212,16 @@ export default function Sidebar({ isOpen, closeSidebar }) {
   const getSidebarHeader = () => {
     if (!user) return "Dashboard";
 
-    // Handle SHOP role with shop_type
-    if (role === "SHOP") {
-      if (shopType === "franchise") {
-        return user?.name || "Franchise Shop";
-      } else if (shopType === "othershop") {
-        return user?.name || "Other Shop";
-      }
-      return user?.name || "Shop";
-    }
-
-    // Handle other roles
+    // Handle different roles
     switch (role) {
       case "ADMIN":
         return "Fixly Admin";
       case "GROWTAG":
         return user?.name || "Grow Tag";
+      case "FRANCHISE":
+        return user?.name || "Franchise Shop";
+      case "OTHERSHOP":
+        return user?.name || "Other Shop";
       case "CUSTOMER":
         return user?.name || "Customer";
       default:
@@ -302,22 +232,16 @@ export default function Sidebar({ isOpen, closeSidebar }) {
   const getRoleDisplay = () => {
     if (!role) return "";
 
-    // Handle SHOP role with shop_type
-    if (role === "SHOP") {
-      if (shopType === "franchise") {
-        return "Franchise";
-      } else if (shopType === "othershop") {
-        return "Other Shop";
-      }
-      return "Shop";
-    }
-
-    // Handle other roles
+    // Handle different roles
     switch (role) {
-      case "GROWTAG":
-        return "Grow Tag";
       case "ADMIN":
         return "Admin";
+      case "GROWTAG":
+        return "Grow Tag";
+      case "FRANCHISE":
+        return "Franchise";
+      case "OTHERSHOP":
+        return "Other Shop";
       case "CUSTOMER":
         return "Customer";
       default:
@@ -325,20 +249,20 @@ export default function Sidebar({ isOpen, closeSidebar }) {
     }
   };
 
-  // Add this for debugging
-  console.log("Sidebar - User:", user);
-  console.log("Sidebar - Role:", role);
-  console.log("Sidebar - Shop Type:", shopType);
-  console.log("Sidebar - Menu items:", menuItems);
-
   return (
     <div
       className={`fixed top-0 left-0 h-screen w-64 bg-[#111827] text-white flex flex-col z-40
       transform transition-transform duration-300
       ${isOpen ? "translate-x-0" : "-translate-x-full"}`}
     >
-      {/* Close mobile */}
-      <div className="p-3 flex justify-end md:hidden">
+      {/* Header with user info */}
+      <div className="p-4 border-b border-gray-700">
+        <div className="font-semibold text-lg truncate">{getSidebarHeader()}</div>
+        <div className="text-xs text-gray-400 mt-1">{getRoleDisplay()}</div>
+      </div>
+
+      {/* Close mobile button */}
+      <div className="p-3 flex justify-end md:hidden absolute top-2 right-2">
         <button
           onClick={closeSidebar}
           className="p-1 hover:bg-gray-700 rounded"
@@ -348,7 +272,7 @@ export default function Sidebar({ isOpen, closeSidebar }) {
       </div>
 
       {/* MENU */}
-      <div className="flex-grow px-4 overflow-y-auto py-4 mt-15">
+      <div className="flex-grow px-4 overflow-y-auto py-4">
         {menuItems.length > 0 ? (
           <nav className="space-y-1">
             {menuItems.map((item, idx) => {
@@ -426,6 +350,7 @@ export default function Sidebar({ isOpen, closeSidebar }) {
           </div>
         )}
       </div>
+
     </div>
   );
 }

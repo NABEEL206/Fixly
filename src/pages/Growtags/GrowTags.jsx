@@ -1,6 +1,5 @@
 // src/pages/Growtags/GrowTags.jsx
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { 
   Eye, 
@@ -23,30 +22,7 @@ import {
   Calendar
 } from "lucide-react";
 import toast from "react-hot-toast";
-import { BASE_URL } from "@/API/BaseURL";
-
-const API_URL = `${BASE_URL}/api/growtags/`;
-const POPUP_API_URL = `${BASE_URL}/api/growtags-popup/`;
-
-// 🔐 Helper: returns Authorization header with correct token type
-const getAuthHeaders = () => {
-  const token = localStorage.getItem("access_token");
-  const tokenType = localStorage.getItem("token_type") || "Bearer";
-  if (!token) return {};
-  return { Authorization: `${tokenType} ${token}` };
-};
-
-// Debug function to check auth state
-const debugAuth = () => {
-  const token = localStorage.getItem("access_token");
-  const tokenType = localStorage.getItem("token_type");
-  
-  console.log("=== GrowTags Auth Debug ===");
-  console.log("Token exists:", !!token);
-  console.log("Token type:", tokenType || "not set (defaulting to Bearer)");
-  console.log("Token preview:", token ? `${token.substring(0, 20)}...` : "none");
-  console.log("===========================");
-};
+import axiosInstance from "@/API/axiosInstance";
 
 // ----------------------------------------------------
 // Filter Panel Component - Same as Complaints Page
@@ -192,10 +168,8 @@ const GrowTagViewModal = ({ growTag, onClose, onEdit }) => {
   const fetchGrowTagDetails = async (growTagId) => {
     setLoading(true);
     try {
-      const res = await axios.get(`${POPUP_API_URL}${growTagId}/`, {
-        headers: getAuthHeaders(),
-      });
-      setGrowTagDetails(res.data);
+      const response = await axiosInstance.get(`/api/growtags-popup/${growTagId}/`);
+      setGrowTagDetails(response.data);
     } catch (error) {
       console.error("Error fetching grow tag details:", error);
       if (error.response?.status === 401) {
@@ -594,21 +568,14 @@ export default function GrowTags() {
 
   const loadGrowtags = useCallback(async () => {
     try {
-      const token = localStorage.getItem("access_token");
-      if (!token) {
-        toast.error("Session expired. Please login again.");
-        navigate("/login");
-        return;
-      }
-
       setLoading(true);
-      const res = await axios.get(API_URL, { headers: getAuthHeaders() });
+      const response = await axiosInstance.get('/api/growtags/');
 
-      if (res.data) {
-        if (Array.isArray(res.data)) {
-          setUsers(res.data);
-        } else if (typeof res.data === "object") {
-          setUsers([res.data]);
+      if (response.data) {
+        if (Array.isArray(response.data)) {
+          setUsers(response.data);
+        } else if (typeof response.data === "object") {
+          setUsers([response.data]);
         } else {
           setUsers([]);
         }
@@ -631,7 +598,6 @@ export default function GrowTags() {
   }, [navigate]);
 
   useEffect(() => {
-    debugAuth();
     if (!localStorage.getItem("access_token")) {
       toast.error("Session expired. Please login again.");
       navigate("/login");
@@ -711,7 +677,7 @@ export default function GrowTags() {
   const fetchAreas = async (pincode) => {
     try {
       setLoadingAreas(true);
-      const res = await axios.get(`https://api.postalpincode.in/pincode/${pincode}`);
+      const res = await axiosInstance.get(`https://api.postalpincode.in/pincode/${pincode}`);
       const postOffice = res.data?.[0];
       const list = postOffice?.PostOffice || [];
 
@@ -831,13 +797,13 @@ export default function GrowTags() {
       });
 
       if (isEdit && editId) {
-        await axios.put(`${API_URL}${editId}/`, formData, {
-          headers: { ...getAuthHeaders(), "Content-Type": "multipart/form-data" },
+        await axiosInstance.put(`/api/growtags/${editId}/`, formData, {
+          headers: { "Content-Type": "multipart/form-data" },
         });
         toast.success(`Grow Tag updated successfully!`, { id: toastId });
       } else {
-        await axios.post(API_URL, formData, {
-          headers: { ...getAuthHeaders(), "Content-Type": "multipart/form-data" },
+        await axiosInstance.post('/api/growtags/', formData, {
+          headers: { "Content-Type": "multipart/form-data" },
         });
         toast.success(`Grow Tag created successfully!`, { id: toastId });
       }
@@ -908,7 +874,7 @@ export default function GrowTags() {
                 toast.dismiss(t.id);
                 const dt = toast.loading(`Deleting grow tag...`);
                 try {
-                  await axios.delete(`${API_URL}${id}/`, { headers: getAuthHeaders() });
+                  await axiosInstance.delete(`/api/growtags/${id}/`);
                   toast.success(`Grow Tag deleted successfully`, { id: dt });
                   await loadGrowtags();
                   setSelectedIds(prev => prev.filter(x => x !== id));
@@ -964,7 +930,7 @@ export default function GrowTags() {
                   const results = await Promise.all(
                     selectedIds.map(async (id) => {
                       try {
-                        await axios.delete(`${API_URL}${id}/`, { headers: getAuthHeaders() });
+                        await axiosInstance.delete(`/api/growtags/${id}/`);
                         return { id, ok: true };
                       } catch (error) {
                         return { id, ok: false, status: error.response?.status };
@@ -1011,16 +977,6 @@ export default function GrowTags() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
-      {/* Debug Button - Remove in production */}
-      <div className="mb-4 flex justify-end">
-        <button
-          onClick={debugAuth}
-          className="text-xs bg-gray-200 px-3 py-1 rounded hover:bg-gray-300"
-        >
-          Debug Auth
-        </button>
-      </div>
-
       {/* View Modal */}
       {showViewModal && viewData && (
         <GrowTagViewModal 

@@ -44,7 +44,7 @@ export default function App() {
         {/* PUBLIC ROUTES */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/unauthorized" element={<Unauthorized />} />
-       <Route path="/customer-register" element={<CustomerRegister />} />
+        <Route path="/customer-register" element={<CustomerRegister />} />
 
         {/* ALL PROTECTED ROUTES WITH LAYOUT */}
         <Route element={<ProtectedLayout />}>
@@ -86,19 +86,21 @@ export default function App() {
             }
           />
 
-          {/* SHOP ROUTES - Using SHOP role with shop_type differentiation */}
+          {/* FRANCHISE ROUTES */}
           <Route
             path="/franchisedashboard"
             element={
-              <ProtectedRoute allowedRoles={["SHOP"]} shopType="franchise">
+              <ProtectedRoute allowedRoles={["FRANCHISE"]}>
                 <FranchiseDashboard />
               </ProtectedRoute>
             }
           />
+
+          {/* OTHER SHOP ROUTES */}
           <Route
             path="/othershopdashboard"
             element={
-              <ProtectedRoute allowedRoles={["SHOP"]} shopType="othershop">
+              <ProtectedRoute allowedRoles={["OTHERSHOP"]}>
                 <OtherShopDashboard />
               </ProtectedRoute>
             }
@@ -108,11 +110,12 @@ export default function App() {
           <Route
             path="/growtags"
             element={
-              <ProtectedRoute allowedRoles={["ADMIN", "SHOP"]}>
+              <ProtectedRoute allowedRoles={["ADMIN", "FRANCHISE", "OTHERSHOP"]}>
                 <GrowTags />
               </ProtectedRoute>
             }
           />
+          
           <Route
             path="/assign-growtags"
             element={
@@ -121,22 +124,25 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+          
           <Route
             path="/shops"
             element={
-              <ProtectedRoute allowedRoles={["ADMIN", "SHOP","GROWTAG"]}>
+              <ProtectedRoute allowedRoles={["ADMIN", "FRANCHISE", "OTHERSHOP", "GROWTAG"]}>
                 <Shops />
               </ProtectedRoute>
             }
           />
+          
           <Route
             path="/complaints"
             element={
-              <ProtectedRoute allowedRoles={["ADMIN", "GROWTAG", "SHOP", "CUSTOMER"]}>
+              <ProtectedRoute allowedRoles={["ADMIN", "GROWTAG", "FRANCHISE", "OTHERSHOP", "CUSTOMER"]}>
                 <Complaints />
               </ProtectedRoute>
             }
           />
+          
           <Route
             path="/leads"
             element={
@@ -145,14 +151,16 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+          
           <Route
             path="/customers"
             element={
-              <ProtectedRoute allowedRoles={["ADMIN", "SHOP","GROWTAG"]}>
+              <ProtectedRoute allowedRoles={["ADMIN", "FRANCHISE", "OTHERSHOP", "GROWTAG"]}>
                 <Customers />
               </ProtectedRoute>
             }
           />
+          
           <Route
             path="/items"
             element={
@@ -161,58 +169,65 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+          
           <Route
             path="/stock"
             element={
-              <ProtectedRoute allowedRoles={["ADMIN", "SHOP","GROWTAG"]}>
+              <ProtectedRoute allowedRoles={["ADMIN", "FRANCHISE", "OTHERSHOP", "GROWTAG"]}>
                 <Stock />
               </ProtectedRoute>
             }
           />
+          
           <Route
             path="/vendors"
             element={
-              <ProtectedRoute allowedRoles={["ADMIN", "SHOP"]}>
+              <ProtectedRoute allowedRoles={["ADMIN", "FRANCHISE", "OTHERSHOP"]}>
                 <Vendor />
               </ProtectedRoute>
             }
           />
+          
           <Route
             path="/purchase-orders"
             element={
-              <ProtectedRoute allowedRoles={["ADMIN", "SHOP","GROWTAG"]}>
+              <ProtectedRoute allowedRoles={["ADMIN", "FRANCHISE", "OTHERSHOP", "GROWTAG"]}>
                 <PurchaseOrder />
               </ProtectedRoute>
             }
           />
+          
           <Route
             path="/bills"
             element={
-              <ProtectedRoute allowedRoles={["ADMIN", "SHOP","GROWTAG"]}>
+              <ProtectedRoute allowedRoles={["ADMIN", "FRANCHISE", "OTHERSHOP", "GROWTAG"]}>
                 <Bill />
               </ProtectedRoute>
             }
           />
+          
           <Route
             path="/expenses"
             element={
-              <ProtectedRoute allowedRoles={["ADMIN", "SHOP"]}>
+              <ProtectedRoute allowedRoles={["ADMIN", "FRANCHISE", "OTHERSHOP"]}>
                 <Expenses />
               </ProtectedRoute>
             }
           />
+          
           <Route
             path="/invoice"
             element={
-              <ProtectedRoute allowedRoles={["ADMIN", "GROWTAG", "SHOP", "CUSTOMER"]}>
+              <ProtectedRoute allowedRoles={["ADMIN", "GROWTAG", "FRANCHISE", "OTHERSHOP", "CUSTOMER"]}>
                 <Invoice />
               </ProtectedRoute>
             }
           />
+          
           <Route
             path="/reports"
             element={
-              <ProtectedRoute allowedRoles={["ADMIN", "GROWTAG", "SHOP"]}>
+              <ProtectedRoute allowedRoles={["ADMIN", "GROWTAG", "FRANCHISE", "OTHERSHOP"]}>
                 <Reports />
               </ProtectedRoute>
             }
