@@ -1,28 +1,42 @@
+// src/pages/complaints/ComplaintRegistrationModal.jsx
 import React, { useState, useCallback, useEffect } from "react";
 import toast from "react-hot-toast";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Loader } from "lucide-react";
+import axios from "axios";
+import { getAuthHeaders } from "@/utils/authHeaders";
 
 // --- STATUS OPTIONS ---
 const STATUS_OPTIONS = ["Pending", "Assigned", "In Progress", "Resolved"];
-
-// auth
-import axios from "axios";
 
 const api = axios.create({
   baseURL: "http://127.0.0.1:8000",
 });
 
-// 🔐 AUTO ATTACH TOKEN TO EVERY REQUEST
+// 🔐 AUTO ATTACH TOKEN TO EVERY REQUEST with correct token type
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("access_token");
+    const tokenType = localStorage.getItem("token_type") || "Bearer";
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+      config.headers.Authorization = `${tokenType} ${token}`;
     }
     console.log("API Request:", config.method.toUpperCase(), config.url, config.data);
     return config;
   },
   (error) => Promise.reject(error)
+);
+
+// Response interceptor to handle auth errors
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      toast.error("Session expired. Please login again.");
+    } else if (error.response?.status === 403) {
+      toast.error("You don't have permission to perform this action");
+    }
+    return Promise.reject(error);
+  }
 );
 
 const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
@@ -57,9 +71,25 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
   const [pincodeError, setPincodeError] = useState("");
 
   // Loading states
+  const [isLoadingPrefill, setIsLoadingPrefill] = useState(false);
   const [isFetchingNearest, setIsFetchingNearest] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [state, setState] = useState("");
+
+  // Track if we've loaded prefilled data
+  const [prefillLoaded, setPrefillLoaded] = useState(false);
+
+  // Debug function to check auth state
+  const debugAuth = () => {
+    const token = localStorage.getItem("access_token");
+    const tokenType = localStorage.getItem("token_type");
+    
+    console.log("=== ComplaintRegistrationModal Auth Debug ===");
+    console.log("Token exists:", !!token);
+    console.log("Token type:", tokenType || "not set (defaulting to Bearer)");
+    console.log("Token preview:", token ? `${token.substring(0, 20)}...` : "none");
+    console.log("=============================================");
+  };
 
   // ----------------------------------------------------------------
   // 🟢 VALIDATION UTILITY FUNCTIONS
@@ -120,6 +150,92 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
     setPincodeError("");
     setFieldErrors({});
     setState("");
+    setPrefillLoaded(false);
+  }, []);
+
+  // ----------------------------------------------------------------
+  // API: FETCH PREFILL DATA
+  // ----------------------------------------------------------------
+  const fetchPrefillData = useCallback(async (leadId) => {
+    if (!leadId) return;
+    
+    setIsLoadingPrefill(true);
+    
+    try {
+      const token = localStorage.getItem("access_token");
+      const tokenType = localStorage.getItem("token_type") || "Bearer";
+      
+      const url = `http://127.0.0.1:8000/api/leads/${leadId}/complaint_prefill/`;
+      console.log("Fetching prefill data from:", url);
+      
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `${tokenType} ${token}`,
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (response.status === 401) {
+        toast.error("Session expired. Please login again.");
+        return;
+      }
+
+      if (response.status === 403) {
+        toast.error("You don't have permission to access this data");
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log("Prefill data received:", data);
+
+      // Map the prefill data to form fields
+      setName(data.customer_name || "");
+      setMobile(data.customer_phone || "");
+      setEmail(data.email || "");
+      setModel(data.phone_model || "");
+      setIssue(data.issue_details || "");
+      setAddressLine(data.address || "");
+      setPincode(data.pincode || "");
+      setArea(data.area || "");
+      setState(data.state || "");
+      
+      // Set default password (this might be handled differently in production)
+      setPassword("default123");
+      
+      setPrefillLoaded(true);
+
+      // If we have pincode and area, fetch nearest options
+      if (data.pincode && data.area) {
+        // First, load areas from pincode API
+        try {
+          const pincodeRes = await fetch(
+            `https://api.postalpincode.in/pincode/${data.pincode}`
+          );
+          const pincodeData = await pincodeRes.json();
+
+          if (pincodeData[0]?.Status === "Success") {
+            const postOffices = pincodeData[0].PostOffice || [];
+            const areaList = postOffices.map((p) => p.Name);
+            setAreas(areaList);
+          }
+        } catch (err) {
+          console.error("Failed to load pincode data", err);
+        }
+
+        // Then fetch nearest options
+        fetchNearestOptions(data.pincode, data.area);
+      }
+
+    } catch (error) {
+      console.error("Prefill API Error:", error);
+      toast.error("Failed to load lead data");
+    } finally {
+      setIsLoadingPrefill(false);
+    }
   }, []);
 
   // ----------------------------------------------------------------
@@ -134,15 +250,28 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
     setAvailableTags([]);
 
     try {
+      const token = localStorage.getItem("access_token");
+      const tokenType = localStorage.getItem("token_type") || "Bearer";
+      
       const url = `http://127.0.0.1:8000/api/complaints/nearest-options/?area=${encodeURIComponent(selectedArea)}&pincode=${pcode}`;
       console.log("Fetching nearest options from:", url);
       
       const response = await fetch(url, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem("access_token")}`,
+          'Authorization': `${tokenType} ${token}`,
           'Content-Type': 'application/json',
         }
       });
+
+      if (response.status === 401) {
+        toast.error("Session expired. Please login again.");
+        return;
+      }
+
+      if (response.status === 403) {
+        toast.error("You don't have permission to fetch nearest options");
+        return;
+      }
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -233,60 +362,20 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
   };
 
   // ----------------------------------------------------------------
-  // INITIALIZE FORM WITH LEAD DATA
+  // INITIALIZE FORM WITH LEAD DATA - Fetch prefill on open
   // ----------------------------------------------------------------
   useEffect(() => {
     if (open && leadData) {
-      console.log("Lead data received in modal:", leadData);
+      console.log("Opening modal for lead:", leadData);
+      debugAuth();
       
-      // Map leadData correctly
-      setName(leadData.name || "");
-      setMobile(leadData.phone || "");
-      setEmail(leadData.email || "");
-      setPincode(leadData.pincode || "");
-      setAddressLine(leadData.address || "");
-      setModel(leadData.phoneModel || "");
-      setIssue(leadData.issueDetail || "");
-      setPassword("default123");
-
-      setEmailError("");
-      setMobileError("");
-      setPincodeError("");
-
-      // LOAD AREA LIST FIRST
-      if (leadData.pincode && leadData.pincode.length === 6) {
-        (async () => {
-          try {
-            const res = await fetch(
-              `https://api.postalpincode.in/pincode/${leadData.pincode}`
-            );
-            const data = await res.json();
-
-            if (data[0]?.Status === "Success") {
-              const postOffices = data[0].PostOffice || [];
-              const areaList = postOffices.map((p) => p.Name);
-              const stateName = postOffices[0]?.State || "";
-
-              setAreas(areaList);
-              setState(stateName);
-
-              // Set area if it matches
-              if (leadData.area && areaList.includes(leadData.area)) {
-                setArea(leadData.area);
-                setTimeout(() => {
-                  fetchNearestOptions(leadData.pincode, leadData.area);
-                }, 100);
-              }
-            }
-          } catch (err) {
-            console.error("Failed to load pincode data", err);
-          }
-        })();
-      }
-    } else {
+      // Reset form first
       resetFormStates();
+      
+      // Fetch prefill data from the API
+      fetchPrefillData(leadData.id);
     }
-  }, [open, leadData, fetchNearestOptions, resetFormStates]);
+  }, [open, leadData, fetchPrefillData, resetFormStates]);
 
   const validateRequiredFields = () => {
     const errors = {};
@@ -319,7 +408,7 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
   };
 
   // ----------------------------------------------------------------
-  // SUBMISSION HANDLER - FIXED with proper toast management
+  // SUBMISSION HANDLER - Register complaint
   // ----------------------------------------------------------------
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -367,42 +456,9 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
       return;
     }
 
-    // Prepare API data
-    let assignTypeAPI = assignedType;
-    let fkFieldName = null;
-    let assignedID = "";
-
-    // Map frontend values to API expected values
-    if (assignedType === "franchise") {
-      if (!selectedShopId) {
-        toast.error("Please select a franchise shop");
-        return;
-      }
-      assignedID = selectedShopId;
-      fkFieldName = "assigned_shop";
-      assignTypeAPI = "franchise";
-    } 
-    else if (assignedType === "othershop") {
-      if (!selectedShopId) {
-        toast.error("Please select an other shop");
-        return;
-      }
-      assignedID = selectedShopId;
-      fkFieldName = "assigned_shop";
-      assignTypeAPI = "othershop";
-    } 
-    else if (assignedType === "growtag") {
-      if (!selectedGrowTagId) {
-        toast.error("Please select a grow tag");
-        return;
-      }
-      assignedID = selectedGrowTagId;
-      fkFieldName = "assigned_Growtags";
-      assignTypeAPI = "growtag";
-    }
-
-    // Build complaint data
-    const complaintData = {
+    // Prepare API data - MATCHING THE API EXPECTATIONS
+    let assignToValue = assignedType;
+    let payload = {
       customer_name: name,
       customer_phone: mobile,
       phone_model: model,
@@ -414,22 +470,28 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
       area: area,
       state: state,
       status: status,
-      assign_to: assignTypeAPI,
+      assign_to: assignToValue,
     };
 
-    // Add the foreign key field if we have an assignment
-    if (fkFieldName && assignedID) {
-      complaintData[fkFieldName] = parseInt(assignedID, 10);
+    // Add the appropriate assignment field based on type
+    if (assignedType === "franchise" || assignedType === "othershop") {
+      if (selectedShopId) {
+        payload.assigned_shop = parseInt(selectedShopId, 10);
+      }
+    } else if (assignedType === "growtag") {
+      if (selectedGrowTagId) {
+        payload.assigned_Growtags = parseInt(selectedGrowTagId, 10);
+      }
     }
 
     // Remove any undefined or empty values
-    Object.keys(complaintData).forEach(key => {
-      if (complaintData[key] === undefined || complaintData[key] === null) {
-        delete complaintData[key];
+    Object.keys(payload).forEach(key => {
+      if (payload[key] === undefined || payload[key] === null || payload[key] === '') {
+        delete payload[key];
       }
     });
 
-    console.log("🚀 Submitting complaint data:", JSON.stringify(complaintData, null, 2));
+    console.log("🚀 Submitting complaint data:", JSON.stringify(payload, null, 2));
 
     setIsSubmitting(true);
     
@@ -437,12 +499,12 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
     const loadingToastId = toast.loading("Registering complaint...");
     
     try {
-      // Use the lead-specific endpoint
-      const response = await api.post(`/api/leads/${leadData.id}/register_complaint/`, complaintData);
+      // Use the lead-specific endpoint for registration
+      const response = await api.post(`/api/leads/${leadData.id}/register_complaint/`, payload);
       
       console.log("✅ Complaint registered successfully:", response.data);
 
-      // Update the loading toast to success (this replaces the loading toast)
+      // Update the loading toast to success
       toast.success("Complaint registered successfully!", {
         id: loadingToastId,
       });
@@ -459,7 +521,11 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
         console.error("Error response status:", error.response.status);
         console.error("Error response data:", error.response.data);
         
-        if (error.response.data) {
+        if (error.response.status === 401) {
+          errorMessage = "Session expired. Please login again.";
+        } else if (error.response.status === 403) {
+          errorMessage = "You don't have permission to register complaints";
+        } else if (error.response.data) {
           if (typeof error.response.data === 'string') {
             errorMessage = error.response.data;
           } else if (error.response.data.detail) {
@@ -473,7 +539,11 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
             const errors = error.response.data;
             const firstErrorField = Object.keys(errors)[0];
             if (firstErrorField && errors[firstErrorField]) {
-              errorMessage = `${firstErrorField}: ${errors[firstErrorField]}`;
+              if (Array.isArray(errors[firstErrorField])) {
+                errorMessage = `${firstErrorField}: ${errors[firstErrorField][0]}`;
+              } else {
+                errorMessage = `${firstErrorField}: ${errors[firstErrorField]}`;
+              }
             }
           }
         }
@@ -485,7 +555,7 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
         errorMessage = error.message || "Failed to register complaint";
       }
       
-      // Update the loading toast to error (this replaces the loading toast)
+      // Update the loading toast to error
       toast.error(errorMessage, { 
         id: loadingToastId,
       });
@@ -520,367 +590,371 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
           <button
             onClick={onClose}
             className="text-gray-500 hover:text-red-600 text-lg"
-            disabled={isSubmitting}
+            disabled={isSubmitting || isLoadingPrefill}
           >
             ✖
           </button>
         </div>
 
-        <form
-          onSubmit={handleSubmit}
-          className="flex flex-col gap-4 p-6 text-sm overflow-y-auto max-h-[calc(90vh-120px)]"
-        >
-          {/* Lead Info Summary */}
-          {leadData && (
-            <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200 mb-2">
-              <p className="text-xs font-medium text-yellow-800">
-                Registering complaint from Lead: <span className="font-bold">{leadData.leadId}</span>
-              </p>
-            </div>
-          )}
+        {isLoadingPrefill ? (
+          <div className="flex flex-col items-center justify-center p-12">
+            <Loader className="h-12 w-12 text-blue-600 animate-spin mb-4" />
+            <p className="text-gray-600">Loading lead data...</p>
+          </div>
+        ) : (
+          <form
+            onSubmit={handleSubmit}
+            className="flex flex-col gap-4 p-6 text-sm overflow-y-auto max-h-[calc(90vh-120px)]"
+          >
+            {/* Lead Info Summary */}
+            {leadData && (
+              <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200 mb-2">
+                <p className="text-xs font-medium text-yellow-800">
+                  Registering complaint from Lead: <span className="font-bold">{leadData.leadId}</span>
+                </p>
+              </div>
+            )}
 
-          {/* Form fields */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {/* Name */}
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Customer Name <span className="text-red-500">*</span>
-              </label>
-              <input
-                placeholder="Enter customer name"
-                value={name}
-                onChange={(e) => {
-                  setName(e.target.value);
-                  setFieldErrors((prev) => ({ ...prev, name: "" }));
-                }}
-                className={`w-full p-2 border rounded-lg ${
-                  fieldErrors.name ? "border-red-500" : "border-gray-300"
-                }`}
-              />
-              {fieldErrors.name && (
-                <p className="text-red-500 text-xs mt-1">{fieldErrors.name}</p>
-              )}
-            </div>
-
-            {/* Mobile */}
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Mobile Number <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="number"
-                value={mobile}
-                onChange={(e) => {
-                  setMobile(e.target.value);
-                  validateMobile(e.target.value);
-                }}
-                onBlur={(e) => validateMobile(e.target.value)}
-                className={`w-full p-2 border rounded-lg ${
-                  mobileError || fieldErrors.mobile ? "border-red-500" : "border-gray-300"
-                }`}
-                placeholder="Enter 10 digit mobile number"
-              />
-              {mobileError && (
-                <p className="text-red-500 text-xs mt-1">{mobileError}</p>
-              )}
-            </div>
-
-            {/* Email */}
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Email <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value);
-                  validateEmail(e.target.value);
-                }}
-                onBlur={(e) => validateEmail(e.target.value)}
-                className={`w-full p-2 border rounded-lg ${
-                  emailError || fieldErrors.email ? "border-red-500" : "border-gray-300"
-                }`}
-                placeholder="customer@example.com"
-              />
-              {emailError && (
-                <p className="text-red-500 text-xs mt-1">{emailError}</p>
-              )}
-            </div>
-
-            {/* Password */}
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Password <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
+            {/* Form fields */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {/* Name */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Customer Name <span className="text-red-500">*</span>
+                </label>
                 <input
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter password"
+                  placeholder="Enter customer name"
+                  value={name}
+                  onChange={(e) => {
+                    setName(e.target.value);
+                    setFieldErrors((prev) => ({ ...prev, name: "" }));
+                  }}
                   className={`w-full p-2 border rounded-lg ${
-                    fieldErrors.password ? "border-red-500" : "border-gray-300"
+                    fieldErrors.name ? "border-red-500" : "border-gray-300"
                   }`}
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-2 flex items-center text-gray-500 hover:text-gray-700"
-                >
-                  {showPassword ? <Eye size={18} /> : <EyeOff size={18} />}
-                </button>
+                {fieldErrors.name && (
+                  <p className="text-red-500 text-xs mt-1">{fieldErrors.name}</p>
+                )}
               </div>
-              {fieldErrors.password && (
-                <p className="text-red-500 text-xs mt-1">{fieldErrors.password}</p>
-              )}
+
+              {/* Mobile */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Mobile Number <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  value={mobile}
+                  onChange={(e) => {
+                    setMobile(e.target.value);
+                    validateMobile(e.target.value);
+                  }}
+                  onBlur={(e) => validateMobile(e.target.value)}
+                  className={`w-full p-2 border rounded-lg ${
+                    mobileError || fieldErrors.mobile ? "border-red-500" : "border-gray-300"
+                  }`}
+                  placeholder="Enter 10 digit mobile number"
+                />
+                {mobileError && (
+                  <p className="text-red-500 text-xs mt-1">{mobileError}</p>
+                )}
+              </div>
+
+              {/* Email */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Email <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    validateEmail(e.target.value);
+                  }}
+                  onBlur={(e) => validateEmail(e.target.value)}
+                  className={`w-full p-2 border rounded-lg ${
+                    emailError || fieldErrors.email ? "border-red-500" : "border-gray-300"
+                  }`}
+                  placeholder="customer@example.com"
+                />
+                {emailError && (
+                  <p className="text-red-500 text-xs mt-1">{emailError}</p>
+                )}
+              </div>
+
+              {/* Password */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Password <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter password"
+                    className={`w-full p-2 border rounded-lg ${
+                      fieldErrors.password ? "border-red-500" : "border-gray-300"
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-2 flex items-center text-gray-500 hover:text-gray-700"
+                  >
+                    {showPassword ? <Eye size={18} /> : <EyeOff size={18} />}
+                  </button>
+                </div>
+                {fieldErrors.password && (
+                  <p className="text-red-500 text-xs mt-1">{fieldErrors.password}</p>
+                )}
+              </div>
+
+              {/* Phone Model */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Phone Model <span className="text-red-500">*</span>
+                </label>
+                <input
+                  placeholder="e.g., iPhone 13, Samsung S23"
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  className={`w-full p-2 border rounded-lg ${
+                    fieldErrors.model ? "border-red-500" : "border-gray-300"
+                  }`}
+                />
+                {fieldErrors.model && (
+                  <p className="text-red-500 text-xs mt-1">{fieldErrors.model}</p>
+                )}
+              </div>
+
+              {/* Status */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Status
+                </label>
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                  className="w-full p-2 border rounded-lg bg-white border-gray-300"
+                >
+                  {STATUS_OPTIONS.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Address */}
+              <div className="md:col-span-2">
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Address <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={addressLine}
+                  onChange={(e) => setAddressLine(e.target.value)}
+                  placeholder="House no, street, landmark"
+                  rows="2"
+                  className={`w-full p-2 border rounded-lg ${
+                    fieldErrors.addressLine ? "border-red-500" : "border-gray-300"
+                  }`}
+                />
+                {fieldErrors.addressLine && (
+                  <p className="text-red-500 text-xs mt-1">{fieldErrors.addressLine}</p>
+                )}
+              </div>
+
+              {/* State */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  State
+                </label>
+                <input
+                  type="text"
+                  value={state}
+                  disabled
+                  placeholder="Auto-filled from pincode"
+                  className="w-full p-2 border rounded-lg bg-gray-100 text-gray-700 border-gray-300"
+                />
+              </div>
+
+              {/* Pincode & Area */}
+              <div className="md:col-span-2">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Pincode <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      value={pincode}
+                      onChange={(e) => handlePincode(e.target.value)}
+                      onBlur={(e) => validatePincode(e.target.value)}
+                      className={`w-full p-2 border rounded-lg ${
+                        pincodeError || fieldErrors.pincode ? "border-red-500" : "border-gray-300"
+                      }`}
+                      placeholder="Enter 6 digit pincode"
+                    />
+                    {pincodeError && (
+                      <p className="text-red-500 text-xs mt-1">{pincodeError}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Area <span className="text-red-500">*</span>
+                    </label>
+                    {areas.length > 0 ? (
+                      <select
+                        value={area}
+                        onChange={(e) => handleAreaChange(e.target.value)}
+                        className={`w-full p-2 border rounded-lg bg-white ${
+                          fieldErrors.area ? "border-red-500" : "border-gray-300"
+                        }`}
+                      >
+                        <option value="">Select Area</option>
+                        {areas.map((a, index) => (
+                          <option key={index} value={a}>{a}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        value={area}
+                        onChange={(e) => {
+                          setArea(e.target.value);
+                          setFieldErrors((prev) => ({ ...prev, area: "" }));
+                        }}
+                        className={`w-full p-2 border rounded-lg bg-white ${
+                          fieldErrors.area ? "border-red-500" : "border-gray-300"
+                        }`}
+                        placeholder="Enter area manually"
+                      />
+                    )}
+                    {fieldErrors.area && (
+                      <p className="text-red-500 text-xs mt-1">{fieldErrors.area}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
 
-            {/* Phone Model */}
+            {/* Issue Details */}
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">
-                Phone Model <span className="text-red-500">*</span>
-              </label>
-              <input
-                placeholder="e.g., iPhone 13, Samsung S23"
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                className={`w-full p-2 border rounded-lg ${
-                  fieldErrors.model ? "border-red-500" : "border-gray-300"
-                }`}
-              />
-              {fieldErrors.model && (
-                <p className="text-red-500 text-xs mt-1">{fieldErrors.model}</p>
-              )}
-            </div>
-
-            {/* Status */}
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Status
-              </label>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                className="w-full p-2 border rounded-lg bg-white border-gray-300"
-              >
-                {STATUS_OPTIONS.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Address */}
-            <div className="md:col-span-2">
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Address <span className="text-red-500">*</span>
+                Issue Details <span className="text-red-500">*</span>
               </label>
               <textarea
-                value={addressLine}
-                onChange={(e) => setAddressLine(e.target.value)}
-                placeholder="House no, street, landmark"
-                rows="2"
+                value={issue}
+                onChange={(e) => setIssue(e.target.value)}
+                placeholder="Describe the issue in detail"
+                rows="3"
                 className={`w-full p-2 border rounded-lg ${
-                  fieldErrors.addressLine ? "border-red-500" : "border-gray-300"
+                  fieldErrors.issue ? "border-red-500" : "border-gray-300"
                 }`}
               />
-              {fieldErrors.addressLine && (
-                <p className="text-red-500 text-xs mt-1">{fieldErrors.addressLine}</p>
+              {fieldErrors.issue && (
+                <p className="text-red-500 text-xs mt-1">{fieldErrors.issue}</p>
               )}
             </div>
 
-            {/* State */}
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                State
+            {/* ASSIGN SECTION */}
+            <div className={`p-3 border rounded-lg text-sm ${
+              fieldErrors.assignedType || fieldErrors.assignment ? "border-red-500 bg-red-50" : "border-gray-300 bg-gray-50"
+            }`}>
+              <label className="font-semibold text-gray-700 block mb-2">
+                Assign To: <span className="text-red-500">*</span>
               </label>
-              <input
-                type="text"
-                value={state}
-                disabled
-                placeholder="Auto-filled from pincode"
-                className="w-full p-2 border rounded-lg bg-gray-100 text-gray-700 border-gray-300"
-              />
-            </div>
+              
+              <select
+                value={assignedType}
+                onChange={(e) => handleAssignTypeChange(e.target.value)}
+                className={`w-full p-2 border rounded-lg mb-2 ${
+                  fieldErrors.assignedType ? "border-red-500" : "border-gray-300"
+                }`}
+              >
+                <option value="">Select Type</option>
+                <option value="franchise">Franchise ({franchises.length})</option>
+                <option value="othershop">Other Shops ({otherShops.length})</option>
+                <option value="growtag">GrowTags ({availableTags.length})</option>
+              </select>
+              
+              {fieldErrors.assignedType && (
+                <p className="text-red-500 text-xs mt-1 mb-2">{fieldErrors.assignedType}</p>
+              )}
 
-            {/* Pincode & Area */}
-            <div className="md:col-span-2">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Pincode <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    value={pincode}
-                    onChange={(e) => handlePincode(e.target.value)}
-                    onBlur={(e) => validatePincode(e.target.value)}
-                    className={`w-full p-2 border rounded-lg ${
-                      pincodeError || fieldErrors.pincode ? "border-red-500" : "border-gray-300"
-                    }`}
-                    placeholder="Enter 6 digit pincode"
-                  />
-                  {pincodeError && (
-                    <p className="text-red-500 text-xs mt-1">{pincodeError}</p>
-                  )}
-                </div>
+              <div className="min-h-[60px]">
+                {isFetchingNearest && (
+                  <p className="text-center text-gray-600 text-xs py-3">
+                    Fetching nearest options...
+                  </p>
+                )}
 
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Area <span className="text-red-500">*</span>
-                  </label>
-                  {areas.length > 0 ? (
-                    <select
-                      value={area}
-                      onChange={(e) => handleAreaChange(e.target.value)}
-                      className={`w-full p-2 border rounded-lg bg-white ${
-                        fieldErrors.area ? "border-red-500" : "border-gray-300"
-                      }`}
-                    >
-                      <option value="">Select Area</option>
-                      {areas.map((a, index) => (
-                        <option key={index} value={a}>{a}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      type="text"
-                      value={area}
-                      onChange={(e) => {
-                        setArea(e.target.value);
-                        setFieldErrors((prev) => ({ ...prev, area: "" }));
-                      }}
-                      className={`w-full p-2 border rounded-lg bg-white ${
-                        fieldErrors.area ? "border-red-500" : "border-gray-300"
-                      }`}
-                      placeholder="Enter area manually"
-                    />
-                  )}
-                  {fieldErrors.area && (
-                    <p className="text-red-500 text-xs mt-1">{fieldErrors.area}</p>
-                  )}
-                </div>
+                {(assignedType === "franchise" || assignedType === "othershop") && !isFetchingNearest && (
+                  <select
+                    value={selectedShopId}
+                    onChange={(e) => setSelectedShopId(e.target.value)}
+                    className="w-full p-2 border rounded-lg border-gray-300"
+                  >
+                    <option value="">
+                      Select {assignedType === "franchise" ? "Franchise" : "Other Shop"}
+                    </option>
+                    {(assignedType === "franchise" ? franchises : otherShops).map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
+
+                {assignedType === "growtag" && !isFetchingNearest && (
+                  <select
+                    value={selectedGrowTagId}
+                    onChange={(e) => setSelectedGrowTagId(e.target.value)}
+                    className="w-full p-2 border rounded-lg border-gray-300"
+                  >
+                    <option value="">Select GrowTag</option>
+                    {availableTags.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
-            </div>
-          </div>
-
-          {/* Issue Details */}
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              Issue Details <span className="text-red-500">*</span>
-            </label>
-            <textarea
-              value={issue}
-              onChange={(e) => setIssue(e.target.value)}
-              placeholder="Describe the issue in detail"
-              rows="3"
-              className={`w-full p-2 border rounded-lg ${
-                fieldErrors.issue ? "border-red-500" : "border-gray-300"
-              }`}
-            />
-            {fieldErrors.issue && (
-              <p className="text-red-500 text-xs mt-1">{fieldErrors.issue}</p>
-            )}
-          </div>
-
-          {/* ASSIGN SECTION */}
-          <div className={`p-3 border rounded-lg text-sm ${
-            fieldErrors.assignedType || fieldErrors.assignment ? "border-red-500 bg-red-50" : "border-gray-300 bg-gray-50"
-          }`}>
-            <label className="font-semibold text-gray-700 block mb-2">
-              Assign To: <span className="text-red-500">*</span>
-            </label>
-            
-            <select
-              value={assignedType}
-              onChange={(e) => handleAssignTypeChange(e.target.value)}
-              className={`w-full p-2 border rounded-lg mb-2 ${
-                fieldErrors.assignedType ? "border-red-500" : "border-gray-300"
-              }`}
-            >
-              <option value="">Select Type</option>
-              <option value="franchise">Franchise ({franchises.length})</option>
-              <option value="othershop">Other Shops ({otherShops.length})</option>
-              <option value="growtag">GrowTags ({availableTags.length})</option>
-            </select>
-            
-            {fieldErrors.assignedType && (
-              <p className="text-red-500 text-xs mt-1 mb-2">{fieldErrors.assignedType}</p>
-            )}
-
-            <div className="min-h-[60px]">
-              {isFetchingNearest && (
-                <p className="text-center text-gray-600 text-xs py-3">
-                  Fetching nearest options...
-                </p>
-              )}
-
-              {(assignedType === "franchise" || assignedType === "othershop") && !isFetchingNearest && (
-                <select
-                  value={selectedShopId}
-                  onChange={(e) => setSelectedShopId(e.target.value)}
-                  className="w-full p-2 border rounded-lg border-gray-300"
-                >
-                  <option value="">
-                    Select {assignedType === "franchise" ? "Franchise" : "Other Shop"}
-                  </option>
-                  {(assignedType === "franchise" ? franchises : otherShops).map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.label}
-                    </option>
-                  ))}
-                </select>
-              )}
-
-              {assignedType === "growtag" && !isFetchingNearest && (
-                <select
-                  value={selectedGrowTagId}
-                  onChange={(e) => setSelectedGrowTagId(e.target.value)}
-                  className="w-full p-2 border rounded-lg border-gray-300"
-                >
-                  <option value="">Select GrowTag</option>
-                  {availableTags.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.label}
-                    </option>
-                  ))}
-                </select>
+              {fieldErrors.assignment && (
+                <p className="text-red-500 text-xs mt-2">{fieldErrors.assignment}</p>
               )}
             </div>
-            {fieldErrors.assignment && (
-              <p className="text-red-500 text-xs mt-2">{fieldErrors.assignment}</p>
-            )}
-          </div>
 
-          {/* Form Actions */}
-          <div className="flex gap-3 pt-4 border-t">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300 font-medium"
-              disabled={isSubmitting}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="flex-1 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 font-medium flex items-center justify-center gap-2 disabled:opacity-70"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <>
-                  <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Registering...
-                </>
-              ) : (
-                "Register Complaint"
-              )}
-            </button>
-          </div>
-        </form>
+            {/* Form Actions */}
+            <div className="flex gap-3 pt-4 border-t">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300 font-medium"
+                disabled={isSubmitting}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="flex-1 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 font-medium flex items-center justify-center gap-2 disabled:opacity-70"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader className="animate-spin h-4 w-4" />
+                    Registering...
+                  </>
+                ) : (
+                  "Register Complaint"
+                )}
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );

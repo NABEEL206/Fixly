@@ -227,6 +227,20 @@ export default function LoginPage() {
                 )}
               </Button>
             </form>
+
+            {/* Registration Link */}
+            <div className="text-center pt-2 border-t border-gray-200">
+              <p className="text-gray-600 text-sm">
+                New customer?{" "}
+                <button
+                  onClick={() => navigate("/customer-register")}
+                  className="text-blue-600 hover:text-blue-800 font-medium hover:underline focus:outline-none"
+                  disabled={isLoading}
+                >
+                  Register here
+                </button>
+              </p>
+            </div>
           </CardContent>
         </Card>
       </motion.div>

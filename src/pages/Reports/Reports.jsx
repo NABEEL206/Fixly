@@ -1,7 +1,34 @@
+// src/pages/Reports/Reports.jsx
 import React, { useState, useMemo, useEffect } from "react";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { Menu, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { BASE_URL } from "@/API/BaseURL";
+import { getAuthHeaders } from "@/utils/authHeaders";
+import toast from "react-hot-toast";
+
+// Import logo - make sure the file exists at this path
+import logo from "../../assets/Fixly_1_-removebg-preview (1).png";
+/* ---------------------------------------------------------
+    CURRENCY FORMATTER - Fixed for PDF compatibility
+--------------------------------------------------------- */
+const formatCurrency = (amount, forPDF = false) => {
+  if (amount === null || amount === undefined || amount === '') return forPDF ? '0.00' : '₹0.00';
+  
+  const num = typeof amount === 'string' ? parseFloat(amount.replace(/[₹,]/g, '')) : amount;
+  const formattedNum = (num || 0).toLocaleString('en-IN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+  
+  // For PDF, use "Rs." instead of ₹ symbol (Helvetica doesn't support ₹)
+  if (forPDF) {
+    return `Rs. ${formattedNum}`;
+  }
+  
+  // For UI display, keep ₹ symbol
+  return `₹${formattedNum}`;
+};
 
 /* ---------------------------------------------------------
     PROFIT SHARE HELPER
@@ -19,210 +46,43 @@ function createProfitRow(id, date, total, customer) {
 }
 
 /* ---------------------------------------------------------
-    EXPENSE REPORT HELPER (Removed Status)
+    API DATA FETCHING
 --------------------------------------------------------- */
-function createExpenseRow(id, date, title, category, amount, paymentMethod) {
-  return {
-    "Expense ID": id,
-    "Date": date,
-    "Title": title,
-    "Category": category,
-    "Amount": amount,
-    "Payment Method": paymentMethod,
-    "Receipt": "Available"
-  };
-}
+const fetchReportData = async (reportType) => {
+  try {
+    const response = await fetch(`${BASE_URL}/reports/${reportType}/`, {
+      headers: getAuthHeaders()
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch ${reportType} report`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error(`Error fetching ${reportType} report:`, error);
+    toast.error(`Failed to load ${reportType} report`);
+    return null;
+  }
+};
 
 /* ---------------------------------------------------------
-    COMPLAINTS REPORT HELPER
+    DYNAMIC TRANSFORM FUNCTION
+    This maps backend columns exactly to object keys
 --------------------------------------------------------- */
-function createComplaintRow(id, date, customer, issue, assignTo, assignType, status) {
-  return {
-    "ID": id,
-    "Date": date,
-    "Customer Name": customer,
-    "Issue": issue,
-    "Assign To": assignTo,
-    "Assign Type": assignType,
-    "Status": status,
-  };
-}
-
-/* ---------------------------------------------------------
-    CUSTOMERS REPORT HELPER
---------------------------------------------------------- */
-function createCustomerRow(id, date, name, phone, issue, assignTo, assignType) {
-  return {
-    "Customer ID": id,
-    "Date": date,
-    "Name": name,
-    "Phone": phone,
-    "Issue": issue,
-    "Assign To": assignTo,
-    "Assign Type": assignType,
-  };
-}
-
-/* ---------------------------------------------------------
-    ALL REPORT DATA
---------------------------------------------------------- */
-const reportData = {
-  complaints: {
-    title: "Total Complaints Report",
-    columns: ["ID", "Date", "Customer Name", "Issue", "Assign To", "Assign Type", "Status"],
-    data: [
-      createComplaintRow(1001, "2025-06-03", "David", "Billing Error", "John", "Franchise", "Open"),
-      createComplaintRow(1002, "2025-06-12", "Miller", "Internet Down", "Arun", "Other Shop", "Closed"),
-      createComplaintRow(1003, "2025-06-15", "Sarah Johnson", "Software Bug", "Mike", "Growtag", "In Progress"),
-      createComplaintRow(1004, "2025-06-18", "Robert Brown", "Hardware Issue", "Emma", "Franchise", "Open"),
-      createComplaintRow(1005, "2025-06-22", "Priya Sharma", "Service Complaint", "Rahul", "Other Shop", "Closed"),
-      createComplaintRow(1006, "2025-06-25", "Amit Patel", "Network Problem", "Suresh", "Growtag", "In Progress"),
-      createComplaintRow(1007, "2025-06-28", "Neha Gupta", "Payment Issue", "Vikram", "Franchise", "Open"),
-    ],
-  },
-
-  "grow-tags": {
-    title: "Total Growth Tags Report",
-    columns: ["Grow ID", "Join Date", "Name", "Aadhar No", "Phone", "Email", "Status"],
-    data: [
-      {
-        "Grow ID": "G001",
-        "Join Date": "2025-06-01",
-        Name: "Ramesh",
-        "Aadhar No": "1234-5678-9101",
-        Phone: "9876543210",
-        Email: "ramesh@example.com",
-        Status: "Active",
-      },
-      {
-        "Grow ID": "G002",
-        "Join Date": "2025-06-10",
-        Name: "Suresh Kumar",
-        "Aadhar No": "2345-6789-0123",
-        Phone: "8765432109",
-        Email: "suresh@example.com",
-        Status: "Inactive",
-      },
-      {
-        "Grow ID": "G003",
-        "Join Date": "2025-06-20",
-        Name: "Priya Sharma",
-        "Aadhar No": "3456-7890-1234",
-        Phone: "7654321098",
-        Email: "priya@example.com",
-        Status: "Active",
-      }
-    ],
-  },
-
-  customers: {
-    title: "Total Customers Report",
-    columns: ["Customer ID", "Date", "Name", "Phone", "Issue", "Assign To", "Assign Type"],
-    data: [
-      createCustomerRow("C001", "2025-06-03", "Mark Smith", "9000000001", "Mobile Screen", "John", "Franchise"),
-      createCustomerRow("C002", "2025-06-10", "Emma Watson", "9000000002", "Laptop Repair", "Sarah", "Other Shop"),
-      createCustomerRow("C003", "2025-06-18", "Robert Brown", "9000000003", "Network Setup", "Mike", "Growtag"),
-      createCustomerRow("C004", "2025-06-20", "Lisa Ray", "9000000004", "Software Installation", "Ravi", "Franchise"),
-      createCustomerRow("C005", "2025-06-22", "David Miller", "9000000005", "Printer Issue", "Anita", "Other Shop"),
-      createCustomerRow("C006", "2025-06-25", "Sophia Williams", "9000000006", "Data Recovery", "Raj", "Growtag"),
-      createCustomerRow("C007", "2025-06-28", "James Wilson", "9000000007", "Virus Removal", "Kumar", "Franchise"),
-    ],
-  },
-
-  /* ---------------------------------------------------------
-      SALES SUMMARY REPORT
-  --------------------------------------------------------- */
-  "sales-summary": {
-    title: "Sales Summary Report",
-    columns: [
-      "Date",
-      "Invoice Count",
-      "Total Sales",
-      "Total Sales With Tax",
-      "Total Tax Amount"
-    ],
-    data: [
-      {
-        Date: "03/12/2025",
-        "Invoice Count": 1,
-        "Total Sales": 15000.0,
-        "Total Sales With Tax": 17700.0,
-        "Total Tax Amount": 2700.0
-      },
-      {
-        Date: "04/12/2025",
-        "Invoice Count": 2,
-        "Total Sales": 25000.0,
-        "Total Sales With Tax": 29500.0,
-        "Total Tax Amount": 4500.0
-      },
-      {
-        Date: "05/12/2025",
-        "Invoice Count": 3,
-        "Total Sales": 18000.0,
-        "Total Sales With Tax": 21240.0,
-        "Total Tax Amount": 3240.0
-      },
-      {
-        Date: "06/12/2025",
-        "Invoice Count": 2,
-        "Total Sales": 32000.0,
-        "Total Sales With Tax": 37760.0,
-        "Total Tax Amount": 5760.0
-      }
-    ]
-  },
-
-  /* ---------------------------------------------------------
-      PROFIT SHARE REPORT
-  --------------------------------------------------------- */
-  "profit-share": {
-    title: "Profit Share Distribution Report",
-    columns: [
-      "Complaint ID",
-      "Complaint Date",
-      "Customer Name",
-      "Total Amount",
-      "Shop (40%)",
-      "Grow Tags (40%)",
-      "Fixly Admin (20%)",
-    ],
-    data: [
-      createProfitRow(1001, "2025-06-03", 10000, "David"),
-      createProfitRow(1002, "2025-06-12", 25000, "Miller"),
-      createProfitRow(1003, "2025-06-15", 15000, "Sarah Johnson"),
-      createProfitRow(1004, "2025-06-20", 30000, "Robert Brown"),
-      createProfitRow(1005, "2025-06-25", 18000, "Emma Watson"),
-    ],
-  },
-
-  /* ---------------------------------------------------------
-      EXPENSE REPORT (Removed Status column)
-  --------------------------------------------------------- */
-  "expense-report": {
-    title: "Expense Report",
-    columns: [
-      "Expense ID",
-      "Date",
-      "Title",
-      "Category",
-      "Amount",
-      "Payment Method",
-      "Receipt"
-    ],
-    data: [
-      createExpenseRow("EXP001", "2025-06-01", "Office Rent", "Rent", "₹25,000.00", "Bank Transfer"),
-      createExpenseRow("EXP002", "2025-06-03", "Internet Bill", "Utilities", "₹1,500.00", "UPI"),
-      createExpenseRow("EXP003", "2025-06-05", "Team Lunch", "Food & Beverage", "₹3,200.00", "Cash"),
-      createExpenseRow("EXP004", "2025-06-08", "Software Subscription", "Software", "₹8,900.00", "Card"),
-      createExpenseRow("EXP005", "2025-06-10", "Travel Expenses", "Travel", "₹5,600.00", "Card"),
-      createExpenseRow("EXP006", "2025-06-12", "Office Supplies", "Office Supplies", "₹2,300.00", "Cash"),
-      createExpenseRow("EXP007", "2025-06-15", "Marketing Campaign", "Marketing", "₹15,000.00", "Bank Transfer"),
-      createExpenseRow("EXP008", "2025-06-18", "Electricity Bill", "Utilities", "₹4,800.00", "UPI"),
-      createExpenseRow("EXP009", "2025-06-20", "Employee Training", "Training", "₹12,000.00", "Bank Transfer"),
-      createExpenseRow("EXP010", "2025-06-25", "Maintenance", "Maintenance", "₹7,500.00", "Card"),
-    ],
-  },
+const transformReportData = (apiData) => {
+  if (!apiData || !apiData.results || !apiData.columns) return [];
+  
+  const columns = apiData.columns;
+  
+  return apiData.results.map(row => {
+    const obj = {};
+    columns.forEach((col, index) => {
+      // Use the exact column name from backend as the key
+      obj[col] = row[index];
+    });
+    return obj;
+  });
 };
 
 /* ---------------------------------------------------------
@@ -233,57 +93,89 @@ const calculateReportTotals = (data, title) => {
   
   switch (title) {
     case "Sales Summary Report":
-      const salesTotal = data.reduce((sum, row) => sum + (row["Total Sales"] || 0), 0);
-      const salesWithTaxTotal = data.reduce((sum, row) => sum + (row["Total Sales With Tax"] || 0), 0);
-      const taxTotal = data.reduce((sum, row) => sum + (row["Total Tax Amount"] || 0), 0);
-      const invoiceCountTotal = data.reduce((sum, row) => sum + (row["Invoice Count"] || 0), 0);
+      const salesTotal = data.reduce((sum, row) => {
+        // Skip the "Total" row if it exists
+        if (row["DATE"] === "Total") return sum;
+        return sum + (parseFloat(row["TOTAL SALES"]) || 0);
+      }, 0);
+      
+      const salesWithTaxTotal = data.reduce((sum, row) => {
+        if (row["DATE"] === "Total") return sum;
+        return sum + (parseFloat(row["TOTAL SALES WITH TAX"]) || 0);
+      }, 0);
+      
+      const taxTotal = data.reduce((sum, row) => {
+        if (row["DATE"] === "Total") return sum;
+        return sum + (parseFloat(row["TOTAL TAX AMOUNT"]) || 0);
+      }, 0);
+      
+      const invoiceCountTotal = data.reduce((sum, row) => {
+        if (row["DATE"] === "Total") return sum;
+        return sum + (parseInt(row["INVOICE COUNT"]) || 0);
+      }, 0);
       
       return {
-        "Total Sales": `₹${salesTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
-        "Total Sales With Tax": `₹${salesWithTaxTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
-        "Total Tax": `₹${taxTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
+        "Total Sales": formatCurrency(salesTotal),
+        "Total Sales With Tax": formatCurrency(salesWithTaxTotal),
+        "Total Tax": formatCurrency(taxTotal),
         "Total Invoices": invoiceCountTotal
       };
     
     case "Profit Share Distribution Report":
-      const totalAmount = data.reduce((sum, row) => sum + (parseFloat(row["Total Amount"]) || 0), 0);
-      const shopTotal = data.reduce((sum, row) => sum + (parseFloat(row["Shop (40%)"]) || 0), 0);
-      const growTagsTotal = data.reduce((sum, row) => sum + (parseFloat(row["Grow Tags (40%)"]) || 0), 0);
-      const adminTotal = data.reduce((sum, row) => sum + (parseFloat(row["Fixly Admin (20%)"]) || 0), 0);
+      const totalAmount = data.reduce((sum, row) => {
+        // Skip the "Total" row if it exists
+        if (row["INVOICE NO"] === "Total") return sum;
+        return sum + (parseFloat(row["TOTAL AMOUNT"]) || 0);
+      }, 0);
+      
+      const shopTotal = data.reduce((sum, row) => {
+        if (row["INVOICE NO"] === "Total") return sum;
+        return sum + (parseFloat(row["SHOP (40%)"]) || 0);
+      }, 0);
+      
+      const growTagsTotal = data.reduce((sum, row) => {
+        if (row["INVOICE NO"] === "Total") return sum;
+        return sum + (parseFloat(row["GROW TAGS (40%)"]) || 0);
+      }, 0);
+      
+      const adminTotal = data.reduce((sum, row) => {
+        if (row["INVOICE NO"] === "Total") return sum;
+        return sum + (parseFloat(row["ADMIN (20%)"]) || 0);
+      }, 0);
       
       return {
-        "Total Revenue": `₹${totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
-        "Total Shop Share (40%)": `₹${shopTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
-        "Total Grow Tags Share (40%)": `₹${growTagsTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
-        "Total Admin Share (20%)": `₹${adminTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+        "Total Revenue": formatCurrency(totalAmount),
+        "Total Shop Share (40%)": formatCurrency(shopTotal),
+        "Total Grow Tags Share (40%)": formatCurrency(growTagsTotal),
+        "Total Admin Share (20%)": formatCurrency(adminTotal)
       };
     
     case "Expense Report":
       const expenseTotal = data.reduce((sum, row) => {
-        const amount = parseFloat(row.Amount?.replace(/[₹,]/g, '')) || 0;
+        const amount = parseFloat(row["AMOUNT"]?.replace(/[₹,]/g, '')) || 0;
         return sum + amount;
       }, 0);
       
       return {
-        "Total Expenses": `₹${expenseTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
+        "Total Expenses": formatCurrency(expenseTotal),
         "Count": data.length
       };
     
     case "Total Complaints Report":
-      const openCount = data.filter(row => row.Status === "Open").length;
-      const closedCount = data.filter(row => row.Status === "Closed").length;
-      const inProgressCount = data.filter(row => row.Status === "In Progress").length;
+      const statusCounts = data.reduce((acc, row) => {
+        const status = row["STATUS"] || "Unknown";
+        acc[status] = (acc[status] || 0) + 1;
+        return acc;
+      }, {});
       
       return {
         "Total Complaints": data.length,
-        "Open": openCount,
-        "Closed": closedCount,
-        "In Progress": inProgressCount
+        ...statusCounts
       };
     
     case "Total Growth Tags Report":
-      const activeCount = data.filter(row => row.Status === "Active").length;
-      const inactiveCount = data.filter(row => row.Status === "Inactive").length;
+      const activeCount = data.filter(row => row["STATUS"] === "Active").length;
+      const inactiveCount = data.filter(row => row["STATUS"] === "Inactive").length;
       
       return {
         "Total Growth Tags": data.length,
@@ -292,15 +184,15 @@ const calculateReportTotals = (data, title) => {
       };
     
     case "Total Customers Report":
-      const franchiseCount = data.filter(row => row["Assign Type"] === "Franchise").length;
-      const otherShopCount = data.filter(row => row["Assign Type"] === "Other Shop").length;
-      const growtagCount = data.filter(row => row["Assign Type"] === "Growtag").length;
+      const assignTypeCounts = data.reduce((acc, row) => {
+        const type = row["ASSIGN TYPE"] || "Unknown";
+        acc[type] = (acc[type] || 0) + 1;
+        return acc;
+      }, {});
       
       return {
         "Total Customers": data.length,
-        "Franchise": franchiseCount,
-        "Other Shop": otherShopCount,
-        "Growtag": growtagCount
+        ...assignTypeCounts
       };
     
     default:
@@ -311,198 +203,358 @@ const calculateReportTotals = (data, title) => {
 };
 
 /* ---------------------------------------------------------
-    EXPORT BUTTON - FIXED VERSION
+    EXPORT BUTTON
 --------------------------------------------------------- */
 const ExportButton = ({ data, format, filteredData }) => {
   const exportExcel = () => {
-    const ws = XLSX.utils.json_to_sheet(data.data);
+    // For Excel export, we need to transform the column names
+    let excelData = filteredData;
+    
+    // If this is the expense report, rename "EXPENSE ID" to "ID" for Excel
+    if (data.title === "Expense Report") {
+      excelData = filteredData.map(item => {
+        const newItem = {};
+        Object.keys(item).forEach(key => {
+          if (key === "EXPENSE ID") {
+            newItem["ID"] = item[key];
+          } else {
+            newItem[key] = item[key];
+          }
+        });
+        return newItem;
+      });
+    }
+    
+    const ws = XLSX.utils.json_to_sheet(excelData);
     const wb = { Sheets: { data: ws }, SheetNames: ["data"] };
     const buffer = XLSX.write(wb, { type: "array", bookType: "xlsx" });
 
     saveAs(new Blob([buffer]), `${data.title}.xlsx`);
   };
 
-const exportPDF = async () => {
-  try {
-    // Dynamically import jsPDF with autoTable
-    const { default: jsPDF } = await import('jspdf');
-    const autoTable = (await import('jspdf-autotable')).default;
-    
-    const doc = new jsPDF("p", "pt", "a4");
-    
-    // Add title
-    doc.setFontSize(18);
-    doc.setFont("helvetica", "bold");
-    doc.text(data.title, 40, 40);
-    
-    // Add date generated
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.text(`Generated: ${new Date().toLocaleDateString()}`, 40, 60);
-    
-    // Calculate totals for PDF using FILTERED data
-    const totals = calculateReportTotals(filteredData, data.title);
-    
-    let startY = 80;
-    
-    // ALWAYS show summary for all report types
-    doc.setFontSize(11);
-    doc.setFont("helvetica", "bold");
-    let yPos = 80;
-    
-    // [Keep all the summary section code the same as you have]
-    // ... (all the summary logic remains the same)
-    
-    // Prepare table data using FILTERED data
-    const tableColumn = data.columns;
-    
-    // Function to clean up values for PDF - FIXED VERSION
-    const cleanValueForPDF = (value, isTotalRow = false) => {
-      if (value === null || value === undefined) return "";
+  const exportPDF = async () => {
+    try {
+      const { default: jsPDF } = await import('jspdf');
+      const autoTable = (await import('jspdf-autotable')).default;
       
-      // For total row, we already have formatted values
-      if (isTotalRow && typeof value === 'string') {
-        // Remove currency symbol and return just the number part
-        return value.replace(/[₹,]/g, '');
+      const doc = new jsPDF("p", "pt", "a4");
+      const pageWidth = doc.internal.pageSize.getWidth();
+      
+      // ----- PROFESSIONAL GRADIENT HEADER -----
+      // Create gradient effect with two rectangles
+      doc.setFillColor(41, 128, 185); // Darker blue
+      doc.rect(0, 0, pageWidth, 120, 'F');
+      
+      doc.setFillColor(52, 152, 219); // Lighter blue
+      doc.rect(0, 100, pageWidth, 20, 'F');
+      
+      // Add decorative element
+      doc.setFillColor(255, 255, 255);
+      doc.setGState(new doc.GState({ opacity: 0.1 }));
+      doc.circle(pageWidth - 50, 30, 60, 'F');
+      doc.setGState(new doc.GState({ opacity: 1 }));
+      
+      // Add logo - larger and better positioned
+      try {
+        const logoSize = 80; // Increased from 55 to 80
+        const logoX = 40;
+        const logoY = 20;
+        doc.addImage(logo, 'PNG', logoX, logoY, logoSize, logoSize);
+      } catch (e) {
+        console.log("Logo not found, continuing without logo");
       }
       
-      if (typeof value === 'number') {
-        // For regular numbers, format without locale formatting
-        // This prevents the "1" issue
-        if (value % 1 === 0) {
-          return value.toString();
-        } else {
-          return value.toFixed(2);
-        }
+      // Add company name - with better styling
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(32);
+      doc.setFont("helvetica", "bold");
+      doc.text("FIXLY MOBILES", 140, 55, { align: "left" });
+      
+      // Add tagline with styling
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "italic");
+      doc.setTextColor(230, 240, 255);
+      doc.text("Service with Care • Excellence in Mobile Repairs", 140, 80, { align: "left" });
+      
+      // Add report type badge
+      doc.setFillColor(255, 255, 255);
+      doc.setGState(new doc.GState({ opacity: 0.2 }));
+      doc.roundedRect(pageWidth - 200, 25, 160, 40, 5, 5, 'F');
+      doc.setGState(new doc.GState({ opacity: 1 }));
+      
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(16);
+      doc.setFont("helvetica", "bold");
+      doc.text("OFFICIAL REPORT", pageWidth - 120, 50, { align: "center" });
+      
+      // Reset text color for rest of document
+      doc.setTextColor(0, 0, 0);
+      
+      // ----- REPORT TITLE SECTION -----
+      doc.setFontSize(22);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(41, 128, 185);
+      doc.text(data.title, 40, 160);
+      
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(100, 100, 100);
+      doc.text(`Generated: ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`, 40, 180);
+      
+      // Add a decorative separator line
+      doc.setDrawColor(41, 128, 185);
+      doc.setLineWidth(2);
+      doc.line(40, 190, pageWidth - 40, 190);
+      doc.setLineWidth(1);
+      doc.setDrawColor(200, 200, 200);
+      doc.line(40, 192, pageWidth - 40, 192);
+      
+      // Calculate totals for PDF using FILTERED data
+      const totals = calculateReportTotals(filteredData, data.title);
+      
+      let startY = 215; // Adjusted for new header height
+      
+      // Show summary section if totals exist
+      if (totals) {
+        // Summary header
+        doc.setFillColor(245, 247, 250);
+        doc.roundedRect(40, startY - 5, pageWidth - 80, 30, 3, 3, 'F');
+        doc.setFontSize(13);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(41, 128, 185);
+        doc.text("SUMMARY", 50, startY + 12);
+        
+        startY += 40;
+        
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(60, 60, 60);
+        
+        // Create two-column summary layout
+        const entries = Object.entries(totals);
+        const leftColumn = entries.slice(0, Math.ceil(entries.length / 2));
+        const rightColumn = entries.slice(Math.ceil(entries.length / 2));
+        
+        let leftY = startY;
+        let rightY = startY;
+        
+        leftColumn.forEach(([key, value]) => {
+          // For PDF summary, use the formatted value with "Rs." instead of ₹
+          let displayValue = value;
+          if (typeof value === 'string' && value.includes('₹')) {
+            displayValue = value.replace('₹', 'Rs. ');
+          }
+          doc.text(`${key}: ${displayValue}`, 50, leftY);
+          leftY += 20;
+        });
+        
+        rightColumn.forEach(([key, value]) => {
+          let displayValue = value;
+          if (typeof value === 'string' && value.includes('₹')) {
+            displayValue = value.replace('₹', 'Rs. ');
+          }
+          doc.text(`${key}: ${displayValue}`, pageWidth / 2 + 20, rightY);
+          rightY += 20;
+        });
+        
+        startY = Math.max(leftY, rightY) + 15;
       }
       
-      if (typeof value === 'string') {
-        // Handle currency formatted strings
-        if (value.includes('₹')) {
-          // Extract just the number part from currency strings
-          const num = value.replace(/[₹,]/g, '');
-          return parseFloat(num).toFixed(2);
+      // Prepare table data using FILTERED data - FIXED for proper ID formatting
+      // For PDF, we need to transform column names for expense report
+      let pdfColumns = [...data.columns];
+      let pdfData = filteredData;
+      
+      // If this is the expense report, rename "EXPENSE ID" to "ID" for PDF
+      if (data.title === "Expense Report") {
+        pdfColumns = pdfColumns.map(col => col === "EXPENSE ID" ? "ID" : col);
+        pdfData = filteredData.map(item => {
+          const newItem = {};
+          Object.keys(item).forEach(key => {
+            if (key === "EXPENSE ID") {
+              newItem["ID"] = item[key];
+            } else {
+              newItem[key] = item[key];
+            }
+          });
+          return newItem;
+        });
+      }
+      
+      const tableColumn = pdfColumns;
+      
+      // Improved cleanValueForPDF - handles different column types correctly
+      const cleanValueForPDF = (value, columnName) => {
+        if (value === null || value === undefined) return "";
+        
+        // Check if this is an ID column - now matches "ID" only, not "Expense ID"
+        const isIdColumn = columnName === "ID" || 
+                          columnName === "CUSTOMER ID" ||
+                          columnName === "COMPLAINT ID" ||
+                          columnName === "INVOICE NO";
+        
+        // Check if this is a count column
+        const isCountColumn = columnName === "INVOICE COUNT" || columnName === "COUNT";
+        
+        // Check if this is an amount column
+        const isAmountColumn = columnName === "AMOUNT" || 
+                              columnName === "TOTAL AMOUNT" || 
+                              columnName === "TOTAL SALES" || 
+                              columnName === "TOTAL SALES WITH TAX" || 
+                              columnName === "TOTAL TAX AMOUNT" ||
+                              columnName === "SHOP (40%)" || 
+                              columnName === "GROW TAGS (40%)" || 
+                              columnName === "ADMIN (20%)";
+        
+        // Handle numeric values
+        if (typeof value === 'number') {
+          if (isIdColumn || isCountColumn) {
+            return Math.floor(value).toString(); // Return as integer for IDs and counts
+          }
+          if (isAmountColumn) {
+            return formatCurrency(value, true); // Use PDF-friendly format (Rs.)
+          }
+          if (Number.isInteger(value)) {
+            return value.toString(); // Return as integer
+          }
+          return value.toFixed(2); // Return with 2 decimals for other numbers
         }
         
-        // Remove any non-ASCII characters that might cause issues
-        return value.replace(/[^\x00-\x7F]/g, "");
-      }
-      
-      return String(value);
-    };
-    
-    const tableRows = filteredData.map(item => 
-      tableColumn.map(col => {
-        const value = item[col] || "";
-        return cleanValueForPDF(value);
-      })
-    );
-    
-    // ADD TOTAL ROW TO TABLE DATA FOR PDF
-    if (filteredData.length > 0 && totals) {
-      let totalRow = [];
-      
-      if (data.title === "Sales Summary Report") {
-        totalRow = [
-          "Total",
-          totals["Total Invoices"].toString(),
-          cleanValueForPDF(totals["Total Sales"], true),
-          cleanValueForPDF(totals["Total Sales With Tax"], true),
-          cleanValueForPDF(totals["Total Tax"], true)
-        ];
-      } else if (data.title === "Profit Share Distribution Report") {
-        totalRow = [
-          "", // Complaint ID
-          "", // Complaint Date
-          "Total", // Customer Name
-          cleanValueForPDF(totals["Total Revenue"], true),
-          cleanValueForPDF(totals["Total Shop Share (40%)"], true),
-          cleanValueForPDF(totals["Total Grow Tags Share (40%)"], true),
-          cleanValueForPDF(totals["Total Admin Share (20%)"], true)
-        ];
-      } else if (data.title === "Expense Report") {
-        totalRow = [
-          "Total", // Expense ID
-          "", // Date
-          "", // Title
-          "", // Category
-          cleanValueForPDF(totals["Total Expenses"], true),
-          "", // Payment Method
-          "" // Receipt
-        ];
-      }
-      
-      // Add total row to table rows if it's not empty
-      if (totalRow.length > 0) {
-        tableRows.push(totalRow);
-      }
-    }
-    
-    // Create the table with better font settings
-    autoTable(doc, {
-      head: [tableColumn],
-      body: tableRows,
-      startY: startY,
-      theme: 'grid',
-      styles: { 
-        fontSize: 9,
-        cellPadding: 4,
-        overflow: 'linebreak',
-        font: 'helvetica',
-        fontStyle: 'normal'
-      },
-      headStyles: { 
-        fillColor: [41, 128, 185],
-        textColor: 255,
-        fontStyle: 'bold',
-        fontSize: 10,
-        font: 'helvetica'
-      },
-      bodyStyles: {
-        font: 'helvetica',
-        fontSize: 9,
-        fontStyle: 'normal'
-      },
-      alternateRowStyles: {
-        fillColor: [245, 245, 245]
-      },
-      // Style the last row (total row) differently
-      didParseCell: function(data) {
-        // Style total row
-        if (data.section === 'body' && data.row.index === data.table.body.length - 1 && 
-            filteredData.length > 0 && totals && 
-            (data.title === "Sales Summary Report" || 
-             data.title === "Profit Share Distribution Report" || 
-             data.title === "Expense Report")) {
-          data.cell.styles.fillColor = [41, 128, 185]; // Blue color
-          data.cell.styles.textColor = [255, 255, 255]; // White text
-          data.cell.styles.fontStyle = 'bold';
+        // Handle string values
+        if (typeof value === 'string') {
+          // Try to parse as number if it looks like one
+          if (!isNaN(parseFloat(value)) && isFinite(value)) {
+            const numValue = parseFloat(value);
+            if (isIdColumn || isCountColumn) {
+              return Math.floor(numValue).toString();
+            }
+            if (isAmountColumn) {
+              return formatCurrency(numValue, true);
+            }
+            if (Number.isInteger(numValue)) {
+              return numValue.toString();
+            }
+            return numValue.toFixed(2);
+          }
+          
+          // Handle existing currency strings
+          if (value.includes('₹') && isAmountColumn) {
+            const numValue = parseFloat(value.replace(/[₹,]/g, ''));
+            return formatCurrency(numValue, true);
+          }
+          
+          // Regular string - clean it
+          return value.replace(/[^\x20-\x7E]/g, "");
         }
-      },
-      margin: { top: startY }
-    });
-    
-    // Add footer with page number
-    const pageCount = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i);
-      doc.setFontSize(8);
-      doc.text(
-        `Page ${i} of ${pageCount}`,
-        doc.internal.pageSize.width / 2,
-        doc.internal.pageSize.height - 20,
-        { align: 'center' }
+        
+        return String(value);
+      };
+      
+      const tableRows = pdfData.map(item => 
+        tableColumn.map(col => {
+          const value = item[col] || "";
+          return cleanValueForPDF(value, col);
+        })
       );
+      
+      // Create the table with better font settings
+      autoTable(doc, {
+        head: [tableColumn],
+        body: tableRows,
+        startY: startY,
+        theme: 'grid',
+        styles: { 
+          fontSize: 9,
+          cellPadding: 6,
+          overflow: 'linebreak',
+          font: 'helvetica',
+          fontStyle: 'normal',
+          textColor: [0, 0, 0],
+          lineColor: [200, 200, 200],
+          lineWidth: 0.5
+        },
+        headStyles: { 
+          fillColor: [41, 128, 185],
+          textColor: 255,
+          fontStyle: 'bold',
+          fontSize: 10,
+          font: 'helvetica',
+          halign: 'center',
+          cellPadding: 8
+        },
+        bodyStyles: {
+          font: 'helvetica',
+          fontSize: 9,
+          fontStyle: 'normal'
+        },
+        columnStyles: {
+          // Right-align amount columns
+          'AMOUNT': { halign: 'right' },
+          'TOTAL AMOUNT': { halign: 'right' },
+          'TOTAL SALES': { halign: 'right' },
+          'TOTAL SALES WITH TAX': { halign: 'right' },
+          'TOTAL TAX AMOUNT': { halign: 'right' },
+          'SHOP (40%)': { halign: 'right' },
+          'GROW TAGS (40%)': { halign: 'right' },
+          'ADMIN (20%)': { halign: 'right' },
+          // Center-align ID columns
+          'ID': { halign: 'center' },
+          'CUSTOMER ID': { halign: 'center' },
+          'COMPLAINT ID': { halign: 'center' },
+          'INVOICE NO': { halign: 'center' },
+          'INVOICE COUNT': { halign: 'center' },
+          'COUNT': { halign: 'center' },
+          // Also center-align "EXPENSE ID" for any reports that still have it
+          'EXPENSE ID': { halign: 'center' }
+        },
+        alternateRowStyles: {
+          fillColor: [249, 249, 249]
+        },
+        margin: { top: startY, left: 40, right: 40 },
+        didDrawPage: (data) => {
+          // Add footer on each page
+          const pageCount = doc.internal.getNumberOfPages();
+          const currentPage = data.pageNumber;
+          
+          doc.setFontSize(8);
+          doc.setTextColor(150, 150, 150);
+          
+          // Left footer - company name with copyright
+          doc.text(
+            "© 2024 FIXLY MOBILES | Confidential Report",
+            40,
+            doc.internal.pageSize.height - 20,
+            { align: 'left' }
+          );
+          
+          // Center footer - page number with styling
+          doc.setFont("helvetica", "bold");
+          doc.text(
+            `Page ${currentPage} of ${pageCount}`,
+            pageWidth / 2,
+            doc.internal.pageSize.height - 20,
+            { align: 'center' }
+          );
+          
+          // Right footer - generation date
+          doc.setFont("helvetica", "normal");
+          doc.text(
+            new Date().toLocaleDateString(),
+            pageWidth - 40,
+            doc.internal.pageSize.height - 20,
+            { align: 'right' }
+          );
+        }
+      });
+      
+      // Save the PDF
+      doc.save(`${data.title}.pdf`);
+      
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast.error("Error generating PDF. Please try again.");
     }
-    
-    // Save the PDF
-    doc.save(`${data.title}.pdf`);
-    
-  } catch (error) {
-    console.error("Error generating PDF:", error);
-    alert("Error generating PDF. Please try again.");
-  }
-};
+  };
 
   return (
     <button
@@ -522,7 +574,7 @@ const exportPDF = async () => {
 /* ---------------------------------------------------------
     TABLE VIEW
 --------------------------------------------------------- */
-const ReportTable = ({ data }) => {
+const ReportTable = ({ data, loading }) => {
   const [filterText, setFilterText] = useState("");
   const [year, setYear] = useState("");
   const [month, setMonth] = useState("");
@@ -549,67 +601,103 @@ const ReportTable = ({ data }) => {
   ];
   const weeks = ["1", "2", "3", "4", "5"];
   
-  // Categories for expense report
-  const categories = [
-    "", "Rent", "Utilities", "Food & Beverage", "Software", 
-    "Travel", "Office Supplies", "Marketing", "Training", 
-    "Maintenance", "Salary", "Others"
-  ];
+  // Get unique categories from data
+  const categories = ["", ...new Set(data.data.map(item => item["CATEGORY"]).filter(Boolean))];
+  
+  // Get unique assign types from data
+  const assignTypes = ["", ...new Set(data.data.map(item => item["ASSIGN TYPE"]).filter(Boolean))];
+  
+  // Get unique statuses from data
+  const statusOptions = ["", ...new Set(data.data.map(item => item["STATUS"]).filter(Boolean))];
 
-  // Assign Type options
-  const assignTypes = ["", "Franchise", "Other Shop", "Growtag"];
+  // For display in the UI, we need to transform the data for expense report
+  const displayData = useMemo(() => {
+    if (data.title === "Expense Report") {
+      // Rename "EXPENSE ID" to "ID" for display
+      return data.data.map(item => {
+        const newItem = {};
+        Object.keys(item).forEach(key => {
+          if (key === "EXPENSE ID") {
+            newItem["ID"] = item[key];
+          } else {
+            newItem[key] = item[key];
+          }
+        });
+        return newItem;
+      });
+    }
+    return data.data;
+  }, [data]);
+
+  // Also update the columns for display
+  const displayColumns = useMemo(() => {
+    if (data.title === "Expense Report") {
+      return data.columns.map(col => col === "EXPENSE ID" ? "ID" : col);
+    }
+    return data.columns;
+  }, [data]);
 
   const filtered = useMemo(() => {
-    return data.data.filter((row) => {
-      const dateStr =
-        row["Date"] || row["Join Date"] || row["Complaint Date"];
-
-      if (dateStr) {
+    return displayData.filter((row) => {
+      // Find date field - try different possible date column names
+      const dateStr = row["DATE"] || row["JOIN DATE"] || row["COMPLAINT DATE"] || row["INVOICE DATE"];
+      
+      if (dateStr && dateStr !== "Total") {
         const d = new Date(dateStr);
-        const y = d.getFullYear().toString();
-        const m = (d.getMonth() + 1).toString().padStart(2, "0");
-        const w = Math.ceil(d.getDate() / 7).toString();
+        if (!isNaN(d.getTime())) {
+          const y = d.getFullYear().toString();
+          const m = (d.getMonth() + 1).toString().padStart(2, "0");
+          const w = Math.ceil(d.getDate() / 7).toString();
 
-        if (year && year !== y) return false;
-        if (month && month !== m) return false;
-        if (week && week !== w) return false;
+          if (year && year !== y) return false;
+          if (month && month !== m) return false;
+          if (week && week !== w) return false;
+        }
       }
 
-      // Expense-specific filters
-      if (categoryFilter && row["Category"] && row["Category"] !== categoryFilter) return false;
+      // Apply filters based on actual column names
+      if (categoryFilter && row["CATEGORY"] && row["CATEGORY"] !== categoryFilter) return false;
 
-      // Status filter for complaints report
-      if (data.title === "Total Complaints Report" && statusFilter && row["Status"] && row["Status"] !== statusFilter) return false;
+      if (data.title === "Total Complaints Report" && statusFilter && row["STATUS"] && row["STATUS"] !== statusFilter) return false;
+      if (data.title === "Total Growth Tags Report" && statusFilter && row["STATUS"] && row["STATUS"] !== statusFilter) return false;
 
-      // Status filter for grow-tags report
-      if (data.title === "Total Growth Tags Report" && statusFilter && row["Status"] && row["Status"] !== statusFilter) return false;
-
-      // Assign Type filter for complaints and customers reports
       if ((data.title === "Total Complaints Report" || data.title === "Total Customers Report") && 
-          assignTypeFilter && row["Assign Type"] && row["Assign Type"] !== assignTypeFilter) return false;
+          assignTypeFilter && row["ASSIGN TYPE"] && row["ASSIGN TYPE"] !== assignTypeFilter) return false;
 
+      // Text search across all columns
       if (filterText) {
-        return data.columns.some((c) =>
-          String(row[c] || "")
-            .toLowerCase()
-            .includes(filterText.toLowerCase())
-        );
+        const searchLower = filterText.toLowerCase();
+        return displayColumns.some((col) => {
+          const value = row[col];
+          return value && String(value).toLowerCase().includes(searchLower);
+        });
       }
 
       return true;
     });
-  }, [data, filterText, year, month, week, statusFilter, categoryFilter, assignTypeFilter]);
+  }, [displayData, displayColumns, filterText, year, month, week, statusFilter, categoryFilter, assignTypeFilter, data.title]);
 
-  // Calculate totals for the report
   const reportTotals = useMemo(() => {
     return calculateReportTotals(filtered, data.title);
   }, [filtered, data.title]);
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-xl shadow-lg p-4 md:p-6 w-full">
+        <div className="flex justify-center items-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <span className="ml-3 text-gray-600">Loading report data...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white rounded-xl shadow-lg p-4 md:p-6 w-full">
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
         <div>
           <h3 className="text-xl md:text-2xl font-bold text-gray-800">{data.title}</h3>
+          <p className="text-sm text-gray-500 mt-1">Total Records: {data.data.length}</p>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -618,143 +706,138 @@ const ReportTable = ({ data }) => {
         </div>
       </div>
 
-      {/* Filters Section - Always visible */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6 p-3 md:p-4 bg-gray-50 rounded-lg">
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Year</label>
-          <select 
-            value={year} 
-            onChange={(e) => setYear(e.target.value)} 
-            className="w-full border border-gray-300 p-2 rounded-lg text-sm bg-white"
-          >
-            <option value="">All Years</option>
-            {years.map((y) => <option key={y}>{y}</option>)}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Month</label>
-          <select 
-            value={month} 
-            onChange={(e) => setMonth(e.target.value)} 
-            className="w-full border border-gray-300 p-2 rounded-lg text-sm bg-white"
-          >
-            {months.map((m) => (
-              <option key={m.value} value={m.value}>{m.label}</option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Week</label>
-          <select 
-            value={week} 
-            onChange={(e) => setWeek(e.target.value)} 
-            className="w-full border border-gray-300 p-2 rounded-lg text-sm bg-white"
-          >
-            <option value="">All Weeks</option>
-            {weeks.map((w) => <option key={w}>Week {w}</option>)}
-          </select>
-        </div>
-
-        {/* Category filter only for expense report */}
-        {data.title === "Expense Report" && (
+      {/* Filters Section - Only show for reports that need filtering */}
+      {data.title !== "Sales Summary Report" && data.title !== "Profit Share Distribution Report" && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6 p-3 md:p-4 bg-gray-50 rounded-lg">
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Category</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Year</label>
             <select 
-              value={categoryFilter} 
-              onChange={(e) => setCategoryFilter(e.target.value)} 
+              value={year} 
+              onChange={(e) => setYear(e.target.value)} 
               className="w-full border border-gray-300 p-2 rounded-lg text-sm bg-white"
             >
-              {categories.map((category) => (
-                <option key={category} value={category}>
-                  {category || "All Categories"}
-                </option>
+              <option value="">All Years</option>
+              {years.map((y) => <option key={y}>{y}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Month</label>
+            <select 
+              value={month} 
+              onChange={(e) => setMonth(e.target.value)} 
+              className="w-full border border-gray-300 p-2 rounded-lg text-sm bg-white"
+            >
+              {months.map((m) => (
+                <option key={m.value} value={m.value}>{m.label}</option>
               ))}
             </select>
           </div>
-        )}
 
-        {/* Status filter for complaints report */}
-        {data.title === "Total Complaints Report" && (
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Status</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Week</label>
             <select 
-              value={statusFilter} 
-              onChange={(e) => setStatusFilter(e.target.value)} 
+              value={week} 
+              onChange={(e) => setWeek(e.target.value)} 
               className="w-full border border-gray-300 p-2 rounded-lg text-sm bg-white"
             >
-              <option value="">All Statuses</option>
-              <option value="Open">Open</option>
-              <option value="Closed">Closed</option>
-              <option value="In Progress">In Progress</option>
+              <option value="">All Weeks</option>
+              {weeks.map((w) => <option key={w}>Week {w}</option>)}
             </select>
           </div>
-        )}
 
-        {/* Status filter for grow-tags report */}
-        {data.title === "Total Growth Tags Report" && (
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Status</label>
-            <select 
-              value={statusFilter} 
-              onChange={(e) => setStatusFilter(e.target.value)} 
-              className="w-full border border-gray-300 p-2 rounded-lg text-sm bg-white"
-            >
-              <option value="">All Statuses</option>
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
-            </select>
+          {data.title === "Expense Report" && categories.length > 1 && (
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Category</label>
+              <select 
+                value={categoryFilter} 
+                onChange={(e) => setCategoryFilter(e.target.value)} 
+                className="w-full border border-gray-300 p-2 rounded-lg text-sm bg-white"
+              >
+                {categories.map((category) => (
+                  <option key={category} value={category}>
+                    {category || "All Categories"}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {data.title === "Total Complaints Report" && statusOptions.length > 1 && (
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Status</label>
+              <select 
+                value={statusFilter} 
+                onChange={(e) => setStatusFilter(e.target.value)} 
+                className="w-full border border-gray-300 p-2 rounded-lg text-sm bg-white"
+              >
+                {statusOptions.map((status) => (
+                  <option key={status} value={status}>
+                    {status || "All Statuses"}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {data.title === "Total Growth Tags Report" && (
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Status</label>
+              <select 
+                value={statusFilter} 
+                onChange={(e) => setStatusFilter(e.target.value)} 
+                className="w-full border border-gray-300 p-2 rounded-lg text-sm bg-white"
+              >
+                <option value="">All Statuses</option>
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
+              </select>
+            </div>
+          )}
+
+          {(data.title === "Total Complaints Report" || data.title === "Total Customers Report") && (
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Assign Type</label>
+              <select 
+                value={assignTypeFilter} 
+                onChange={(e) => setAssignTypeFilter(e.target.value)} 
+                className="w-full border border-gray-300 p-2 rounded-lg text-sm bg-white"
+              >
+                {assignTypes.map((type) => (
+                  <option key={type} value={type}>
+                    {type || "All Types"}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div className="lg:col-span-1">
+            <label className="block text-xs font-medium text-gray-600 mb-1">Search</label>
+            <input
+              placeholder="Search in all columns..."
+              value={filterText}
+              onChange={(e) => setFilterText(e.target.value)}
+              className="w-full border border-gray-300 p-2 rounded-lg text-sm"
+            />
           </div>
-        )}
-
-        {/* Assign Type filter for complaints and customers reports */}
-        {(data.title === "Total Complaints Report" || data.title === "Total Customers Report") && (
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Assign Type</label>
-            <select 
-              value={assignTypeFilter} 
-              onChange={(e) => setAssignTypeFilter(e.target.value)} 
-              className="w-full border border-gray-300 p-2 rounded-lg text-sm bg-white"
-            >
-              {assignTypes.map((type) => (
-                <option key={type} value={type}>
-                  {type || "All Types"}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        {/* Search field - adjusts based on other filters */}
-        <div className={`
-          ${data.title === "Expense Report" ? "lg:col-span-2" : ""}
-          ${data.title === "Total Complaints Report" && (assignTypeFilter || statusFilter) ? "lg:col-span-2" : ""}
-          ${data.title === "Total Customers Report" && assignTypeFilter ? "lg:col-span-2" : ""}
-          ${data.title === "Total Growth Tags Report" && statusFilter ? "lg:col-span-2" : ""}
-          ${!["Expense Report", "Total Complaints Report", "Total Customers Report", "Total Growth Tags Report"].includes(data.title) ? "lg:col-span-4" : ""}
-          ${data.title === "Total Complaints Report" && !assignTypeFilter && !statusFilter ? "lg:col-span-4" : ""}
-          ${data.title === "Total Customers Report" && !assignTypeFilter ? "lg:col-span-4" : ""}
-          ${data.title === "Total Growth Tags Report" && !statusFilter ? "lg:col-span-4" : ""}
-        `}>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Search</label>
-          <input
-            placeholder="Search in all columns..."
-            value={filterText}
-            onChange={(e) => setFilterText(e.target.value)}
-            className="w-full border border-gray-300 p-2 rounded-lg text-sm"
-          />
         </div>
-      </div>
+      )}
 
       <div className="overflow-x-auto rounded-lg border border-gray-200">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              {data.columns.map((col) => (
+              {displayColumns.map((col) => (
                 <th 
                   key={col} 
-                  className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider"
+                  className={`px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wider ${
+                    col === "ID" || col === "CUSTOMER ID" || col === "COMPLAINT ID" || col === "INVOICE NO" || col === "INVOICE COUNT" || col === "COUNT"
+                      ? "text-center" 
+                      : col === "AMOUNT" || col === "TOTAL AMOUNT" || col === "TOTAL SALES" || col === "TOTAL SALES WITH TAX" || col === "TOTAL TAX AMOUNT" || col === "SHOP (40%)" || col === "GROW TAGS (40%)" || col === "ADMIN (20%)"
+                      ? "text-right"
+                      : "text-left"
+                  }`}
                 >
                   {col}
                 </th>
@@ -768,36 +851,38 @@ const ReportTable = ({ data }) => {
                 key={idx} 
                 className="hover:bg-gray-50 transition-colors"
               >
-                {data.columns.map((col) => (
-                  <td key={col} className="px-4 py-3 text-sm">
-                    {col === "Total Sales" || col === "Total Sales With Tax" || col === "Total Tax Amount" ? (
+                {displayColumns.map((col) => (
+                  <td 
+                    key={col} 
+                    className={`px-4 py-3 text-sm ${
+                      col === "ID" || col === "CUSTOMER ID" || col === "COMPLAINT ID" || col === "INVOICE NO" || col === "INVOICE COUNT" || col === "COUNT"
+                        ? "text-center" 
+                        : col === "AMOUNT" || col === "TOTAL AMOUNT" || col === "TOTAL SALES" || col === "TOTAL SALES WITH TAX" || col === "TOTAL TAX AMOUNT" || col === "SHOP (40%)" || col === "GROW TAGS (40%)" || col === "ADMIN (20%)"
+                        ? "text-right"
+                        : "text-left"
+                    }`}
+                  >
+                    {/* Format amount columns */}
+                    {col === "AMOUNT" || col === "TOTAL AMOUNT" || col === "TOTAL SALES" || 
+                     col === "TOTAL SALES WITH TAX" || col === "TOTAL TAX AMOUNT" ||
+                     col === "SHOP (40%)" || col === "GROW TAGS (40%)" || col === "ADMIN (20%)" ? (
                       <span className="font-semibold text-blue-600">
-                        ₹{(row[col] || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        {row[col] && typeof row[col] === 'string' && row[col].includes('₹') 
+                          ? row[col] 
+                          : formatCurrency(row[col], false)}
                       </span>
-                    ) : col === "Total Amount" || col === "Shop (40%)" || col === "Grow Tags (40%)" || col === "Fixly Admin (20%)" ? (
-                      <span className="font-semibold text-green-600">
-                        ₹{parseFloat(row[col] || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                      </span>
-                    ) : col === "Amount" && row[col] ? (
-                      <span className="font-semibold text-blue-600">{row[col]}</span>
-                    ) : col === "Status" && row[col] ? (
+                    ) : col === "STATUS" && row[col] ? (
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        row[col] === "Closed" || row[col] === "Active" ? "bg-green-100 text-green-800" :
+                        row[col] === "Closed" || row[col] === "Active" || row[col] === "Resolved" ? "bg-green-100 text-green-800" :
                         row[col] === "In Progress" ? "bg-yellow-100 text-yellow-800" :
-                        row[col] === "Open" || row[col] === "Inactive" ? "bg-red-100 text-red-800" :
+                        row[col] === "Open" || row[col] === "Inactive" || row[col] === "Pending" ? "bg-red-100 text-red-800" :
                         "bg-gray-100 text-gray-800"
                       }`}>
                         {row[col]}
                       </span>
-                    ) : col === "Receipt" && row[col] === "Available" ? (
-                      <span className="inline-flex items-center gap-1 text-green-600">
-                        <span className="text-xs">✓</span> Available
-                      </span>
-                    ) : col === "Category" && row[col] ? (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                        {row[col]}
-                      </span>
-                    ) : col === "Assign Type" && row[col] ? (
+                    ) : col === "RECEIPT" && row[col] === "-" ? (
+                      <span className="text-gray-400">No Receipt</span>
+                    ) : col === "ASSIGN TYPE" && row[col] && row[col] !== "-" ? (
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                         row[col] === "Franchise" ? "bg-purple-100 text-purple-800" :
                         row[col] === "Other Shop" ? "bg-orange-100 text-orange-800" :
@@ -814,61 +899,9 @@ const ReportTable = ({ data }) => {
               </tr>
             ))}
 
-            {/* TOTAL ROWS FOR DIFFERENT REPORTS */}
-            {filtered.length > 0 && reportTotals && (
-              <>
-                {data.title === "Sales Summary Report" && (
-                  <tr className="bg-gray-800 text-white font-bold">
-                    <td className="px-4 py-3 text-sm">Total</td>
-                    <td className="px-4 py-3 text-sm">
-                      {reportTotals["Total Invoices"]}
-                    </td>
-                    <td className="px-4 py-3 text-sm">
-                      {reportTotals["Total Sales"]}
-                    </td>
-                    <td className="px-4 py-3 text-sm">
-                      {reportTotals["Total Sales With Tax"]}
-                    </td>
-                    <td className="px-4 py-3 text-sm">
-                      {reportTotals["Total Tax"]}
-                    </td>
-                  </tr>
-                )}
-
-                {data.title === "Profit Share Distribution Report" && (
-                  <tr className="bg-gray-800 text-white font-bold">
-                    <td className="px-4 py-3 text-sm" colSpan="3">Total</td>
-                    <td className="px-4 py-3 text-sm">
-                      {reportTotals["Total Revenue"]}
-                    </td>
-                    <td className="px-4 py-3 text-sm">
-                      {reportTotals["Total Shop Share (40%)"]}
-                    </td>
-                    <td className="px-4 py-3 text-sm">
-                      {reportTotals["Total Grow Tags Share (40%)"]}
-                    </td>
-                    <td className="px-4 py-3 text-sm">
-                      {reportTotals["Total Admin Share (20%)"]}
-                    </td>
-                  </tr>
-                )}
-
-                {data.title === "Expense Report" && (
-                  <tr className="bg-gray-800 text-white font-bold">
-                    <td className="px-4 py-3 text-sm">Total</td>
-                    <td className="px-4 py-3 text-sm" colSpan="3"></td>
-                    <td className="px-4 py-3 text-sm">
-                      {reportTotals["Total Expenses"]}
-                    </td>
-                    <td className="px-4 py-3 text-sm" colSpan="2"></td>
-                  </tr>
-                )}
-              </>
-            )}
-
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={data.columns.length} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={displayColumns.length} className="px-4 py-8 text-center text-gray-500">
                   <div className="flex flex-col items-center justify-center">
                     <span className="text-3xl mb-2">📊</span>
                     <p className="text-lg font-medium">No data found</p>
@@ -897,12 +930,25 @@ const Sidebar = ({
   onToggleCollapse 
 }) => {
   const getIcon = (key) => {
-    if (key === "expense-report") return "💰";
+    if (key === "expenses") return "💰";
     if (key === "sales-summary") return "📈";
     if (key === "profit-share") return "🤝";
-    if (key.includes("customer")) return "👥";
-    if (key.includes("grow")) return "🏷️";
-    return "📋";
+    if (key === "customers") return "👥";
+    if (key === "growtags") return "🏷️";
+    if (key === "complaints") return "📋";
+    return "📊";
+  };
+
+  const getLabel = (key) => {
+    switch(key) {
+      case "expenses": return "Expense Report";
+      case "customers": return "Customers Report";
+      case "growtags": return "Grow Tags Report";
+      case "complaints": return "Complaints Report";
+      case "sales-summary": return "Sales Summary";
+      case "profit-share": return "Profit Share";
+      default: return key.replace("-", " ").replace(/\b\w/g, l => l.toUpperCase());
+    }
   };
 
   return (
@@ -913,7 +959,6 @@ const Sidebar = ({
       h-screen lg:h-auto bg-white shadow-lg lg:rounded-xl
       flex flex-col
     `}>
-      {/* Sidebar Header */}
       <div className={`p-4 ${collapsed ? 'lg:p-3' : 'lg:p-5'} border-b flex items-center justify-between`}>
         {!collapsed ? (
           <div className="flex items-center gap-2">
@@ -924,7 +969,6 @@ const Sidebar = ({
           <div className="text-2xl mx-auto">📊</div>
         )}
         
-        {/* Close button for mobile */}
         <button
           onClick={onToggleSidebar}
           className="lg:hidden text-gray-500 hover:text-gray-700"
@@ -932,7 +976,6 @@ const Sidebar = ({
           <X size={24} />
         </button>
         
-        {/* Collapse/Expand button for desktop */}
         <button
           onClick={onToggleCollapse}
           className="hidden lg:flex items-center justify-center text-gray-500 hover:text-gray-700"
@@ -942,12 +985,11 @@ const Sidebar = ({
         </button>
       </div>
 
-      {/* Sidebar Content */}
       <div className={`flex-1 p-4 ${collapsed ? 'lg:px-2' : ''} overflow-y-auto`}>
         <div className="space-y-2">
           {reports.map((key) => {
-            const reportName = key.replace("-", " ").replace(/\b\w/g, l => l.toUpperCase());
             const icon = getIcon(key);
+            const label = getLabel(key);
             
             return (
               <button
@@ -966,11 +1008,11 @@ const Sidebar = ({
                   }
                   ${collapsed ? 'lg:justify-center lg:px-3' : ''}
                 `}
-                title={collapsed ? reportName : ""}
+                title={collapsed ? label : ""}
               >
                 <span className="text-lg">{icon}</span>
                 {!collapsed && (
-                  <span className="font-medium truncate">{reportName}</span>
+                  <span className="font-medium truncate">{label}</span>
                 )}
               </button>
             );
@@ -978,7 +1020,6 @@ const Sidebar = ({
         </div>
       </div>
 
-      {/* Sidebar Footer - Only show when expanded */}
       {!collapsed && (
         <div className="p-4 border-t">
           <div className="text-xs text-gray-500 text-center">
@@ -994,19 +1035,84 @@ const Sidebar = ({
     MAIN PAGE LAYOUT
 --------------------------------------------------------- */
 const Reports = () => {
-  const keys = Object.keys(reportData);
-  const [active, setActive] = useState(keys[0]);
+  const [active, setActive] = useState("expenses");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [reportData, setReportData] = useState({
+    expenses: { title: "Expense Report", columns: [], data: [] },
+    customers: { title: "Total Customers Report", columns: [], data: [] },
+    growtags: { title: "Total Growth Tags Report", columns: [], data: [] },
+    complaints: { title: "Total Complaints Report", columns: [], data: [] },
+    "sales-summary": { title: "Sales Summary Report", columns: [], data: [] },
+    "profit-share": { title: "Profit Share Distribution Report", columns: [], data: [] }
+  });
+
+  const loadReportData = async () => {
+    setLoading(true);
+    
+    try {
+      // Fetch all reports in parallel
+      const [expensesData, customersData, growtagsData, complaintsData, salesSummaryData, profitShareData] = await Promise.all([
+        fetchReportData('expenses'),
+        fetchReportData('customers'),
+        fetchReportData('growtags'),
+        fetchReportData('complaints'),
+        fetchReportData('sales-summary'),
+        fetchReportData('profit-share')
+      ]);
+
+      setReportData({
+        expenses: {
+          title: "Expense Report",
+          columns: expensesData?.columns || [],
+          data: transformReportData(expensesData)
+        },
+        customers: {
+          title: "Total Customers Report",
+          columns: customersData?.columns || [],
+          data: transformReportData(customersData)
+        },
+        growtags: {
+          title: "Total Growth Tags Report",
+          columns: growtagsData?.columns || [],
+          data: transformReportData(growtagsData)
+        },
+        complaints: {
+          title: "Total Complaints Report",
+          columns: complaintsData?.columns || [],
+          data: transformReportData(complaintsData)
+        },
+        "sales-summary": {
+          title: "Sales Summary Report",
+          columns: salesSummaryData?.columns || [],
+          data: transformReportData(salesSummaryData)
+        },
+        "profit-share": {
+          title: "Profit Share Distribution Report",
+          columns: profitShareData?.columns || [],
+          data: transformReportData(profitShareData)
+        }
+      });
+    } catch (error) {
+      console.error("Error loading reports:", error);
+      toast.error("Failed to load report data");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load data on mount
+  useEffect(() => {
+    loadReportData();
+  }, []);
 
   // Handle window resize
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth >= 1024) {
-        // On desktop, keep sidebar visible
         setSidebarOpen(true);
       } else {
-        // On mobile, close sidebar
         setSidebarOpen(false);
       }
     };
@@ -1015,6 +1121,8 @@ const Reports = () => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  const reportsList = ["expenses", "customers", "growtags", "complaints", "sales-summary", "profit-share"];
 
   return (
     <div className="flex bg-gray-50 min-h-screen">
@@ -1028,7 +1136,7 @@ const Reports = () => {
 
       {/* Sidebar */}
       <Sidebar
-        reports={keys}
+        reports={reportsList}
         activeReport={active}
         onSelectReport={setActive}
         sidebarOpen={sidebarOpen}
@@ -1039,7 +1147,7 @@ const Reports = () => {
 
       {/* Main Content */}
       <main className="flex-1 p-3 md:p-4 lg:p-6">
-        {/* Mobile Header with Toggle Button */}
+        {/* Mobile Header */}
         <div className="lg:hidden flex items-center justify-between mb-4 p-2 bg-white rounded-lg shadow">
           <button
             onClick={() => setSidebarOpen(true)}
@@ -1049,13 +1157,12 @@ const Reports = () => {
             <span className="text-sm font-medium">Reports Menu</span>
           </button>
           
-          {/* Current Report Title for mobile */}
           <div className="text-sm font-medium text-gray-700 truncate ml-2">
             {reportData[active]?.title}
           </div>
         </div>
 
-        {/* Desktop Toggle Button - Floating */}
+        {/* Desktop Toggle Buttons */}
         {!sidebarCollapsed && (
           <button
             onClick={() => setSidebarCollapsed(true)}
@@ -1077,7 +1184,7 @@ const Reports = () => {
         )}
 
         {/* Report Table */}
-        <ReportTable data={reportData[active]} />
+        <ReportTable data={reportData[active]} loading={loading} />
       </main>
     </div>
   );

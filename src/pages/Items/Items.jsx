@@ -1,3 +1,4 @@
+// src/pages/Items/Items.jsx
 import React, { useState, useMemo, useEffect } from "react";
 import { BASE_URL } from "@/API/BaseURL";
 import {
@@ -22,21 +23,52 @@ import {
 } from "lucide-react";
 import axios from "axios";
 import toast from "react-hot-toast";
+import { getAuthHeaders, getAuthHeadersMultipart } from "@/utils/authHeaders";
 
 const api = axios.create({
   baseURL: BASE_URL,
 });
 
+// ✅ Updated interceptor to use token_type from localStorage
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("access_token");
+    const tokenType = localStorage.getItem("token_type") || "Bearer";
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+      config.headers.Authorization = `${tokenType} ${token}`;
     }
     return config;
   },
   (error) => Promise.reject(error)
 );
+
+// Response interceptor to handle auth errors
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      toast.error("Session expired. Please login again.");
+      setTimeout(() => {
+        window.location.href = "/login";
+      }, 1500);
+    } else if (error.response?.status === 403) {
+      toast.error("You don't have permission to perform this action");
+    }
+    return Promise.reject(error);
+  }
+);
+
+// Debug function to check auth state
+const debugAuth = () => {
+  const token = localStorage.getItem("access_token");
+  const tokenType = localStorage.getItem("token_type");
+  
+  console.log("=== Items Auth Debug ===");
+  console.log("Token exists:", !!token);
+  console.log("Token type:", tokenType || "not set (defaulting to Bearer)");
+  console.log("Token preview:", token ? `${token.substring(0, 20)}...` : "none");
+  console.log("========================");
+};
 
 // ==================== CONSTANTS ====================
 const ITEMS_API_URL = "/zoho/local-items/";
@@ -158,18 +190,27 @@ export default function Items() {
     setLoading(true);
     
     try {
-      const response = await api.get(ITEMS_API_URL);
+      const response = await axios.get(`${BASE_URL}${ITEMS_API_URL}`, {
+        headers: getAuthHeaders()
+      });
       const itemsData = response.data?.results || response.data || [];
       setItems(itemsData);
     } catch (error) {
       console.error("Fetch error:", error);
-      toast.error(error.response?.data?.detail || "Failed to load items");
+      if (error.response?.status === 401) {
+        toast.error("Session expired. Please login again.");
+      } else if (error.response?.status === 403) {
+        toast.error("You don't have permission to view items");
+      } else {
+        toast.error(error.response?.data?.detail || "Failed to load items");
+      }
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
+    debugAuth();
     fetchItems();
   }, []);
 
@@ -393,13 +434,15 @@ export default function Items() {
       });
 
       let response;
+      const url = `${BASE_URL}${ITEMS_API_URL}`;
+      
       if (isEdit && editId) {
-        response = await api.patch(`${ITEMS_API_URL}${editId}/`, formData, {
-          headers: { "Content-Type": "multipart/form-data" },
+        response = await axios.patch(`${url}${editId}/`, formData, {
+          headers: getAuthHeadersMultipart()
         });
       } else {
-        response = await api.post(ITEMS_API_URL, formData, {
-          headers: { "Content-Type": "multipart/form-data" },
+        response = await axios.post(url, formData, {
+          headers: getAuthHeadersMultipart()
         });
       }
 
@@ -413,10 +456,17 @@ export default function Items() {
       }
     } catch (error) {
       console.error("Submit error:", error);
-      const errorMessage = error.response?.data?.detail || 
-                          error.response?.data?.message || 
-                          "Failed to save item";
-      toast.error(errorMessage, { id: toastId });
+      
+      if (error.response?.status === 401) {
+        toast.error("Session expired. Please login again.", { id: toastId });
+      } else if (error.response?.status === 403) {
+        toast.error("You don't have permission to perform this action", { id: toastId });
+      } else {
+        const errorMessage = error.response?.data?.detail || 
+                            error.response?.data?.message || 
+                            "Failed to save item";
+        toast.error(errorMessage, { id: toastId });
+      }
     }
   };
 
@@ -502,15 +552,23 @@ export default function Items() {
                 toast.dismiss(t.id);
                 const toastId = toast.loading(`Deleting "${itemName}"...`);
                 try {
-                  await api.delete(`${ITEMS_API_URL}${id}/`);
+                  await axios.delete(`${BASE_URL}${ITEMS_API_URL}${id}/`, {
+                    headers: getAuthHeaders()
+                  });
                   setItems((prev) => prev.filter((item) => item.id !== id));
                   setSelectedItems((prev) => prev.filter((itemId) => itemId !== id));
                   toast.success(`"${itemName}" deleted successfully`, { id: toastId });
                 } catch (error) {
-                  toast.error(
-                    error.response?.data?.detail || "Failed to delete item", 
-                    { id: toastId }
-                  );
+                  if (error.response?.status === 401) {
+                    toast.error("Session expired. Please login again.", { id: toastId });
+                  } else if (error.response?.status === 403) {
+                    toast.error("You don't have permission to delete", { id: toastId });
+                  } else {
+                    toast.error(
+                      error.response?.data?.detail || "Failed to delete item", 
+                      { id: toastId }
+                    );
+                  }
                 }
               }}
               className="px-3 py-1.5 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 transition-colors"
@@ -549,7 +607,11 @@ export default function Items() {
                 
                 try {
                   const results = await Promise.allSettled(
-                    selectedItems.map((id) => api.delete(`${ITEMS_API_URL}${id}/`))
+                    selectedItems.map((id) => 
+                      axios.delete(`${BASE_URL}${ITEMS_API_URL}${id}/`, {
+                        headers: getAuthHeaders()
+                      })
+                    )
                   );
 
                   const successful = results.filter(r => r.status === 'fulfilled').length;
@@ -563,7 +625,13 @@ export default function Items() {
                     toast.success(`Deleted ${successful}/${selectedItems.length} items`, { id: toastId });
                   }
                 } catch (error) {
-                  toast.error("Bulk delete failed", { id: toastId });
+                  if (error.response?.status === 401) {
+                    toast.error("Session expired. Please login again.", { id: toastId });
+                  } else if (error.response?.status === 403) {
+                    toast.error("You don't have permission to perform bulk delete", { id: toastId });
+                  } else {
+                    toast.error("Bulk delete failed", { id: toastId });
+                  }
                 }
               }}
               className="px-3 py-1.5 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 transition-colors"
@@ -582,7 +650,9 @@ export default function Items() {
 
     try {
       setSyncStatus((prev) => ({ ...prev, [id]: "syncing" }));
-      const response = await api.post(`${ITEMS_API_URL}${id}/sync-to-zoho/`);
+      const response = await axios.post(`${BASE_URL}${ITEMS_API_URL}${id}/sync-to-zoho/`, {}, {
+        headers: getAuthHeaders()
+      });
 
       if (response.data.success) {
         setSyncStatus((prev) => ({ ...prev, [id]: "synced" }));
@@ -594,9 +664,16 @@ export default function Items() {
       }
     } catch (error) {
       setSyncStatus((prev) => ({ ...prev, [id]: "failed" }));
-      toast.error("Sync failed: " + (error.response?.data?.error || error.message), {
-        id: toastId,
-      });
+      
+      if (error.response?.status === 401) {
+        toast.error("Session expired. Please login again.", { id: toastId });
+      } else if (error.response?.status === 403) {
+        toast.error("You don't have permission to sync to Zoho", { id: toastId });
+      } else {
+        toast.error("Sync failed: " + (error.response?.data?.error || error.message), {
+          id: toastId,
+        });
+      }
     }
   };
 
@@ -1477,6 +1554,16 @@ export default function Items() {
   const renderListPage = () => (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4">
+        {/* Debug Button - Remove in production */}
+        <div className="mb-4 flex justify-end">
+          <button
+            onClick={debugAuth}
+            className="text-xs bg-gray-200 px-3 py-1 rounded hover:bg-gray-300"
+          >
+            Debug Auth
+          </button>
+        </div>
+
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">

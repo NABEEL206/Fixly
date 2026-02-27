@@ -1,3 +1,4 @@
+// src/pages/complaints/Complaints.jsx
 import React, { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
@@ -12,6 +13,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { BASE_URL } from "@/API/BaseURL";
+import { getAuthHeaders, getAuthHeadersMultipart } from "@/utils/authHeaders";
 
 const COMPLAINT_API = `${BASE_URL}/api/complaints/`;
 const CUSTOMER_API = `${BASE_URL}/api/customers/`;
@@ -32,13 +34,6 @@ const getStatusClasses = (status) => {
     default:
       return "bg-gray-500/10 text-gray-600 border border-gray-500/30";
   }
-};
-
-const getAuthHeaders = () => {
-  const token = localStorage.getItem("access_token");
-  const headers = { "Content-Type": "application/json" };
-  if (token) headers.Authorization = `Bearer ${token}`;
-  return headers;
 };
 
 export default function Complaints() {

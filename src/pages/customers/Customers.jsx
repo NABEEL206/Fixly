@@ -1,3 +1,4 @@
+// src/pages/customers/Customers.jsx
 import React, { useEffect, useState } from "react";
 import {
   Search,
@@ -25,6 +26,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { BASE_URL } from "@/API/BaseURL";
+import { getAuthHeaders } from "@/utils/authHeaders";
 
 // --- API Endpoints ---
 const CUSTOMER_API = `${BASE_URL}/api/customers/`;
@@ -48,13 +50,28 @@ export default function CustomerTable() {
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [selectedCustomerForView, setSelectedCustomerForView] = useState(null);
 
-  // Get authentication headers
-  const getAuthHeaders = () => {
+  // Debug function to check auth state
+  const debugAuth = () => {
     const token = localStorage.getItem("access_token");
-    return {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    };
+    const tokenType = localStorage.getItem("token_type");
+    const user = localStorage.getItem("user");
+    
+    console.log("=== Auth Debug ===");
+    console.log("Token exists:", !!token);
+    console.log("Token type:", tokenType || "not set");
+    console.log("Token preview:", token ? `${token.substring(0, 20)}...` : "none");
+    console.log("User exists:", !!user);
+    if (user) {
+      try {
+        const userData = JSON.parse(user);
+        console.log("User role:", userData.role);
+      } catch (e) {
+        console.log("Error parsing user:", e);
+      }
+    }
+    console.log("==================");
+    
+    return !!token;
   };
 
   // Check authentication
@@ -67,23 +84,48 @@ export default function CustomerTable() {
     return true;
   };
 
-  // Fetch Customers
+  // Fetch Customers with better error handling
   const fetchCustomers = async () => {
     try {
       setLoading(true);
       setFetchError(null);
+
+      // Debug auth state
+      debugAuth();
 
       if (!checkAuth()) {
         setLoading(false);
         return;
       }
 
+      const headers = getAuthHeaders();
+      console.log("Request headers:", headers);
+
       const res = await fetch(CUSTOMER_API, {
-        headers: getAuthHeaders(),
+        headers: headers,
       });
+
+      console.log("Response status:", res.status);
+      console.log("Response status text:", res.statusText);
 
       if (res.status === 401) {
         toast.error("Session expired. Please login again.");
+        setCustomers([]);
+        return;
+      }
+
+      if (res.status === 403) {
+        const errorData = await res.text();
+        console.error("403 Forbidden response:", errorData);
+        
+        // Try to parse error as JSON if possible
+        try {
+          const jsonError = JSON.parse(errorData);
+          toast.error(jsonError.detail || "You don't have permission to view customers");
+        } catch {
+          toast.error("Access denied. You don't have permission to view customers.");
+        }
+        
         setCustomers([]);
         return;
       }
@@ -93,12 +135,13 @@ export default function CustomerTable() {
       }
 
       const data = await res.json();
+      console.log("Customers data received:", data);
       setCustomers(data);
       setSelectedRows(new Set());
       setSelectAll(false);
     } catch (err) {
       console.error("Fetch customers error:", err);
-      setFetchError("Failed to load customer data. Check API status.");
+      setFetchError(`Failed to load customer data: ${err.message}`);
       setCustomers([]);
       toast.error("Failed to load customers. Please try again.");
     } finally {
@@ -651,6 +694,16 @@ export default function CustomerTable() {
   // Main Component Return
   return (
     <div className="p-4 md:p-8 max-w-8xl mx-auto bg-gray-50 min-h-screen">
+      {/* Debug Button - Remove in production */}
+      <div className="mb-4 flex justify-end">
+        <button
+          onClick={debugAuth}
+          className="text-xs bg-gray-200 px-3 py-1 rounded hover:bg-gray-300"
+        >
+          Debug Auth
+        </button>
+      </div>
+
       {/* Header Section */}
       <div className="mb-6 border-b border-gray-200 pb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -808,6 +861,20 @@ export default function CustomerTable() {
               </button>
             </span>
           )}
+        </div>
+      )}
+
+      {/* Error Display */}
+      {fetchError && (
+        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+          <p className="font-medium">Error loading customers</p>
+          <p className="text-sm mt-1">{fetchError}</p>
+          <button
+            onClick={fetchCustomers}
+            className="mt-2 px-3 py-1 bg-red-100 text-red-800 rounded hover:bg-red-200 text-sm"
+          >
+            Try Again
+          </button>
         </div>
       )}
 

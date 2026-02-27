@@ -28,6 +28,7 @@ import Stock from "./pages/Stock/Stock";
 import Vendor from "./pages/Purchases/Vendor";
 import PurchaseOrder from "./pages/Purchases/PurchaseOrder";
 import Bill from "./pages/Purchases/Bill";
+import CustomerRegister from "./pages/loginPage/CustomerRegister";
 
 export default function App() {
   return (
@@ -43,6 +44,7 @@ export default function App() {
         {/* PUBLIC ROUTES */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/unauthorized" element={<Unauthorized />} />
+       <Route path="/customer-register" element={<CustomerRegister />} />
 
         {/* ALL PROTECTED ROUTES WITH LAYOUT */}
         <Route element={<ProtectedLayout />}>
@@ -122,7 +124,7 @@ export default function App() {
           <Route
             path="/shops"
             element={
-              <ProtectedRoute allowedRoles={["ADMIN", "SHOP"]}>
+              <ProtectedRoute allowedRoles={["ADMIN", "SHOP","GROWTAG"]}>
                 <Shops />
               </ProtectedRoute>
             }

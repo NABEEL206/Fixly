@@ -165,7 +165,7 @@ export default function Sidebar({ isOpen, closeSidebar }) {
         icon: <FileWarning size={20} />,
       },
       { path: "/customers", label: "Customers", icon: <Users2 size={20} /> },
-      // { path: "/shops", label: "Shops", icon: <Store size={20} /> },
+      { path: "/shops", label: "Shops", icon: <Store size={20} /> },
        {
         label: "Purchase",
         icon: <DollarSign size={20} />,
@@ -225,6 +225,7 @@ export default function Sidebar({ isOpen, closeSidebar }) {
         icon: <FileWarning size={20} />,
       },
       { path: "/customers", label: "Customers", icon: <Users2 size={20} /> },
+      { path: "/shops", label: "Shops", icon: <Store size={20} /> },
       { path: "/growtags", label: "Grow Tags", icon: <Users size={20} /> },
       { path: "/invoice", label: "Invoice", icon: <Receipt size={20} /> },
       { path: "/reports", label: "Reports", icon: <BarChart3 size={20} /> },

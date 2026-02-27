@@ -1,3 +1,4 @@
+// src/auth/AuthContext.jsx
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { BASE_URL } from "@/API/BaseURL";
 
@@ -29,6 +30,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.removeItem("user");
       localStorage.removeItem("access_token");
       localStorage.removeItem("refresh_token");
+      localStorage.removeItem("token_type");
     }
     return null;
   });
@@ -62,8 +64,22 @@ export const AuthProvider = ({ children }) => {
         throw new Error(data.message || data.detail || "Invalid credentials");
       }
 
-      // Save tokens
+      // Determine token type from response
+      // For JWT, token_type might be "Bearer" or not present
+      // For DRF token, token_type might be "Token"
+      let tokenType = "Bearer"; // Default
+      
+      if (data.token_type) {
+        tokenType = data.token_type;
+      } else if (data.access_token && !data.access_token.startsWith("eyJ")) {
+        // If it's not a JWT (doesn't start with eyJ), it might be a DRF token
+        tokenType = "Token";
+      }
+
+      // Save tokens and token type
       localStorage.setItem("access_token", data.access_token);
+      localStorage.setItem("token_type", tokenType);
+      
       if (data.refresh_token) {
         localStorage.setItem("refresh_token", data.refresh_token);
       }
@@ -84,6 +100,7 @@ export const AuthProvider = ({ children }) => {
       setUser(userData);
 
       console.log("4. Login successful, user data:", userData);
+      console.log("5. Token type:", tokenType);
 
       return { 
         success: true, 
@@ -107,13 +124,16 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem("user");
     localStorage.removeItem("access_token");
     localStorage.removeItem("refresh_token");
+    localStorage.removeItem("token_type");
   };
 
   /* 🔁 REFRESH TOKEN */
   const refreshAccessToken = async () => {
     const refreshToken = localStorage.getItem("refresh_token");
+    const tokenType = localStorage.getItem("token_type");
     
-    if (!refreshToken) {
+    if (!refreshToken || tokenType !== "Bearer") {
+      // Only JWT tokens can be refreshed
       logout();
       return null;
     }

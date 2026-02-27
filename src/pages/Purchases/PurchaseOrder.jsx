@@ -1,7 +1,9 @@
+// src/pages/Purchases/PurchaseOrder.jsx
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { X, Plus, Trash2, Save, Edit, Eye, Search, Building, Package, Edit3, User, Filter } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { getAuthHeaders } from '@/utils/authHeaders';
 
 const API_BASE_URL = "http://127.0.0.1:8000/api";
 const ZOHO_BASE_URL = "http://127.0.0.1:8000/zoho";
@@ -22,12 +24,13 @@ const zohoApi = axios.create({
   },
 });
 
-// Request interceptor to add auth token
+// Request interceptor to add auth token with correct type
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("access_token");
+    const tokenType = localStorage.getItem("token_type") || "Bearer";
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+      config.headers.Authorization = `${tokenType} ${token}`;
     }
     return config;
   },
@@ -39,8 +42,9 @@ api.interceptors.request.use(
 zohoApi.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("access_token");
+    const tokenType = localStorage.getItem("token_type") || "Bearer";
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+      config.headers.Authorization = `${tokenType} ${token}`;
     }
     return config;
   },
@@ -56,7 +60,7 @@ api.interceptors.response.use(
     if (error.response?.status === 403) {
       toast.error("You don't have permission to perform this action");
     } else if (error.response?.status === 401) {
-      toast.error("Please login again");
+      toast.error("Session expired. Please login again.");
     }
     return Promise.reject(error);
   }
@@ -68,7 +72,7 @@ zohoApi.interceptors.response.use(
     if (error.response?.status === 403) {
       toast.error("You don't have permission to perform this action");
     } else if (error.response?.status === 401) {
-      toast.error("Please login again");
+      toast.error("Session expired. Please login again.");
     }
     return Promise.reject(error);
   }
@@ -146,8 +150,21 @@ const PurchaseOrder = () => {
     return Array.from(set).sort();
   }, [purchaseOrders]);
 
+  // Debug function to check auth state
+  const debugAuth = () => {
+    const token = localStorage.getItem("access_token");
+    const tokenType = localStorage.getItem("token_type");
+    
+    console.log("=== PurchaseOrder Auth Debug ===");
+    console.log("Token exists:", !!token);
+    console.log("Token type:", tokenType || "not set (defaulting to Bearer)");
+    console.log("Token preview:", token ? `${token.substring(0, 20)}...` : "none");
+    console.log("=================================");
+  };
+
   // Fetch vendors and items on component mount
   useEffect(() => {
+    debugAuth();
     fetchVendors();
     fetchItems();
     fetchPurchaseOrders();
@@ -1292,6 +1309,16 @@ const PurchaseOrder = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
+      {/* Debug Button - Remove in production */}
+      <div className="max-w-7xl mx-auto mb-4 flex justify-end">
+        <button
+          onClick={debugAuth}
+          className="text-xs bg-gray-200 px-3 py-1 rounded hover:bg-gray-300"
+        >
+          Debug Auth
+        </button>
+      </div>
+
       {/* Header */}
       <div className="max-w-7xl mx-auto mb-6">
         <div className="flex justify-between items-center">
@@ -1649,20 +1676,6 @@ const PurchaseOrder = () => {
             <div className="mb-6">
               <h3 className="text-lg font-semibold mb-4">Shipping & Billing <span className="text-sm text-gray-500 font-normal">(Optional)</span></h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Ship To Address
-                  </label>
-                  <textarea
-                    name="shipTo"
-                    value={formData.shipTo}
-                    onChange={handleInputChange}
-                    disabled={isSubmitting}
-                    rows="3"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter shipping address..."
-                  />
-                </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1676,6 +1689,21 @@ const PurchaseOrder = () => {
                     rows="3"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Enter billing address..."
+                  />
+                </div>
+
+                            <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Ship To Address
+                  </label>
+                  <textarea
+                    name="shipTo"
+                    value={formData.shipTo}
+                    onChange={handleInputChange}
+                    disabled={isSubmitting}
+                    rows="3"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter shipping address..."
                   />
                 </div>
               </div>

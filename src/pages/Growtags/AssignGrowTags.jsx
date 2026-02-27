@@ -1,3 +1,4 @@
+// src/pages/Growtags/AssignGrowTags.jsx
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, ChevronDown, ChevronUp, ArrowLeft } from "lucide-react";
@@ -13,8 +14,9 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("access_token");
+    const tokenType = localStorage.getItem("token_type") || "Bearer";
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+      config.headers.Authorization = `${tokenType} ${token}`;
     }
     return config;
   },
@@ -30,10 +32,24 @@ api.interceptors.response.use(
       setTimeout(() => {
         window.location.href = "/login";
       }, 300);
+    } else if (err.response?.status === 403) {
+      toast.error("You don't have permission to perform this action");
     }
     return Promise.reject(err);
   }
 );
+
+// Debug function to check auth state
+const debugAuth = () => {
+  const token = localStorage.getItem("access_token");
+  const tokenType = localStorage.getItem("token_type");
+  
+  console.log("=== AssignGrowTags Auth Debug ===");
+  console.log("Token exists:", !!token);
+  console.log("Token type:", tokenType || "not set (defaulting to Bearer)");
+  console.log("Token preview:", token ? `${token.substring(0, 20)}...` : "none");
+  console.log("==================================");
+};
 
 // API Endpoints
 const ASSIGNMENTS_API_URL = "growtag-assignments/";
@@ -386,6 +402,7 @@ export default function AssignGrowTags() {
   };
 
   useEffect(() => {
+    debugAuth();
     fetchAllData();
   }, []);
 
@@ -435,7 +452,13 @@ export default function AssignGrowTags() {
         setSelectedShopName("");
       }, 250);
     } catch (err) {
-      toast.error(`Assignment failed: ${extractErrorMessage(err)}`, { id: t });
+      if (err.response?.status === 401) {
+        toast.error("Session expired. Please login again.", { id: t });
+      } else if (err.response?.status === 403) {
+        toast.error("You don't have permission to perform this action", { id: t });
+      } else {
+        toast.error(`Assignment failed: ${extractErrorMessage(err)}`, { id: t });
+      }
     }
   };
 
@@ -468,7 +491,13 @@ export default function AssignGrowTags() {
                   toast.success("Grow Tag unassigned successfully ✅");
                   await fetchAllData();
                 } catch (err) {
-                  toast.error(`Unassign failed: ${extractErrorMessage(err)}`);
+                  if (err.response?.status === 401) {
+                    toast.error("Session expired. Please login again.");
+                  } else if (err.response?.status === 403) {
+                    toast.error("You don't have permission to perform this action");
+                  } else {
+                    toast.error(`Unassign failed: ${extractErrorMessage(err)}`);
+                  }
                 } finally {
                   isUnassigning.current = false;
                 }
@@ -529,7 +558,13 @@ export default function AssignGrowTags() {
                   setSelectedIds([]);
                   await fetchAllData();
                 } catch (err) {
-                  toast.error(`Bulk unassign failed: ${extractErrorMessage(err)}`);
+                  if (err.response?.status === 401) {
+                    toast.error("Session expired. Please login again.");
+                  } else if (err.response?.status === 403) {
+                    toast.error("You don't have permission to perform this action");
+                  } else {
+                    toast.error(`Bulk unassign failed: ${extractErrorMessage(err)}`);
+                  }
                 } finally {
                   isBulkUnassigning.current = false;
                 }

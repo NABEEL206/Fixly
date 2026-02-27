@@ -1,6 +1,9 @@
+// src/pages/Expenses/Expenses.jsx
 import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Pencil, Trash2, Search, Filter, Calendar, DollarSign, Tag, FileText, CreditCard, X, ArrowLeft, CheckCircle, XCircle, Info, AlertCircle, Check, Eye, User } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { BASE_URL } from "@/API/BaseURL";
+import { getAuthHeaders } from "@/utils/authHeaders";
 
 // View Modal Component
 const ViewModal = ({ expense, onClose }) => {
@@ -103,6 +106,18 @@ const ViewModal = ({ expense, onClose }) => {
   );
 };
 
+// Debug function to check auth state
+const debugAuth = () => {
+  const token = localStorage.getItem("access_token");
+  const tokenType = localStorage.getItem("token_type");
+  
+  console.log("=== Expense Auth Debug ===");
+  console.log("Token exists:", !!token);
+  console.log("Token type:", tokenType || "not set (defaulting to Bearer)");
+  console.log("Token preview:", token ? `${token.substring(0, 20)}...` : "none");
+  console.log("========================");
+};
+
 const ExpenseTracker = () => {
   const [expenses, setExpenses] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -143,21 +158,24 @@ const ExpenseTracker = () => {
   
   const statuses = ['PENDING', 'APPROVED', 'REJECTED'];
 
-  const getAuthHeaders = () => {
-    const token = localStorage.getItem("access_token");
-    const headers = { "Content-Type": "application/json" };
-    if (token) headers.Authorization = `Bearer ${token}`;
-    return headers;
-  };
-
   // Fetch expenses from API
   const fetchExpenses = async () => {
     setLoading(true);
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/expenses/', {
+      const response = await fetch(`${BASE_URL}/api/expenses/`, {
         headers: getAuthHeaders()
       });
+      
+      if (response.status === 401) {
+        toast.error("Session expired. Please login again.");
+        return;
+      }
+      if (response.status === 403) {
+        toast.error("You don't have permission to view expenses");
+        return;
+      }
       if (!response.ok) throw new Error('Failed to fetch expenses');
+      
       const data = await response.json();
       setExpenses(data);
     } catch (error) {
@@ -170,10 +188,20 @@ const ExpenseTracker = () => {
   // Fetch categories from API
   const fetchCategories = async () => {
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/expense-categories/', {
+      const response = await fetch(`${BASE_URL}/api/expense-categories/`, {
         headers: getAuthHeaders()
       });
+      
+      if (response.status === 401) {
+        toast.error("Session expired. Please login again.");
+        return;
+      }
+      if (response.status === 403) {
+        toast.error("You don't have permission to view categories");
+        return;
+      }
       if (!response.ok) throw new Error('Failed to fetch categories');
+      
       const data = await response.json();
       setCategories(data);
     } catch (error) {
@@ -189,7 +217,7 @@ const ExpenseTracker = () => {
     }
 
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/expense-categories/', {
+      const response = await fetch(`${BASE_URL}/api/expense-categories/`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({ 
@@ -198,6 +226,14 @@ const ExpenseTracker = () => {
         }),
       });
 
+      if (response.status === 401) {
+        toast.error("Session expired. Please login again.");
+        return;
+      }
+      if (response.status === 403) {
+        toast.error("You don't have permission to add categories");
+        return;
+      }
       if (response.status === 400) {
         const errorData = await response.json();
         toast.error(errorData.name?.[0] || 'Failed to add category');
@@ -233,12 +269,16 @@ const ExpenseTracker = () => {
         receipt: null
       };
 
-      const response = await fetch('http://127.0.0.1:8000/api/expenses/', {
+      const response = await fetch(`${BASE_URL}/api/expenses/`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify(expenseData),
       });
 
+      if (response.status === 401) {
+        toast.error("Session expired. Please login again.", { id: toastId });
+        return;
+      }
       if (response.status === 403) {
         toast.error("You don't have permission to add expenses", { id: toastId });
         return;
@@ -283,12 +323,16 @@ const ExpenseTracker = () => {
         receipt: null
       };
 
-      const response = await fetch(`http://127.0.0.1:8000/api/expenses/${editingExpense.id}/`, {
+      const response = await fetch(`${BASE_URL}/api/expenses/${editingExpense.id}/`, {
         method: 'PUT',
         headers: getAuthHeaders(),
         body: JSON.stringify(expenseData),
       });
 
+      if (response.status === 401) {
+        toast.error("Session expired. Please login again.", { id: toastId });
+        return;
+      }
       if (response.status === 403) {
         toast.error("You don't have permission to edit this expense", { id: toastId });
         return;
@@ -346,11 +390,15 @@ const ExpenseTracker = () => {
                 const dt = toast.loading(`Deleting expense...`);
                 
                 try {
-                  const response = await fetch(`http://127.0.0.1:8000/api/expenses/${id}/`, {
+                  const response = await fetch(`${BASE_URL}/api/expenses/${id}/`, {
                     method: 'DELETE',
                     headers: getAuthHeaders(),
                   });
 
+                  if (response.status === 401) {
+                    toast.error("Session expired. Please login again.", { id: dt });
+                    return;
+                  }
                   if (response.status === 403) {
                     toast.error("You don't have permission to delete this expense", { id: dt });
                     return;
@@ -358,6 +406,7 @@ const ExpenseTracker = () => {
                   if (!response.ok) throw new Error('Failed to delete expense');
                   
                   setExpenses(expenses.filter(exp => exp.id !== id));
+                  setSelectedExpenses(prev => prev.filter(expId => expId !== id));
                   toast.success(`Expense "${expenseToDelete?.title}" deleted successfully`, { id: dt });
                 } catch (error) {
                   toast.error(error.message, { id: dt });
@@ -410,7 +459,7 @@ const ExpenseTracker = () => {
                   const results = await Promise.all(
                     selectedExpenses.map(async (id) => {
                       try {
-                        const res = await fetch(`http://127.0.0.1:8000/api/expenses/${id}/`, {
+                        const res = await fetch(`${BASE_URL}/api/expenses/${id}/`, {
                           method: 'DELETE',
                           headers: getAuthHeaders(),
                         });
@@ -461,6 +510,7 @@ const ExpenseTracker = () => {
 
   // Initial data fetch
   useEffect(() => {
+    debugAuth();
     fetchExpenses();
     fetchCategories();
   }, []);
@@ -810,6 +860,16 @@ const ExpenseTracker = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6">
+      {/* Debug Button - Remove in production */}
+      <div className="mb-4 flex justify-end">
+        <button
+          onClick={debugAuth}
+          className="text-xs bg-gray-200 px-3 py-1 rounded hover:bg-gray-300"
+        >
+          Debug Auth
+        </button>
+      </div>
+
       {/* View Modal */}
       {viewingExpense && (
         <ViewModal
@@ -988,7 +1048,7 @@ const ExpenseTracker = () => {
 
       {/* Edit/Add Modal */}
       {showModal && (
-        <div className="fixed inset-0  bg-opacity-50 flex items-center justify-center p-4 z-40">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-40">
           <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-white p-5 border-b border-gray-200 flex items-center justify-between">
               <div className="flex items-center gap-3">

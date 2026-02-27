@@ -1,3 +1,4 @@
+// src/pages/Leads/Leads.jsx
 import React, { useState, useMemo, useEffect } from "react";
 import {
   Eye,
@@ -21,16 +22,10 @@ import {
 } from "lucide-react";
 import ComplaintRegistrationModal from "./ComplaintRegistrationModal";
 import toast from "react-hot-toast";
+import { getAuthHeaders } from "@/utils/authHeaders";
 
 // ================= API CONFIG =================
 const API_BASE = "http://127.0.0.1:8000/api/leads/";
-
-const getAuthHeaders = () => {
-  const token = localStorage.getItem("access_token");
-  const headers = { "Content-Type": "application/json" };
-  if (token) headers.Authorization = `Bearer ${token}`;
-  return headers;
-};
 
 // ================= CONSTANTS =================
 const getFormattedDate = (timestamp) =>
@@ -108,8 +103,21 @@ const Leads = () => {
   const [areaOptions, setAreaOptions] = useState([]);
   const [loadingArea, setLoadingArea] = useState(false);
 
+  // Debug function to check auth state
+  const debugAuth = () => {
+    const token = localStorage.getItem("access_token");
+    const tokenType = localStorage.getItem("token_type");
+    
+    console.log("=== Leads Auth Debug ===");
+    console.log("Token exists:", !!token);
+    console.log("Token type:", tokenType || "not set (defaulting to Bearer)");
+    console.log("Token preview:", token ? `${token.substring(0, 20)}...` : "none");
+    console.log("========================");
+  };
+
   // ---------- Effects ----------
   useEffect(() => {
+    debugAuth();
     fetchLeads();
   }, []);
 
@@ -294,9 +302,23 @@ const Leads = () => {
     setLoading(true);
     try {
       const res = await fetch(API_BASE, { headers: getAuthHeaders() });
+      
+      if (res.status === 401) {
+        toast.error("Session expired. Please login again.");
+        setLeads([]);
+        return;
+      }
+      
+      if (res.status === 403) {
+        toast.error("You don't have permission to view leads");
+        setLeads([]);
+        return;
+      }
+      
       if (!res.ok) throw new Error("Failed to fetch leads");
 
       const data = await res.json();
+      console.log("Fetched leads data:", data);
       
       const mappedLeads = data.map((lead) => ({
         id: lead.id,
@@ -311,10 +333,13 @@ const Leads = () => {
         state: lead.state || "",
         issueDetail: lead.issue_detail,
         registrationDate: getFormattedDate(lead.created_at),
-        status: lead.status === "CONVERTED" ? "Complaint Registered" : "New",
+        // FIXED: Map the correct status values from backend
+        status: lead.status === "COMPLAINT_REGISTERED" ? "Complaint Registered" : "New",
         created_by: lead.created_by || null,
         source: lead.source || "MANUAL",
         created_at: lead.created_at,
+        // Store complaint ID if exists
+        complaintId: lead.complaint || null,
       }));
 
       setLeads(mappedLeads);
@@ -458,18 +483,44 @@ const Leads = () => {
       };
 
       if (editingLeadId) {
-        await fetch(`${API_BASE}${editingLeadId}/`, {
+        const res = await fetch(`${API_BASE}${editingLeadId}/`, {
           method: "PUT",
           headers: getAuthHeaders(),
           body: JSON.stringify(payload),
         });
+        
+        if (res.status === 401) {
+          toast.error("Session expired. Please login again.");
+          return;
+        }
+        
+        if (res.status === 403) {
+          toast.error("You don't have permission to update leads");
+          return;
+        }
+        
+        if (!res.ok) throw new Error("Failed to update lead");
+        
         toast.success("Lead updated successfully");
       } else {
-        await fetch(API_BASE, {
+        const res = await fetch(API_BASE, {
           method: "POST",
           headers: getAuthHeaders(),
           body: JSON.stringify(payload),
         });
+        
+        if (res.status === 401) {
+          toast.error("Session expired. Please login again.");
+          return;
+        }
+        
+        if (res.status === 403) {
+          toast.error("You don't have permission to create leads");
+          return;
+        }
+        
+        if (!res.ok) throw new Error("Failed to create lead");
+        
         toast.success("Lead created successfully");
       }
 
@@ -499,10 +550,23 @@ const Leads = () => {
               onClick={async () => {
                 toast.dismiss(t.id);
                 try {
-                  await fetch(`${API_BASE}${leadId}/`, {
+                  const res = await fetch(`${API_BASE}${leadId}/`, {
                     method: "DELETE",
                     headers: getAuthHeaders(),
                   });
+                  
+                  if (res.status === 401) {
+                    toast.error("Session expired. Please login again.");
+                    return;
+                  }
+                  
+                  if (res.status === 403) {
+                    toast.error("You don't have permission to delete leads");
+                    return;
+                  }
+                  
+                  if (!res.ok) throw new Error("Failed to delete lead");
+                  
                   toast.success("Lead deleted successfully ✅");
                   await fetchLeads();
                 } catch (error) {
@@ -543,7 +607,7 @@ const Leads = () => {
               onClick={async () => {
                 toast.dismiss(t.id);
                 try {
-                  await Promise.all(
+                  const results = await Promise.allSettled(
                     selectedLeads.map((id) =>
                       fetch(`${API_BASE}${id}/`, {
                         method: "DELETE",
@@ -551,12 +615,20 @@ const Leads = () => {
                       })
                     )
                   );
-                  setLeads((prev) => prev.filter((lead) => !selectedLeads.includes(lead.id)));
+                  
+                  const failed = results.filter(r => r.status === 'rejected' || (r.value && !r.value.ok)).length;
+                  
+                  if (failed === 0) {
+                    toast.success("All leads deleted successfully ✅");
+                  } else {
+                    toast.success(`${selectedLeads.length - failed} leads deleted, ${failed} failed`);
+                  }
+                  
+                  await fetchLeads();
                   setSelectedLeads([]);
-                  toast.success("Leads deleted successfully ✅");
                 } catch (err) {
                   console.error(err);
-                  toast.error("Failed to delete leads ❌");
+                  toast.error("Failed to delete some leads ❌");
                 }
               }}
               className="px-3 py-1.5 bg-red-600 text-white rounded text-sm"
@@ -620,23 +692,25 @@ const Leads = () => {
 
   const handleViewOrRegisterComplaint = (lead) => {
     if (lead.status === "Complaint Registered") {
-      toast.error("Complaint already registered for this lead");
+      toast.success(`Complaint already registered for this lead. Complaint ID: ${lead.complaintId || 'N/A'}`);
+      // You could also navigate to the complaint view here
     } else {
       setSelectedLeadForComplaint(lead);
       setShowComplaintModal(true);
     }
   };
 
-  const handleComplaintRegistrationSuccess = () => {
-    setLeads((prev) =>
-      prev.map((lead) =>
-        lead.id === selectedLeadForComplaint?.id
-          ? { ...lead, status: "Complaint Registered" }
-          : lead
-      )
-    );
+  // FIXED: Updated to refresh leads from server
+  const handleComplaintRegistrationSuccess = async (responseData) => {
+    console.log("Complaint registration success, response:", responseData);
+    
+    // Refresh all leads to get the latest status from backend
+    await fetchLeads();
+    
     setShowComplaintModal(false);
     setSelectedLeadForComplaint(null);
+    
+    toast.success("Complaint registered successfully!");
   };
 
   // ---------- Selection Handlers ----------
@@ -691,6 +765,16 @@ const Leads = () => {
   return (
     <div className="p-4 md:p-6 bg-gray-100 min-h-screen">
       <div className="max-w-7xl mx-auto">
+        {/* Debug Button - Remove in production */}
+        <div className="mb-4 flex justify-end">
+          <button
+            onClick={debugAuth}
+            className="text-xs bg-gray-200 px-3 py-1 rounded hover:bg-gray-300"
+          >
+            Debug Auth
+          </button>
+        </div>
+
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
           <h1 className="text-2xl md:text-3xl font-bold text-blue-700 flex items-center gap-3">
@@ -1150,6 +1234,14 @@ const Leads = () => {
                           {selectedLead.registrationDate}
                         </p>
                       </div>
+                      {selectedLead.complaintId && (
+                        <div className="space-y-1 md:col-span-2">
+                          <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Complaint ID</label>
+                          <p className="text-sm font-medium text-blue-600 bg-blue-50 p-3 rounded-lg border border-blue-200">
+                            #{selectedLead.complaintId}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

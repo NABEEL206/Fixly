@@ -1,3 +1,4 @@
+// src/pages/Purchases/Vendor.jsx
 import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { 
   Plus, 
@@ -17,6 +18,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import axios from "axios";
+import { getAuthHeaders } from "@/utils/authHeaders";
 
 const API_BASE_URL = "http://127.0.0.1:8000/api";
 
@@ -28,12 +30,13 @@ const api = axios.create({
   },
 });
 
-// Request interceptor to add auth token
+// Request interceptor to add auth token with correct type
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("access_token");
+    const tokenType = localStorage.getItem("token_type") || "Bearer";
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+      config.headers.Authorization = `${tokenType} ${token}`;
     }
     return config;
   },
@@ -49,13 +52,27 @@ api.interceptors.response.use(
     if (error.response?.status === 403) {
       toast.error("You don't have permission to perform this action");
     } else if (error.response?.status === 401) {
-      toast.error("Please login again");
-      // Optional: redirect to login
-      // window.location.href = '/login';
+      toast.error("Session expired. Please login again.");
+      // Optional: redirect to login after a short delay
+      setTimeout(() => {
+        window.location.href = '/login';
+      }, 1500);
     }
     return Promise.reject(error);
   }
 );
+
+// Debug function to check auth state
+const debugAuth = () => {
+  const token = localStorage.getItem("access_token");
+  const tokenType = localStorage.getItem("token_type");
+  
+  console.log("=== Vendor Auth Debug ===");
+  console.log("Token exists:", !!token);
+  console.log("Token type:", tokenType || "not set (defaulting to Bearer)");
+  console.log("Token preview:", token ? `${token.substring(0, 20)}...` : "none");
+  console.log("========================");
+};
 
 const STATUS_OPTIONS = [
   { value: "active", label: "Active" },
@@ -591,6 +608,7 @@ export default function Vendor() {
   }, []);
 
   useEffect(() => { 
+    debugAuth();
     fetchVendors(); 
   }, [fetchVendors]);
 
@@ -688,8 +706,7 @@ export default function Vendor() {
 
         toast.error(errorMessages.join('\n') || "Validation failed", { id: newToastId });
       } 
-      // Don't handle 403 here - it's handled by the interceptor
-      // Don't handle 401 here - it's handled by the interceptor
+      // Don't handle 403/401 here - they're handled by the interceptor
       else if (error.response?.status !== 403 && error.response?.status !== 401) {
         // Only show generic error for non-auth errors
         toast.error(error.response?.data?.message || `${isEdit ? "Update" : "Create"} failed. Please try again.`, { id: newToastId });
@@ -915,6 +932,16 @@ export default function Vendor() {
 
   return (
     <div className="p-8 max-w-7xl mx-auto font-sans">
+      {/* Debug Button - Remove in production */}
+      <div className="mb-4 flex justify-end">
+        <button
+          onClick={debugAuth}
+          className="text-xs bg-gray-200 px-3 py-1 rounded hover:bg-gray-300"
+        >
+          Debug Auth
+        </button>
+      </div>
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-8">
         <div className="flex items-center gap-3">

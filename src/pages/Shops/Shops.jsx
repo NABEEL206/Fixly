@@ -1,3 +1,4 @@
+// src/pages/Shops/Shops.jsx
 import React, { useEffect, useState, useMemo } from "react";
 import {
   Search,
@@ -15,19 +16,40 @@ import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { BASE_URL } from "@/API/BaseURL";
+import { getAuthHeaders } from "@/utils/authHeaders";
 
 const api = axios.create({
   baseURL: `${BASE_URL}/api`,
 });
 
-// ✅ auto attach token
+// ✅ auto attach token with correct token type
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("access_token");
+  const tokenType = localStorage.getItem("token_type") || "Bearer";
   if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+    config.headers.Authorization = `${tokenType} ${token}`;
   }
+  console.log("API Request:", config.method.toUpperCase(), config.url);
   return config;
 });
+
+// Response interceptor to handle auth errors - SINGLE SOURCE OF TRUTH for auth errors
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Handle auth errors here - ONLY ONCE
+    if (error.response?.status === 401) {
+      toast.error("Session expired. Please login again.");
+      // Optional: Redirect to login after a delay
+      setTimeout(() => {
+        window.location.href = '/login';
+      }, 1500);
+    } else if (error.response?.status === 403) {
+      toast.error("You don't have permission to perform this action");
+    }
+    return Promise.reject(error);
+  }
+);
 
 // ----------------------------------------------------
 // 1. Password Input Component (Eye Icon Toggle)
@@ -87,7 +109,10 @@ const ViewModal = ({ shop, onClose }) => {
       setShopDetails(res.data);
     } catch (error) {
       console.error("Error fetching shop details:", error);
-      toast.error("Failed to load shop details");
+      // Don't show toast for 401/403 - they're handled by interceptor
+      if (error.response?.status !== 401 && error.response?.status !== 403) {
+        toast.error("Failed to load shop details");
+      }
     } finally {
       setLoading(false);
     }
@@ -335,6 +360,18 @@ export default function Shops() {
   const [filterCreatedBy, setFilterCreatedBy] = useState("");
   const [search, setSearch] = useState("");
 
+  // Debug function to check auth state
+  const debugAuth = () => {
+    const token = localStorage.getItem("access_token");
+    const tokenType = localStorage.getItem("token_type");
+    
+    console.log("=== Shops Auth Debug ===");
+    console.log("Token exists:", !!token);
+    console.log("Token type:", tokenType || "not set (defaulting to Bearer)");
+    console.log("Token preview:", token ? `${token.substring(0, 20)}...` : "none");
+    console.log("========================");
+  };
+
   const toggleSelect = (id) => {
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
@@ -426,9 +463,9 @@ export default function Shops() {
       const res = await api.get("/shops/");
       setShops(res.data || []);
     } catch (err) {
-      if (err.response?.status === 403) {
-        toast.error("You don't have permission to view shops.");
-      } else {
+      console.error("Load shops error:", err);
+      // Don't show toast for 401/403 - they're handled by interceptor
+      if (err.response?.status !== 401 && err.response?.status !== 403) {
         toast.error("Failed to load shops");
       }
       setShops([]);
@@ -438,6 +475,7 @@ export default function Shops() {
   };
 
   useEffect(() => {
+    debugAuth();
     loadShops();
   }, []);
 
@@ -622,29 +660,31 @@ export default function Shops() {
       setIsEdit(false);
       loadShops();
     } catch (err) {
-      if (err.response?.status === 403) {
-        toast.error("You don't have permission to perform this action.", { id: toastId });
-      } else {
-        let errorMessage = "Failed to save shop. Please try again.";
-        if (err.response && err.response.data) {
-          const errorData = err.response.data;
-          if (typeof errorData === "string") {
-            errorMessage = errorData;
-          } else if (errorData.detail) {
-            errorMessage = errorData.detail;
-          } else if (errorData.non_field_errors?.length) {
-            errorMessage = errorData.non_field_errors[0];
-          } else {
-            const fieldErrorKeys = Object.keys(errorData);
-            for (const key of fieldErrorKeys) {
-              if (Array.isArray(errorData[key]) && errorData[key].length > 0) {
-                errorMessage = `${key}: ${errorData[key][0]}`;
-                break;
-              }
-            }
+      console.error("Submit error:", err);
+      
+      // Don't show toast for 401/403 - they're handled by interceptor
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        toast.dismiss(toastId);
+        return;
+      }
+      
+      // Handle validation errors (400)
+      if (err.response?.status === 400) {
+        const apiErrors = err.response.data;
+        const errorMessages = [];
+        
+        Object.keys(apiErrors).forEach(key => {
+          if (Array.isArray(apiErrors[key])) {
+            errorMessages.push(`${key}: ${apiErrors[key].join(', ')}`);
+          } else if (typeof apiErrors[key] === 'string') {
+            errorMessages.push(apiErrors[key]);
           }
-        }
-        toast.error(errorMessage, { id: toastId });
+        });
+
+        toast.error(errorMessages.join('\n') || "Validation failed", { id: toastId });
+      } else {
+        // Generic error for other status codes
+        toast.error("Failed to save shop. Please try again.", { id: toastId });
       }
     } finally {
       setIsSubmitting(false);
@@ -678,8 +718,10 @@ export default function Shops() {
                   loadShops();
                   setSelectedIds(prev => prev.filter(x => x !== id));
                 } catch (error) {
-                  if (error.response?.status === 403) {
-                    toast.error("You don't have permission to delete this shop.", { id: dt });
+                  console.error("Delete error:", error);
+                  // Don't show toast for 401/403 - they're handled by interceptor
+                  if (error.response?.status === 401 || error.response?.status === 403) {
+                    toast.dismiss(dt);
                   } else {
                     toast.error("Failed to delete shop", { id: dt });
                   }
@@ -734,6 +776,7 @@ export default function Shops() {
 
                   const deleted = results.filter((r) => r.ok).map((r) => r.id);
                   const forbidden = results.filter((r) => r.status === 403).map((r) => r.id);
+                  const unauthorized = results.filter((r) => r.status === 401).map((r) => r.id);
 
                   if (deleted.length > 0) {
                     setShops(prev => prev.filter((c) => !deleted.includes(c.id)));
@@ -745,10 +788,20 @@ export default function Shops() {
                   } else {
                     toast.dismiss(dt);
                     if (deleted.length > 0) toast.success(`${deleted.length} deleted successfully`);
-                    if (forbidden.length > 0) toast.error(`${forbidden.length} shop${forbidden.length > 1 ? "s" : ""} could not be deleted (no permission)`);
+                    // Don't show error toasts for 403/401 - they're already shown by interceptor
+                    if (forbidden.length > 0 || unauthorized.length > 0) {
+                      // Just show a summary without additional toasts
+                      console.log(`Skipped ${forbidden.length + unauthorized.length} items due to permissions`);
+                    }
                   }
                 } catch (error) {
-                  toast.error("Bulk delete failed", { id: dt });
+                  console.error("Bulk delete error:", error);
+                  // Don't show error for 401/403 - they're handled by interceptor
+                  if (error.response?.status !== 401 && error.response?.status !== 403) {
+                    toast.error("Bulk delete failed", { id: dt });
+                  } else {
+                    toast.dismiss(dt);
+                  }
                 }
               }}
               className="px-3 py-1.5 bg-red-600 text-white rounded-md text-sm"
@@ -854,6 +907,16 @@ export default function Shops() {
 
   return (
     <div className="p-8 max-w-7xl mx-auto font-sans">
+      {/* Debug Button - Remove in production */}
+      <div className="mb-4 flex justify-end">
+        <button
+          onClick={debugAuth}
+          className="text-xs bg-gray-200 px-3 py-1 rounded hover:bg-gray-300"
+        >
+          Debug Auth
+        </button>
+      </div>
+
       {viewShop && (
         <ViewModal shop={viewShop} onClose={() => setViewShop(null)} />
       )}

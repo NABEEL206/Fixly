@@ -1,10 +1,13 @@
+// src/pages/Purchases/Bill.jsx
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Plus, Trash2, Save, Edit, Eye, Search, Download, Send, Filter, User, Building, ChevronDown, ChevronUp, CreditCard } from 'lucide-react';
+import { X, Plus, Trash2, Save, Edit, Eye, Search, Filter, User, Building, ChevronDown, ChevronUp, CreditCard } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { BASE_URL } from "@/API/BaseURL";
+import { getAuthHeaders } from "@/utils/authHeaders";
 
-const API_BASE_URL = "http://127.0.0.1:8000/api";
-const ZOHO_BASE_URL = "http://127.0.0.1:8000/zoho";
+const API_BASE_URL = BASE_URL;
+const ZOHO_BASE_URL = `${BASE_URL}/zoho`;
 
 // Create axios instance with default config
 const api = axios.create({
@@ -22,31 +25,29 @@ const zohoApi = axios.create({
   },
 });
 
-// Request interceptor to add auth token
+// Request interceptor to add auth token with correct type
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("access_token");
+    const tokenType = localStorage.getItem("token_type") || "Bearer";
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+      config.headers.Authorization = `${tokenType} ${token}`;
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
 zohoApi.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("access_token");
+    const tokenType = localStorage.getItem("token_type") || "Bearer";
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+      config.headers.Authorization = `${tokenType} ${token}`;
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
 // Response interceptor to handle errors
@@ -56,7 +57,10 @@ api.interceptors.response.use(
     if (error.response?.status === 403) {
       toast.error("You don't have permission to perform this action");
     } else if (error.response?.status === 401) {
-      toast.error("Please login again");
+      toast.error("Session expired. Please login again.");
+      setTimeout(() => {
+        window.location.href = '/login';
+      }, 1500);
     }
     return Promise.reject(error);
   }
@@ -68,11 +72,26 @@ zohoApi.interceptors.response.use(
     if (error.response?.status === 403) {
       toast.error("You don't have permission to perform this action");
     } else if (error.response?.status === 401) {
-      toast.error("Please login again");
+      toast.error("Session expired. Please login again.");
+      setTimeout(() => {
+        window.location.href = '/login';
+      }, 1500);
     }
     return Promise.reject(error);
   }
 );
+
+// Debug function to check auth state
+const debugAuth = () => {
+  const token = localStorage.getItem("access_token");
+  const tokenType = localStorage.getItem("token_type");
+  
+  console.log("=== Bill Auth Debug ===");
+  console.log("Token exists:", !!token);
+  console.log("Token type:", tokenType || "not set (defaulting to Bearer)");
+  console.log("Token preview:", token ? `${token.substring(0, 20)}...` : "none");
+  console.log("=======================");
+};
 
 const STATUS_OPTIONS = [
   { value: "DRAFT", label: "Draft" },
@@ -112,13 +131,177 @@ const ACCOUNT_TYPES = [
   'Raw Materials'
 ];
 
-// Toast utility functions
-const showToast = {
-  loading: (message) => toast.loading(message),
-  success: (message, id) => toast.success(message, { id }),
-  error: (message, id) => toast.error(message, { id }),
-  dismiss: (id) => toast.dismiss(id),
-  promise: (promise, messages) => toast.promise(promise, messages)
+// Payment Modal Component - Standalone component to prevent re-renders
+const PaymentModal = ({ 
+  selectedBill, 
+  paymentForm, 
+  paymentErrors, 
+  isSubmitting, 
+  handlePaymentInputChange, 
+  recordPayment, 
+  closePaymentModal 
+}) => {
+  // Don't render if no bill selected
+  if (!selectedBill) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
+      <div className="bg-white rounded-xl w-full max-w-md shadow-2xl">
+        {/* Modal Header */}
+        <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-green-50 to-emerald-50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <div className="bg-green-600 p-2 rounded-lg mr-3">
+                <CreditCard className="text-white" size={24} />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-800">
+                  Record Payment
+                </h3>
+                <p className="text-xs text-gray-500 mt-1">
+                  {selectedBill?.bill_number}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={closePaymentModal}
+              className="text-gray-400 hover:text-gray-600 p-2 rounded-lg hover:bg-white/50 transition-colors"
+            >
+              <X size={20} />
+            </button>
+          </div>
+        </div>
+
+        {/* Modal Body */}
+        <div className="p-6">
+          {/* Bill Summary */}
+          <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-sm text-gray-600">Total Amount:</span>
+              <span className="text-lg font-bold text-gray-900">₹{selectedBill?.total?.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-sm text-gray-600">Amount Paid:</span>
+              <span className="text-lg font-bold text-green-600">₹{selectedBill?.amount_paid?.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between items-center pt-2 border-t border-gray-300">
+              <span className="text-sm font-medium text-gray-700">Balance Due:</span>
+              <span className="text-xl font-bold text-red-600">₹{selectedBill?.balance_due?.toFixed(2)}</span>
+            </div>
+          </div>
+
+          {/* Payment Form */}
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Payment Date <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="date"
+                name="payment_date"
+                value={paymentForm.payment_date}
+                onChange={handlePaymentInputChange}
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 ${
+                  paymentErrors.payment_date ? 'border-red-500' : 'border-gray-300'
+                }`}
+              />
+              {paymentErrors.payment_date && (
+                <p className="text-red-500 text-xs mt-1">{paymentErrors.payment_date}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Amount <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-2.5 text-gray-500">₹</span>
+                <input
+                  type="number"
+                  name="amount"
+                  value={paymentForm.amount}
+                  onChange={handlePaymentInputChange}
+                  min="0.01"
+                  max={selectedBill?.balance_due}
+                  step="0.01"
+                  className={`w-full pl-8 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 ${
+                    paymentErrors.amount ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                />
+              </div>
+              {paymentErrors.amount && (
+                <p className="text-red-500 text-xs mt-1">{paymentErrors.amount}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Payment Method <span className="text-red-500">*</span>
+              </label>
+              <select
+                name="method"
+                value={paymentForm.method}
+                onChange={handlePaymentInputChange}
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 ${
+                  paymentErrors.method ? 'border-red-500' : 'border-gray-300'
+                }`}
+              >
+                {PAYMENT_METHODS.map(method => (
+                  <option key={method.value} value={method.value}>{method.label}</option>
+                ))}
+              </select>
+              {paymentErrors.method && (
+                <p className="text-red-500 text-xs mt-1">{paymentErrors.method}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Reference Number
+              </label>
+              <input
+                type="text"
+                name="reference"
+                value={paymentForm.reference}
+                onChange={handlePaymentInputChange}
+                placeholder="e.g., Check No, Transaction ID"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Modal Footer */}
+        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50">
+          <div className="flex justify-end gap-3">
+            <button
+              onClick={closePaymentModal}
+              className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={recordPayment}
+              disabled={isSubmitting}
+              className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  <span>Recording...</span>
+                </>
+              ) : (
+                <>
+                  <CreditCard size={16} />
+                  <span>Record Payment</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 const Bill = () => {
@@ -141,7 +324,7 @@ const Bill = () => {
   const [isLoadingItems, setIsLoadingItems] = useState(false);
   const [expandedRows, setExpandedRows] = useState({});
 
-  // Payment form state
+  // Payment form state - completely independent from selectedBill
   const [paymentForm, setPaymentForm] = useState({
     payment_date: new Date().toISOString().split('T')[0],
     amount: '',
@@ -210,12 +393,26 @@ const Bill = () => {
 
   // Fetch vendors, shops, growtags, items on component mount
   useEffect(() => {
+    debugAuth();
     fetchVendors();
     fetchShops();
     fetchGrowtags();
     fetchItems();
     fetchBills();
   }, []);
+
+  // Initialize payment form when selectedBill changes - but only once
+  useEffect(() => {
+    if (selectedBill) {
+      setPaymentForm({
+        payment_date: new Date().toISOString().split('T')[0],
+        amount: selectedBill.balance_due.toFixed(2),
+        method: 'Cash',
+        reference: ''
+      });
+      setPaymentErrors({});
+    }
+  }, [selectedBill?.id]); // Only depend on selectedBill.id, not the entire object
 
   // Toggle expanded row
   const toggleRow = (index) => {
@@ -225,10 +422,10 @@ const Bill = () => {
     }));
   };
 
-  // Fetch vendors from API
+  // Fetch vendors from API - FIXED: Added /api/ prefix
   const fetchVendors = async () => {
     try {
-      const response = await api.get('/vendors/');
+      const response = await api.get('/api/vendors/');
       const data = response.data;
       let vendorsList = [];
       
@@ -249,10 +446,10 @@ const Bill = () => {
     }
   };
 
-  // Fetch shops from API
+  // Fetch shops from API - FIXED: Added /api/ prefix
   const fetchShops = async () => {
     try {
-      const response = await api.get('/shops/');
+      const response = await api.get('/api/shops/');
       const data = response.data;
       let shopsList = [];
       
@@ -270,10 +467,10 @@ const Bill = () => {
     }
   };
 
-  // Fetch growtags from API
+  // Fetch growtags from API - FIXED: Added /api/ prefix
   const fetchGrowtags = async () => {
     try {
-      const response = await api.get('/growtags/');
+      const response = await api.get('/api/growtags/');
       const data = response.data;
       let growtagsList = [];
       
@@ -291,7 +488,7 @@ const Bill = () => {
     }
   };
 
-  // Fetch items from Zoho API
+  // Fetch items from Zoho API - FIXED: Added /api/ prefix
   const fetchItems = async () => {
     setIsLoadingItems(true);
     try {
@@ -339,7 +536,7 @@ const Bill = () => {
     }
   };
 
-  // Fetch single bill details
+  // Fetch single bill details - FIXED: Added /api/ prefix
   const fetchBillDetails = async (id) => {
     try {
       // Check cache first
@@ -347,7 +544,7 @@ const Bill = () => {
         return billDetailsCache[id];
       }
 
-      const response = await api.get(`/bills/${id}/`);
+      const response = await api.get(`/api/bills/${id}/`);
       const data = response.data;
       const bill = data.data || data;
 
@@ -431,12 +628,12 @@ const Bill = () => {
     }
   };
 
-  // Fetch bills from API
+  // Fetch bills from API - FIXED: Added /api/ prefix
   const fetchBills = async () => {
     setIsLoading(true);
     
     try {
-      const response = await api.get('/bills/');
+      const response = await api.get('/api/bills/');
       const data = response.data;
       let billsList = [];
       
@@ -513,6 +710,35 @@ const Bill = () => {
       toast.error("Failed to load bills");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Refresh single bill after payment - FIXED: Added /api/ prefix
+  const refreshBillAfterPayment = async (billId) => {
+    try {
+      // Clear cache for this bill
+      setBillDetailsCache(prev => {
+        const newCache = { ...prev };
+        delete newCache[billId];
+        return newCache;
+      });
+
+      // Fetch fresh data
+      const freshBill = await fetchBillDetails(billId);
+      
+      if (freshBill) {
+        // Update bills list
+        setBills(prev =>
+          prev.map(bill => (bill.id === freshBill.id ? freshBill : bill))
+        );
+
+        // Update form data if we're viewing/editing this bill
+        if (formData.id === freshBill.id) {
+          setFormData(freshBill);
+        }
+      }
+    } catch (error) {
+      console.error("Error refreshing bill:", error);
     }
   };
 
@@ -689,12 +915,16 @@ const Bill = () => {
     const balanceDue = total - parseFloat(amountPaid || 0);
 
     // Determine payment status
-    let paymentStatus = formData.payment_status;
-    if (amountPaid === 0) {
+    const paid = parseFloat(amountPaid) || 0;
+    const grandTotal = parseFloat(total) || 0;
+
+    let paymentStatus = 'UNPAID';
+
+    if (paid === 0) {
       paymentStatus = 'UNPAID';
-    } else if (amountPaid < total) {
+    } else if (paid < grandTotal) {
       paymentStatus = 'PARTIALLY_PAID';
-    } else if (amountPaid >= total) {
+    } else {
       paymentStatus = 'PAID';
     }
 
@@ -918,8 +1148,37 @@ const Bill = () => {
     }
   };
 
-  // Record Payment
+  // Close payment modal function
+  const closePaymentModal = () => {
+    setShowPaymentModal(false);
+    setSelectedBill(null);
+    setPaymentErrors({});
+    setPaymentForm({
+      payment_date: new Date().toISOString().split('T')[0],
+      amount: '',
+      method: 'Cash',
+      reference: ''
+    });
+  };
+
+  // Record Payment - FIXED: Added /api/ prefix
   const recordPayment = async () => {
+    // Strict validation before API call
+    if (!selectedBill) {
+      toast.error('No bill selected');
+      return;
+    }
+
+    if (selectedBill.payment_status === 'PAID') {
+      toast.error('This bill is already fully paid');
+      return;
+    }
+
+    if (selectedBill.balance_due <= 0) {
+      toast.error('No balance due on this bill');
+      return;
+    }
+
     if (!validatePaymentForm()) {
       toast.error('Please fix all payment errors');
       return;
@@ -930,112 +1189,21 @@ const Bill = () => {
 
     try {
       const paymentData = {
-        payments: [
-          {
-            payment_date: paymentForm.payment_date,
-            amount: parseFloat(paymentForm.amount).toFixed(2),
-            method: paymentForm.method,
-            reference: paymentForm.reference || ''
-          }
-        ]
+        amount: parseFloat(paymentForm.amount).toFixed(2),
+        payment_date: paymentForm.payment_date,
+        method: paymentForm.method,
+        reference: paymentForm.reference || ''
       };
 
-      const response = await api.patch(`/bills/${selectedBill.id}/`, paymentData);
+      const response = await api.post(`/api/bills/${selectedBill.id}/add-payment/`, paymentData);
       
-      const responseData = response.data;
-      const updatedBill = responseData.data || responseData;
-
-      // Transform response to frontend format
-      let itemsArray = [];
-      if (updatedBill?.items && Array.isArray(updatedBill.items)) {
-        itemsArray = updatedBill.items.map(item => ({
-          id: item?.id || null,
-          item: item?.item || null,
-          name: item?.name || '',
-          description: item?.description || '',
-          account: item?.account || 'Cost of Goods Sold',
-          qty: parseFloat(item?.qty) || 1,
-          rate: parseFloat(item?.rate) || 0,
-          tax_percent: parseFloat(item?.tax_percent) || 0,
-          discount_percent: parseFloat(item?.discount_percent) || 0,
-          amount: parseFloat(item?.amount) || 0
-        }));
-      }
-
-      let paymentsArray = [];
-      if (updatedBill?.payments && Array.isArray(updatedBill.payments)) {
-        paymentsArray = updatedBill.payments.map(payment => ({
-          id: payment?.id || null,
-          payment_date: payment?.payment_date || '',
-          amount: parseFloat(payment?.amount) || 0,
-          method: payment?.method || '',
-          reference: payment?.reference || '',
-          created_at: payment?.created_at || ''
-        }));
-      }
-
-      const transformedBill = {
-        id: updatedBill?.id || null,
-        owner_type: updatedBill?.owner_type || 'shop',
-        shop: updatedBill?.shop || null,
-        growtag: updatedBill?.growtag || null,
-        status: updatedBill?.status || 'DRAFT',
-        vendor: updatedBill?.vendor || null,
-        bill_number: updatedBill?.bill_number || '',
-        order_number: updatedBill?.order_number || '',
-        bill_date: updatedBill?.bill_date || '',
-        due_date: updatedBill?.due_date || '',
-        payment_status: updatedBill?.payment_status || 'UNPAID',
-        vendor_name: updatedBill?.vendor_name || '',
-        vendor_email: updatedBill?.vendor_email || '',
-        vendor_phone: updatedBill?.vendor_phone || '',
-        vendor_gstin: updatedBill?.vendor_gstin || '',
-        vendor_address: updatedBill?.vendor_address || '',
-        ship_to: updatedBill?.ship_to || '',
-        bill_to: updatedBill?.bill_to || '',
-        items: itemsArray,
-        payments: paymentsArray,
-        subtotal: parseFloat(updatedBill?.subtotal) || 0,
-        total_discount: parseFloat(updatedBill?.total_discount) || 0,
-        total_tax: parseFloat(updatedBill?.total_tax) || 0,
-        tds_percent: parseFloat(updatedBill?.tds_percent) || 0,
-        tds_amount: parseFloat(updatedBill?.tds_amount) || 0,
-        shipping_charges: parseFloat(updatedBill?.shipping_charges || 0) || 0,
-        adjustment: parseFloat(updatedBill?.adjustment || 0) || 0,
-        total: parseFloat(updatedBill?.total) || 0,
-        amount_paid: parseFloat(updatedBill?.amount_paid) || 0,
-        balance_due: parseFloat(updatedBill?.balance_due) || 0,
-        notes: updatedBill?.notes || '',
-        terms_and_conditions: updatedBill?.terms_and_conditions || ''
-      };
-
-      // Update cache
-      setBillDetailsCache(prev => ({
-        ...prev,
-        [transformedBill.id]: transformedBill
-      }));
-
-      // Update bills list
-      setBills(prev =>
-        prev.map(bill => (bill.id === transformedBill.id ? transformedBill : bill))
-      );
-
-      // Update form data if we're viewing/editing this bill
-      if (formData.id === transformedBill.id) {
-        setFormData(transformedBill);
-      }
+      // Refresh the bill data from backend to get updated state
+      await refreshBillAfterPayment(selectedBill.id);
 
       toast.success('Payment recorded successfully!', { id: loadingToast });
       
-      // Close payment modal
-      setShowPaymentModal(false);
-      setSelectedBill(null);
-      setPaymentForm({
-        payment_date: new Date().toISOString().split('T')[0],
-        amount: '',
-        method: 'Cash',
-        reference: ''
-      });
+      // Close payment modal and reset
+      closePaymentModal();
     } catch (error) {
       console.error("Record payment error:", error);
       
@@ -1109,7 +1277,7 @@ const Bill = () => {
     return apiData;
   };
 
-  // Create Bill
+  // Create Bill - FIXED: Added /api/ prefix
   const createBill = async () => {
     if (!validateForm()) {
       toast.error('Please fix all errors before submitting');
@@ -1121,7 +1289,7 @@ const Bill = () => {
 
     try {
       const apiData = transformToAPIFormat(formData);
-      const response = await api.post('/bills/', apiData);
+      const response = await api.post('/api/bills/', apiData);
       
       const responseData = response.data;
       const newBill = responseData.data || responseData;
@@ -1229,7 +1397,7 @@ const Bill = () => {
     }
   };
 
-  // Update Bill
+  // Update Bill - FIXED: Added /api/ prefix
   const updateBill = async () => {
     if (!validateForm()) {
       toast.error('Please fix all errors before updating');
@@ -1241,7 +1409,7 @@ const Bill = () => {
 
     try {
       const apiData = transformToAPIFormat(formData);
-      const response = await api.put(`/bills/${formData.id}/`, apiData);
+      const response = await api.put(`/api/bills/${formData.id}/`, apiData);
       
       const responseData = response.data;
       const updatedBill = responseData.data || responseData;
@@ -1351,7 +1519,7 @@ const Bill = () => {
     }
   };
 
-  // Delete Bill
+  // Delete Bill - FIXED: Added /api/ prefix
   const deleteBill = (id) => {
     toast(
       (t) => (
@@ -1371,7 +1539,7 @@ const Bill = () => {
                 const loadingToast = toast.loading("Deleting bill...");
                 
                 try {
-                  await api.delete(`/bills/${id}/`);
+                  await api.delete(`/api/bills/${id}/`);
                   setBillDetailsCache(prev => {
                     const newCache = { ...prev };
                     delete newCache[id];
@@ -1527,13 +1695,6 @@ const Bill = () => {
   // Open Payment Modal
   const openPaymentModal = (bill) => {
     setSelectedBill(bill);
-    setPaymentForm({
-      payment_date: new Date().toISOString().split('T')[0],
-      amount: bill.balance_due.toFixed(2),
-      method: 'Cash',
-      reference: ''
-    });
-    setPaymentErrors({});
     setShowPaymentModal(true);
   };
 
@@ -1577,174 +1738,6 @@ const Bill = () => {
       default: return 'bg-gray-200 text-gray-800';
     }
   };
-
-  // Payment Modal Component
-  const PaymentModal = () => (
-    <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center p-4 z-[60]">
-      <div className="bg-white rounded-xl w-full max-w-md shadow-2xl">
-        {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-green-50 to-emerald-50">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <div className="bg-green-600 p-2 rounded-lg mr-3">
-                <CreditCard className="text-white" size={24} />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-gray-800">
-                  Record Payment
-                </h3>
-                <p className="text-xs text-gray-500 mt-1">
-                  {selectedBill?.bill_number}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => {
-                setShowPaymentModal(false);
-                setSelectedBill(null);
-                setPaymentErrors({});
-              }}
-              className="text-gray-400 hover:text-gray-600 p-2 rounded-lg hover:bg-white/50 transition-colors"
-            >
-              <X size={20} />
-            </button>
-          </div>
-        </div>
-
-        {/* Modal Body */}
-        <div className="p-6">
-          {/* Bill Summary */}
-          <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-sm text-gray-600">Total Amount:</span>
-              <span className="text-lg font-bold text-gray-900">₹{selectedBill?.total?.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-sm text-gray-600">Amount Paid:</span>
-              <span className="text-lg font-bold text-green-600">₹{selectedBill?.amount_paid?.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between items-center pt-2 border-t border-gray-300">
-              <span className="text-sm font-medium text-gray-700">Balance Due:</span>
-              <span className="text-xl font-bold text-red-600">₹{selectedBill?.balance_due?.toFixed(2)}</span>
-            </div>
-          </div>
-
-          {/* Payment Form */}
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Payment Date <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="date"
-                name="payment_date"
-                value={paymentForm.payment_date}
-                onChange={handlePaymentInputChange}
-                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 ${
-                  paymentErrors.payment_date ? 'border-red-500' : 'border-gray-300'
-                }`}
-              />
-              {paymentErrors.payment_date && (
-                <p className="text-red-500 text-xs mt-1">{paymentErrors.payment_date}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Amount <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <span className="absolute left-3 top-2.5 text-gray-500">₹</span>
-                <input
-                  type="number"
-                  name="amount"
-                  value={paymentForm.amount}
-                  onChange={handlePaymentInputChange}
-                  min="0.01"
-                  max={selectedBill?.balance_due}
-                  step="0.01"
-                  className={`w-full pl-8 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 ${
-                    paymentErrors.amount ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                />
-              </div>
-              {paymentErrors.amount && (
-                <p className="text-red-500 text-xs mt-1">{paymentErrors.amount}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Payment Method <span className="text-red-500">*</span>
-              </label>
-              <select
-                name="method"
-                value={paymentForm.method}
-                onChange={handlePaymentInputChange}
-                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 ${
-                  paymentErrors.method ? 'border-red-500' : 'border-gray-300'
-                }`}
-              >
-                {PAYMENT_METHODS.map(method => (
-                  <option key={method.value} value={method.value}>{method.label}</option>
-                ))}
-              </select>
-              {paymentErrors.method && (
-                <p className="text-red-500 text-xs mt-1">{paymentErrors.method}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Reference Number
-              </label>
-              <input
-                type="text"
-                name="reference"
-                value={paymentForm.reference}
-                onChange={handlePaymentInputChange}
-                placeholder="e.g., Check No, Transaction ID"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Modal Footer */}
-        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50">
-          <div className="flex justify-end gap-3">
-            <button
-              onClick={() => {
-                setShowPaymentModal(false);
-                setSelectedBill(null);
-                setPaymentErrors({});
-              }}
-              className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={recordPayment}
-              disabled={isSubmitting}
-              className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isSubmitting ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  <span>Recording...</span>
-                </>
-              ) : (
-                <>
-                  <CreditCard size={16} />
-                  <span>Record Payment</span>
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 
   // View Modal Component
   const ViewModal = () => (
@@ -2081,8 +2074,28 @@ const Bill = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
-      {/* Payment Modal */}
-      {showPaymentModal && <PaymentModal />}
+      {/* Debug Button - Remove in production */}
+      <div className="max-w-7xl mx-auto mb-4 flex justify-end">
+        <button
+          onClick={debugAuth}
+          className="text-xs bg-gray-200 px-3 py-1 rounded hover:bg-gray-300"
+        >
+          Debug Auth
+        </button>
+      </div>
+
+      {/* Payment Modal - Now using the standalone component */}
+      {showPaymentModal && (
+        <PaymentModal
+          selectedBill={selectedBill}
+          paymentForm={paymentForm}
+          paymentErrors={paymentErrors}
+          isSubmitting={isSubmitting}
+          handlePaymentInputChange={handlePaymentInputChange}
+          recordPayment={recordPayment}
+          closePaymentModal={closePaymentModal}
+        />
+      )}
 
       {/* Header */}
       <div className="max-w-7xl mx-auto mb-6">
@@ -2573,20 +2586,6 @@ const Bill = () => {
             <div className="mb-6">
               <h3 className="text-lg font-semibold mb-4">Shipping & Billing Addresses</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Ship To
-                  </label>
-                  <textarea
-                    name="ship_to"
-                    value={formData.ship_to}
-                    onChange={handleInputChange}
-                    disabled={isSubmitting}
-                    rows="3"
-                    placeholder="Optional"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                  />
-                </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -2604,6 +2603,22 @@ const Bill = () => {
                   />
                   {errors.bill_to && <p className="text-red-500 text-xs mt-1">{errors.bill_to}</p>}
                 </div>
+
+                                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Ship To
+                  </label>
+                  <textarea
+                    name="ship_to"
+                    value={formData.ship_to}
+                    onChange={handleInputChange}
+                    disabled={isSubmitting}
+                    rows="3"
+                    placeholder="Optional"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  />
+                </div>
+
               </div>
             </div>
 

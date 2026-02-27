@@ -1,3 +1,4 @@
+// src/pages/Growtags/GrowTags.jsx
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
@@ -27,11 +28,24 @@ import { BASE_URL } from "@/API/BaseURL";
 const API_URL = `${BASE_URL}/api/growtags/`;
 const POPUP_API_URL = `${BASE_URL}/api/growtags-popup/`;
 
-// 🔐 Helper: returns Authorization header
+// 🔐 Helper: returns Authorization header with correct token type
 const getAuthHeaders = () => {
   const token = localStorage.getItem("access_token");
+  const tokenType = localStorage.getItem("token_type") || "Bearer";
   if (!token) return {};
-  return { Authorization: `Bearer ${token}` };
+  return { Authorization: `${tokenType} ${token}` };
+};
+
+// Debug function to check auth state
+const debugAuth = () => {
+  const token = localStorage.getItem("access_token");
+  const tokenType = localStorage.getItem("token_type");
+  
+  console.log("=== GrowTags Auth Debug ===");
+  console.log("Token exists:", !!token);
+  console.log("Token type:", tokenType || "not set (defaulting to Bearer)");
+  console.log("Token preview:", token ? `${token.substring(0, 20)}...` : "none");
+  console.log("===========================");
 };
 
 // ----------------------------------------------------
@@ -184,7 +198,13 @@ const GrowTagViewModal = ({ growTag, onClose, onEdit }) => {
       setGrowTagDetails(res.data);
     } catch (error) {
       console.error("Error fetching grow tag details:", error);
-      toast.error("Failed to load grow tag details");
+      if (error.response?.status === 401) {
+        toast.error("Session expired. Please login again.");
+      } else if (error.response?.status === 403) {
+        toast.error("You don't have permission to view details");
+      } else {
+        toast.error("Failed to load grow tag details");
+      }
     } finally {
       setLoading(false);
     }
@@ -611,6 +631,7 @@ export default function GrowTags() {
   }, [navigate]);
 
   useEffect(() => {
+    debugAuth();
     if (!localStorage.getItem("access_token")) {
       toast.error("Session expired. Please login again.");
       navigate("/login");
@@ -825,8 +846,14 @@ export default function GrowTags() {
       setShowFormModal(false);
       await loadGrowtags();
     } catch (err) {
-      const msg = extractErrorMessage(err);
-      toast.error(msg || "Failed to save grow tag", { id: toastId });
+      if (err.response?.status === 401) {
+        toast.error("Session expired. Please login again.", { id: toastId });
+      } else if (err.response?.status === 403) {
+        toast.error("You don't have permission to perform this action", { id: toastId });
+      } else {
+        const msg = extractErrorMessage(err);
+        toast.error(msg || "Failed to save grow tag", { id: toastId });
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -885,8 +912,14 @@ export default function GrowTags() {
                   toast.success(`Grow Tag deleted successfully`, { id: dt });
                   await loadGrowtags();
                   setSelectedIds(prev => prev.filter(x => x !== id));
-                } catch {
-                  toast.error("Failed to delete grow tag", { id: dt });
+                } catch (err) {
+                  if (err.response?.status === 401) {
+                    toast.error("Session expired. Please login again.", { id: dt });
+                  } else if (err.response?.status === 403) {
+                    toast.error("You don't have permission to delete", { id: dt });
+                  } else {
+                    toast.error("Failed to delete grow tag", { id: dt });
+                  }
                 }
               }}
               className="px-3 py-1.5 bg-red-600 text-white rounded-md text-sm"
@@ -941,6 +974,7 @@ export default function GrowTags() {
 
                   const deleted = results.filter(r => r.ok).map(r => r.id);
                   const forbidden = results.filter(r => r.status === 403).map(r => r.id);
+                  const unauthorized = results.filter(r => r.status === 401).map(r => r.id);
 
                   if (deleted.length > 0) {
                     setUsers(prev => prev.filter(u => !deleted.includes(u.id)));
@@ -953,6 +987,7 @@ export default function GrowTags() {
                     toast.dismiss(dt);
                     if (deleted.length > 0) toast.success(`${deleted.length} deleted successfully`);
                     if (forbidden.length > 0) toast.error(`${forbidden.length} could not be deleted (no permission)`);
+                    if (unauthorized.length > 0) toast.error(`Session expired. Please login again.`);
                   }
                 } catch {
                   toast.error("Bulk delete failed", { id: dt });
@@ -976,6 +1011,16 @@ export default function GrowTags() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
+      {/* Debug Button - Remove in production */}
+      <div className="mb-4 flex justify-end">
+        <button
+          onClick={debugAuth}
+          className="text-xs bg-gray-200 px-3 py-1 rounded hover:bg-gray-300"
+        >
+          Debug Auth
+        </button>
+      </div>
+
       {/* View Modal */}
       {showViewModal && viewData && (
         <GrowTagViewModal 
@@ -1260,7 +1305,7 @@ export default function GrowTags() {
                 <div className="flex justify-between items-start">
                   <div className="flex items-center gap-3">
                     {u.image ? (
-                      <img src={u.image} className="w-12 h-12 rounded-full" />
+                      <img src={u.image} className="w-12 h-12 rounded-full" alt="avatar" />
                     ) : (
                       <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center">—</div>
                     )}
