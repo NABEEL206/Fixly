@@ -1,12 +1,11 @@
 // src/auth/AuthContext.jsx
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { BASE_URL } from "@/API/BaseURL";
+import axiosInstance from "@/API/axiosInstance";
 
 const AuthContext = createContext();
 
-// Token endpoints
-const LOGIN_API = `${BASE_URL}/auth/login/`;
-const REFRESH_API = `${BASE_URL}/auth/token/refresh/`;
+// Login endpoint
+const LOGIN_API = "/auth/login/";
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -14,6 +13,14 @@ export const useAuth = () => {
     throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
+};
+
+// Helper function to clear auth storage
+const clearAuthStorage = () => {
+  localStorage.removeItem("user");
+  localStorage.removeItem("access_token");
+  localStorage.removeItem("refresh_token");
+  localStorage.removeItem("token_type");
 };
 
 export const AuthProvider = ({ children }) => {
@@ -27,10 +34,7 @@ export const AuthProvider = ({ children }) => {
       }
     } catch (error) {
       console.error("Failed to parse user data:", error);
-      localStorage.removeItem("user");
-      localStorage.removeItem("access_token");
-      localStorage.removeItem("refresh_token");
-      localStorage.removeItem("token_type");
+      clearAuthStorage();
     }
     return null;
   });
@@ -43,45 +47,35 @@ export const AuthProvider = ({ children }) => {
     try {
       console.log("1. Attempting login to:", LOGIN_API);
       
-      const res = await fetch(LOGIN_API, {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "Accept": "application/json"
-        },
-        body: JSON.stringify({ 
-          login: loginValue,
-          password: password 
-        }),
+      const response = await axiosInstance.post(LOGIN_API, {
+        login: loginValue,
+        password: password
       });
 
-      console.log("2. Response status:", res.status);
+      console.log("2. Response status:", response.status);
+      console.log("3. Response data:", response.data);
 
-      const data = await res.json();
-      console.log("3. Response data:", data);
+      const data = response.data;
 
-      if (!res.ok) {
-        throw new Error(data.message || data.detail || "Invalid credentials");
+      // Save token
+      localStorage.setItem("access_token", data.access_token);
+
+      if (data.refresh_token) {
+        // JWT user (ADMIN)
+        localStorage.setItem("refresh_token", data.refresh_token);
+        localStorage.setItem("token_type", "Bearer");
+      } else {
+        // DRF Token user (FRANCHISE, GROWTAG, CUSTOMER, etc.)
+        localStorage.setItem("token_type", "Token");
       }
-
-// Save token
-localStorage.setItem("access_token", data.access_token);
-
-if (data.refresh_token) {
-  // JWT user (ADMIN)
-  localStorage.setItem("refresh_token", data.refresh_token);
-  localStorage.setItem("token_type", "Bearer");
-} else {
-  // DRF Token user (FRANCHISE, GROWTAG, CUSTOMER, etc.)
-  localStorage.setItem("token_type", "Token");
-}
+      
       // Save user data with all fields from API
       const userData = {
         id: data.user.id,
         email: data.user.email,
         name: data.user.name,
-        role: data.user.role, // This will be "FRANCHISE" or "OTHERSHOP" or others
-        shop_type: data.user.shop_type, // Keep for reference if needed
+        role: data.user.role,
+        shop_type: data.user.shop_type,
         permissions: data.user.permissions || [],
         is_active: data.user.is_active
       };
@@ -98,9 +92,22 @@ if (data.refresh_token) {
       };
     } catch (error) {
       console.error("5. Login error:", error);
+      
+      // Extract error message from response
+      let errorMessage = "Login failed. Please try again.";
+      if (error.response?.data) {
+        errorMessage = error.response.data.message || 
+                      error.response.data.detail || 
+                      error.response.data.error ||
+                      JSON.stringify(error.response.data) ||
+                      errorMessage;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       return { 
         success: false, 
-        message: error.message || "Login failed. Please try again." 
+        message: errorMessage
       };
     } finally {
       setLoading(false);
@@ -110,41 +117,7 @@ if (data.refresh_token) {
   /* 🔓 LOGOUT */
   const logout = () => {
     setUser(null);
-    localStorage.removeItem("user");
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
-    localStorage.removeItem("token_type");
-  };
-
-  /* 🔁 REFRESH TOKEN */
-  const refreshAccessToken = async () => {
-    const refreshToken = localStorage.getItem("refresh_token");
-    
-    if (!refreshToken) {
-      logout();
-      return null;
-    }
-
-    try {
-      const res = await fetch(REFRESH_API, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refresh: refreshToken }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error("Token refresh failed");
-      }
-
-      localStorage.setItem("access_token", data.access);
-      return data.access;
-    } catch (error) {
-      console.error("Token refresh error:", error);
-      logout();
-      return null;
-    }
+    clearAuthStorage();
   };
 
   /* 🔐 CHECK AUTH STATUS */
@@ -179,15 +152,16 @@ if (data.refresh_token) {
     return () => window.removeEventListener("storage", handleStorageChange);
   }, []);
 
+  const value = {
+    user,
+    login,
+    logout,
+    isAuthenticated,
+    loading
+  };
+
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      login, 
-      logout, 
-      refreshAccessToken,
-      isAuthenticated,
-      loading 
-    }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

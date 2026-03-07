@@ -1,7 +1,7 @@
 // src/pages/Growtags/AssignGrowTags.jsx
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, ChevronDown, ChevronUp, ArrowLeft } from "lucide-react";
+import { Search, ChevronDown, ChevronUp, ArrowLeft, Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 import axiosInstance from "@/API/axiosInstance";
 
@@ -317,11 +317,9 @@ export default function AssignGrowTags() {
   const isUnassigning = useRef(false);
   const isBulkUnassigning = useRef(false);
 
-  // Data Fetching
+  // Data Fetching - UPDATED to match Shops page style
   const fetchAllData = async () => {
     setLoading(true);
-    const MIN_SPINNER_TIME = 2000;
-    const startTime = Date.now();
 
     try {
       const [shopsRes, growtagsRes, assignmentsRes] = await Promise.all([
@@ -355,10 +353,6 @@ export default function AssignGrowTags() {
         toast.error("Failed to load initial data.");
       }
     } finally {
-      const elapsed = Date.now() - startTime;
-      if (elapsed < MIN_SPINNER_TIME) {
-        await delay(MIN_SPINNER_TIME - elapsed);
-      }
       setLoading(false);
     }
   };
@@ -423,7 +417,7 @@ export default function AssignGrowTags() {
     }
   };
 
-  // ✅ CLEAN UNASSIGN TOAST WITH CLICK PREVENTION
+  // CLEAN UNASSIGN TOAST WITH CLICK PREVENTION
   const handleUnassign = (id) => {
     // Prevent multiple clicks
     if (isUnassigning.current) return;
@@ -479,7 +473,7 @@ export default function AssignGrowTags() {
     );
   };
 
-  // ✅ CLEAN BULK UNASSIGN TOAST WITH CLICK PREVENTION
+  // CLEAN BULK UNASSIGN TOAST WITH CLICK PREVENTION
   const handleBulk = () => {
     if (selectedIds.length === 0) {
       toast.error("Select at least one assignment to unassign ⚠️");
@@ -580,12 +574,12 @@ export default function AssignGrowTags() {
     );
   };
 
-  // Loading state
+  // Loading state - UPDATED to match Shops page style
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 md:p-6 flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <Loader2 className="animate-spin h-12 w-12 text-blue-600 mx-auto mb-4" />
           <p className="text-gray-600">Loading assignments...</p>
         </div>
       </div>
@@ -695,56 +689,62 @@ export default function AssignGrowTags() {
           </thead>
 
           <tbody>
-            {filtered.map((a) => (
-              <tr key={a.id} className="border-b hover:bg-gray-50">
-                <td className="p-2">
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.includes(a.id)}
-                    onChange={() => toggleCheck(a.id)}
-                    disabled={isBulkUnassigning.current}
-                  />
-                </td>
-                <td className="p-2">{a.growId}</td>
-                <td className="p-2">{a.growName}</td>
-                <td className="p-2">{a.shopName}</td>
-                <td className="p-2">
-                  <span
-                    className={`px-3 py-1 inline-block rounded-full text-xs font-semibold ${
-                      a.shopType === "franchise"
-                        ? "bg-blue-100 text-blue-800"
-                        : "bg-yellow-100 text-yellow-800"
-                    }`}
-                  >
-                    {a.shopType.toUpperCase().replace("_", " ")}
-                  </span>
-                </td>
-                <td className="p-2 text-gray-700">{a.createdBy || "—"}</td>
-                <td className="p-2">{new Date(a.assignedAt).toLocaleString()}</td>
-                <td className="p-2">
-                  <button
-                    onClick={() => handleUnassign(a.id)}
-                    disabled={isUnassigning.current || isBulkUnassigning.current}
-                    className={`px-3 py-1 rounded-lg text-sm ${
-                      isUnassigning.current || isBulkUnassigning.current
-                        ? "bg-gray-400 cursor-not-allowed"
-                        : "bg-red-600 hover:bg-red-700 text-white"
-                    } transition-colors`}
-                  >
-                    {isUnassigning.current ? "Processing..." : "Unassign"}
-                  </button>
-                </td>
-              </tr>
-            ))}
-
-            {filtered.length === 0 && (
+            {filtered.length === 0 ? (
               <tr>
-                <td colSpan="8" className="p-4 text-center text-gray-500">
-                  {search
-                    ? "No assignments match your search."
-                    : "No assignments found."}
+                <td colSpan="8" className="p-8 text-center">
+                  <div className="flex flex-col items-center justify-center">
+                    <Search size={48} className="text-gray-300 mb-3" />
+                    <p className="text-lg font-medium text-gray-600 mb-1">No assignments found</p>
+                    <p className="text-sm text-gray-400">
+                      {search
+                        ? "Try adjusting your search criteria"
+                        : "Get started by assigning a grow tag above"}
+                    </p>
+                  </div>
                 </td>
               </tr>
+            ) : (
+              filtered.map((a) => (
+                <tr key={a.id} className="border-b hover:bg-gray-50">
+                  <td className="p-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(a.id)}
+                      onChange={() => toggleCheck(a.id)}
+                      disabled={isBulkUnassigning.current}
+                    />
+                  </td>
+                  <td className="p-2">{a.growId}</td>
+                  <td className="p-2">{a.growName}</td>
+                  <td className="p-2">{a.shopName}</td>
+                  <td className="p-2">
+                    <span
+                      className={`px-3 py-1 inline-block rounded-full text-xs font-semibold ${
+                        a.shopType === "franchise"
+                          ? "bg-blue-100 text-blue-800"
+                          : "bg-yellow-100 text-yellow-800"
+                      }`}
+                    >
+                      {a.shopType.toUpperCase().replace("_", " ")}
+                    </span>
+                  </td>
+                  <td className="p-2 text-gray-700">{a.createdBy || "—"}</td>
+                  <td className="p-2">{new Date(a.assignedAt).toLocaleString()}</td>
+                  <td className="p-2">
+                    <button
+                      onClick={() => handleUnassign(a.id)}
+                      disabled={isUnassigning.current || isBulkUnassigning.current}
+                      className={`px-3 py-1 rounded-lg text-sm ${
+                        isUnassigning.current || isBulkUnassigning.current
+                          ? "bg-gray-400 cursor-not-allowed"
+                          : "bg-red-600 hover:bg-red-700 text-white"
+                      } transition-colors`}
+                    >
+                      {isUnassigning.current ? "Processing..." : "Unassign"}
+                    </button>
+                  </td>
+                </tr>
+              ))
             )}
           </tbody>
         </table>
@@ -752,67 +752,73 @@ export default function AssignGrowTags() {
 
       {/* Mobile View */}
       <div className="md:hidden space-y-3">
-        {filtered.map((a) => (
-          <div
-            key={a.id}
-            className="bg-white rounded-xl shadow border p-4 space-y-2"
-          >
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="font-semibold text-sm">
-                  {a.growId} – {a.growName}
-                </p>
-                <p className="text-xs text-gray-500">
-                  Assigned At: {new Date(a.assignedAt).toLocaleString()}
-                </p>
-                {a.createdBy && (
-                  <p className="text-xs text-gray-600 mt-1">
-                    By: {a.createdBy}
+        {filtered.length === 0 ? (
+          <div className="bg-white rounded-xl shadow border p-8 text-center">
+            <Search size={48} className="text-gray-300 mx-auto mb-3" />
+            <p className="text-lg font-medium text-gray-600 mb-1">No assignments found</p>
+            <p className="text-sm text-gray-400">
+              {search
+                ? "Try adjusting your search criteria"
+                : "Get started by assigning a grow tag above"}
+            </p>
+          </div>
+        ) : (
+          filtered.map((a) => (
+            <div
+              key={a.id}
+              className="bg-white rounded-xl shadow border p-4 space-y-2"
+            >
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="font-semibold text-sm">
+                    {a.growId} – {a.growName}
                   </p>
-                )}
+                  <p className="text-xs text-gray-500">
+                    Assigned At: {new Date(a.assignedAt).toLocaleString()}
+                  </p>
+                  {a.createdBy && (
+                    <p className="text-xs text-gray-600 mt-1">
+                      By: {a.createdBy}
+                    </p>
+                  )}
+                </div>
+
+                <input
+                  type="checkbox"
+                  checked={selectedIds.includes(a.id)}
+                  onChange={() => toggleCheck(a.id)}
+                  disabled={isBulkUnassigning.current}
+                />
               </div>
 
-              <input
-                type="checkbox"
-                checked={selectedIds.includes(a.id)}
-                onChange={() => toggleCheck(a.id)}
-                disabled={isBulkUnassigning.current}
-              />
-            </div>
+              <div className="text-sm">
+                <p>
+                  <span className="font-medium">Shop:</span> {a.shopName}
+                </p>
+                <span
+                  className={`inline-block mt-1 px-3 py-1 rounded-full text-xs font-semibold ${
+                    a.shopType === "franchise"
+                      ? "bg-blue-100 text-blue-800"
+                      : "bg-yellow-100 text-yellow-800"
+                  }`}
+                >
+                  {a.shopType.toUpperCase().replace("_", " ")}
+                </span>
+              </div>
 
-            <div className="text-sm">
-              <p>
-                <span className="font-medium">Shop:</span> {a.shopName}
-              </p>
-              <span
-                className={`inline-block mt-1 px-3 py-1 rounded-full text-xs font-semibold ${
-                  a.shopType === "franchise"
-                    ? "bg-blue-100 text-blue-800"
-                    : "bg-yellow-100 text-yellow-800"
+              <button
+                onClick={() => handleUnassign(a.id)}
+                disabled={isUnassigning.current || isBulkUnassigning.current}
+                className={`w-full mt-2 py-1.5 rounded-lg text-sm ${
+                  isUnassigning.current || isBulkUnassigning.current
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-red-600 hover:bg-red-700 text-white"
                 }`}
               >
-                {a.shopType.toUpperCase().replace("_", " ")}
-              </span>
+                {isUnassigning.current ? "Processing..." : "Unassign"}
+              </button>
             </div>
-
-            <button
-              onClick={() => handleUnassign(a.id)}
-              disabled={isUnassigning.current || isBulkUnassigning.current}
-              className={`w-full mt-2 py-1.5 rounded-lg text-sm ${
-                isUnassigning.current || isBulkUnassigning.current
-                  ? "bg-gray-400 cursor-not-allowed"
-                  : "bg-red-600 hover:bg-red-700 text-white"
-              }`}
-            >
-              {isUnassigning.current ? "Processing..." : "Unassign"}
-            </button>
-          </div>
-        ))}
-
-        {filtered.length === 0 && (
-          <div className="text-center text-gray-500 py-6">
-            No assignments found.
-          </div>
+          ))
         )}
       </div>
     </div>

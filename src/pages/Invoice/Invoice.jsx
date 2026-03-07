@@ -1,160 +1,114 @@
-import React, { useState, useRef, useMemo, useEffect, useCallback } from "react";
-import { useLocation } from "react-router-dom";
-
-// 
-// CRUCIAL IMPORTS
-//
-import html2canvas from 'html2canvas'; 
-import { jsPDF } from 'jspdf';
-import { 
-  Plus, X, Edit, Trash2, Eye, Download, Mail, ChevronLeft, 
-  RotateCcw, Search, Percent, IndianRupee, MapPin, Flag, Loader2,
-  FileText, Menu, MoreVertical, Users, Store, Tag, Building,
-  AlertCircle, CheckCircle, Info
+// src/pages/Sales/Invoice.jsx
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  useCallback,
+} from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import axiosInstance from "@/API/axiosInstance";
+import {
+  Plus,
+  X,
+  Edit,
+  Trash2,
+  ChevronLeft,
+  RotateCcw,
+  Search,
+  MapPin,
+  Loader2,
+  AlertCircle,
+  CheckCircle,
+  Info,
+  User,
+  Save,
+  LogIn,
+  Eye,
+  FileText
 } from "lucide-react";
+import toast from "react-hot-toast";
 
 // Helper function
 const format = (num) => Number(num || 0).toFixed(2);
 
-// Demo Data with States (Including Kerala customers)
-const demoCustomers = [
-  { name: "John Doe", state: "Kerala", city: "Kochi" },
-  { name: "Jane Smith", state: "Karnataka", city: "Bangalore" },
-  { name: "Acme Corp", state: "Tamil Nadu", city: "Chennai" },
-  { name: "Global Traders", state: "Kerala", city: "Thiruvananthapuram" },
-  { name: "Tech Solutions", state: "Kerala", city: "Kozhikode" },
-  { name: "Northern Imports", state: "Delhi", city: "New Delhi" },
-  { name: "Western Exports", state: "Gujarat", city: "Ahmedabad" },
-  { name: "Southern Foods", state: "Kerala", city: "Alappuzha" },
+// GST options that match backend - complete list with all rates
+const gstOptions = [
+  { value: "GST_0", label: "No Tax (0%)", rate: 0 },
+  { value: "GST_0_25", label: "0.25% GST", rate: 0.25 },
+  { value: "GST_3", label: "3% GST", rate: 3 },
+  { value: "GST_5", label: "5% GST", rate: 5 },
+  { value: "GST_12", label: "12% GST", rate: 12 },
+  { value: "GST_18", label: "18% GST", rate: 18 },
+  { value: "GST_28", label: "28% GST", rate: 28 },
 ];
-
-const demoItems = [
-  { name: "Product A", rate: 100 },
-  { name: "Product B", rate: 200 },
-  { name: "Product C", rate: 300 },
-  { name: "Product D", rate: 400 },
-  { name: "Product E", rate: 500 },
-];
-
-// Define GST options for same state (CGST+SGST) and different state (IGST)
-const gstOptionsSameState = [
-  { label: "No Tax (0%)", totalRate: 0, cgst: 0, sgst: 0, igst: 0 },
-  { label: "5% GST (2.5% CGST + 2.5% SGST)", totalRate: 5, cgst: 2.5, sgst: 2.5, igst: 0 },
-  { label: "12% GST (6% CGST + 6% SGST)", totalRate: 12, cgst: 6, sgst: 6, igst: 0 },
-  { label: "18% GST (9% CGST + 9% SGST)", totalRate: 18, cgst: 9, sgst: 9, igst: 0 },
-  { label: "28% GST (14% CGST + 14% SGST)", totalRate: 28, cgst: 14, sgst: 14, igst: 0 },
-];
-
-const gstOptionsOtherState = [
-  { label: "No Tax (0%)", totalRate: 0, cgst: 0, sgst: 0, igst: 0 },
-  { label: "5% IGST", totalRate: 5, cgst: 0, sgst: 0, igst: 5 },
-  { label: "12% IGST", totalRate: 12, cgst: 0, sgst: 0, igst: 12 },
-  { label: "18% IGST", totalRate: 18, cgst: 0, sgst: 0, igst: 18 },
-  { label: "28% IGST", totalRate: 28, cgst: 0, sgst: 0, igst: 28 },
-];
-
-// Business Information (Your Company's State - KERALA)
-const BUSINESS_INFO = {
-  name: "MALAYALI ENTERPRISES",
-  state: "Kerala", // Your company's registered state
-  address: "123 Business Street, Ernakulam, Kerala, 682001",
-  gstin: "32ABCDE1234F1Z5", // Kerala GSTIN starts with 32
-  phone: "+91 97460 12345",
-  email: "info@malayalienterprises.com",
-  bankDetails: {
-    name: "State Bank of India",
-    accountNumber: "123456789012",
-    ifscCode: "SBIN0000123",
-    branch: "Ernakulam Main"
-  }
-};
-
-// Demo assigned data based on complaint ID
-const assignedDataByComplaint = {
-  "CMP001": {
-    assignTo: "Franchise",
-    assignedTo: "Franchise A - Kochi",
-    assignedDate: "2024-01-15",
-    details: "Assigned for service and repair"
-  },
-  "CMP002": {
-    assignTo: "Grow Tag",
-    assignedTo: "Grow Tag - Premium",
-    assignedDate: "2024-01-16",
-    details: "Assigned for quality check"
-  },
-  "CMP003": {
-    assignTo: "Other Shop",
-    assignedTo: "Other Shop 1 - Electronics",
-    assignedDate: "2024-01-17",
-    details: "Assigned for parts replacement"
-  },
-  "CMP004": {
-    assignTo: "Franchise",
-    assignedTo: "Franchise B - Thiruvananthapuram",
-    assignedDate: "2024-01-18",
-    details: "Assigned for warranty service"
-  }
-};
 
 const getStatusBadge = (status) => {
   const base = "px-3 py-1 text-xs rounded-full font-semibold border";
   switch (status) {
-    case "Paid":
+    case "PAID":
       return base + " bg-green-50 text-green-700 border-green-300";
-    case "Partially Paid":
+    case "PARTIALLY_PAID":
       return base + " bg-yellow-50 text-yellow-700 border-yellow-300";
+    case "DRAFT":
+      return base + " bg-gray-50 text-gray-700 border-gray-300";
+    case "OVERDUE":
+      return base + " bg-red-50 text-red-700 border-red-300";
+    case "SENT":
+      return base + " bg-blue-50 text-blue-700 border-blue-300";
+    case "CANCELLED":
+      return base + " bg-gray-200 text-gray-700 border-gray-400";
     default:
-      return base + " bg-blue-50 text-blue-700 border-blue-300"; 
+      return base + " bg-blue-50 text-blue-700 border-blue-300";
   }
 };
 
-// Initial state for a new invoice
+// Initial state for a new invoice - REMOVED customer_name
 const initialInvoiceState = {
-  customer: { name: "", state: "", city: "" },
-  complaintId: "",
-  invoiceId: "", 
-  invoiceDate: new Date().toISOString().split('T')[0],
-  dueDate: "",
-  status: "Draft",
-  items: [{ 
-    item: "",
-    description: "",
-    qty: 1, 
-    rate: 0,
-    serviceCharge: 0,
-    serviceChargeType: 'rupee',
-    gstTreatment: "No Tax (0%)",
-    gstRate: 0, 
-    cgst: 0, 
-    sgst: 0, 
-    igst: 0 
-  }],
-  discount: 0,
-  discountType: 'rupee',
-  termsAndConditions: `1. Payment Terms: Payment is due within ${new Date().getDate() + 15} days of invoice date.
+  id: null,
+  customer: null,
+  customer_phone: "",
+  customer_email: "",
+  customer_address: "",
+  customer_state: "Kerala",
+  customer_city: "",
+  customer_pincode: "",
+  assign_type: "shop",
+  assign_id: null,
+  assign_name: "",
+  assign_shop_type: null,
+  invoice_number: "",
+  status: "DRAFT",
+  invoice_date: new Date().toISOString().split("T")[0],
+  due_date: "",
+  discount_type: "PERCENT",
+  discount_value: 0,
+  terms_conditions: `1. Payment Terms: Payment is due within 15 days of invoice date.
 2. Late Payment: 1.5% monthly interest on overdue amounts.
 3. Delivery: Delivery subject to stock availability.
 4. Warranty: 1-year warranty from invoice date.
 5. Jurisdiction: Disputes subject to Kerala jurisdiction.`,
-};
-
-// Helper function to parse number input properly
-const parseNumberInput = (value) => {
-  // If value is empty string, return 0
-  if (value === '') return 0;
-  
-  // If value is a string starting with 0 and has more digits, parse it as number
-  // This handles cases like "012525" -> 12525
-  if (typeof value === 'string' && value.startsWith('0') && value.length > 1) {
-    // Remove leading zeros and parse
-    const cleaned = value.replace(/^0+/, '');
-    return cleaned === '' ? 0 : Number(cleaned);
-  }
-  
-  // Otherwise, convert to number
-  const num = Number(value);
-  return isNaN(num) ? 0 : num;
+  items: [
+    {
+      item_id: null,
+      item_name: "",
+      qty: 1,
+      rate: 0,
+      description: "",
+      service_charge_type: "AMOUNT",
+      service_charge_value: 0,
+      service_charge_amount: 0,
+      gst_treatment: "GST_5",
+    },
+  ],
+  sub_total: 0,
+  service_charge_total: 0,
+  taxable_amount: 0,
+  gst_breakdown: {},
+  grand_total: 0,
+  supply_type: "INTRASTATE",
+  gst_mode: "CGST+SGST",
+  pdf_url: "",
 };
 
 // Toast Component
@@ -163,23 +117,36 @@ const Toast = ({ message, type, onClose }) => {
     const timer = setTimeout(() => {
       onClose();
     }, 5000);
-
     return () => clearTimeout(timer);
   }, [onClose]);
 
-  const bgColor = type === 'success' ? 'bg-green-100 border-green-300 text-green-800' :
-                  type === 'error' ? 'bg-red-100 border-red-300 text-red-800' :
-                  'bg-blue-100 border-blue-300 text-blue-800';
+  const bgColor =
+    type === "success"
+      ? "bg-green-100 border-green-300 text-green-800"
+      : type === "error"
+        ? "bg-red-100 border-red-300 text-red-800"
+        : "bg-blue-100 border-blue-300 text-blue-800";
 
-  const icon = type === 'success' ? <CheckCircle size={20} /> :
-               type === 'error' ? <AlertCircle size={20} /> :
-               <Info size={20} />;
+  const icon =
+    type === "success" ? (
+      <CheckCircle size={20} />
+    ) : type === "error" ? (
+      <AlertCircle size={20} />
+    ) : (
+      <Info size={20} />
+    );
 
   return (
-    <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg border shadow-lg flex items-center gap-3 ${bgColor} animate-slideIn`}>
+    <div
+      className={`fixed top-4 right-4 z-50 p-4 rounded-lg border shadow-lg flex items-center gap-3 ${bgColor}`}
+      style={{ animation: "slideIn 0.3s ease-out" }}
+    >
       {icon}
       <div className="font-medium">{message}</div>
-      <button onClick={onClose} className="ml-4 text-gray-500 hover:text-gray-700">
+      <button
+        onClick={onClose}
+        className="ml-4 text-gray-500 hover:text-gray-700"
+      >
         <X size={18} />
       </button>
     </div>
@@ -187,950 +154,1190 @@ const Toast = ({ message, type, onClose }) => {
 };
 
 const Invoice = () => {
-  
+  const navigate = useNavigate();
   const location = useLocation();
   const complaintData = location.state?.complaintData;
+  const quotationData = location.state?.quotationData;
+
   const [currentScreen, setCurrentScreen] = useState("list");
   const [editIndex, setEditIndex] = useState(null);
   const [invoices, setInvoices] = useState([]);
-  const [selectedGSTRate, setSelectedGSTRate] = useState(gstOptionsSameState[0].label);
+  const [customers, setCustomers] = useState([]);
+  const [items, setItems] = useState([]);
+  const [shops, setShops] = useState([]);
+  const [growtags, setGrowtags] = useState([]);
   const [quickSearch, setQuickSearch] = useState("");
-  const [generatingPDF, setGeneratingPDF] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
 
-  const previewRef = useRef(null); 
   const [invoiceData, setInvoiceData] = useState(initialInvoiceState);
-  
+  const [customerComplaints, setCustomerComplaints] = useState([]);
+  const [selectedInvoices, setSelectedInvoices] = useState([]);
+
   // Validation states
   const [errors, setErrors] = useState({});
-  const [toast, setToast] = useState({ show: false, message: "", type: "" });
+  const [toastMsg, setToastMsg] = useState({
+    show: false,
+    message: "",
+    type: "",
+  });
+  // Helper function to get customer name from ID
+  const getCustomerName = (customerId) => {
+    if (!customerId) return "Unknown Customer";
+    const customer = customers.find((c) => c.id === customerId);
+    return customer?.customer_name || "Unknown Customer";
+  };
+  // Toggle single invoice checkbox
+  const toggleInvoiceSelection = (id) => {
+    setSelectedInvoices((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
+    );
+  };
 
-  // Get appropriate GST options based on customer's state
-  const getGstOptionsForCustomer = useCallback(() => {
-    const customerState = invoiceData.customer.state;
-    if (customerState && customerState === BUSINESS_INFO.state) {
-      return gstOptionsSameState;
+  // Select all invoices
+  const toggleSelectAll = () => {
+    if (selectedInvoices.length === filteredInvoices.length) {
+      setSelectedInvoices([]);
     } else {
-      return gstOptionsOtherState;
+      setSelectedInvoices(filteredInvoices.map((inv) => inv.id));
     }
-  }, [invoiceData.customer.state]);
+  };
 
-  // Update GST treatments when customer changes
+  // Check authentication status
   useEffect(() => {
-    if (invoiceData.customer.name) {
-      const gstOptions = getGstOptionsForCustomer();
-      const defaultGst = gstOptions[0];
-      
-      const updatedItems = invoiceData.items.map(item => ({
-        ...item,
-        gstTreatment: defaultGst.label,
-        gstRate: defaultGst.totalRate,
-        cgst: defaultGst.cgst,
-        sgst: defaultGst.sgst,
-        igst: defaultGst.igst
-      }));
+    const token = localStorage.getItem("access_token");
+    setIsAuthenticated(!!token);
 
-      setInvoiceData(prev => ({
-        ...prev,
-        items: updatedItems
-      }));
+    if (!token) {
+      showToast("Please log in to view invoices", "info");
     }
-  }, [invoiceData.customer.state, getGstOptionsForCustomer]);
+  }, []);
 
-  // When complaint ID changes, fetch assigned details
+  // Fetch data on mount
   useEffect(() => {
-    if (invoiceData.complaintId && assignedDataByComplaint[invoiceData.complaintId]) {
-      // In a real app, you would fetch this data from an API
-      console.log("Found assigned data for complaint:", invoiceData.complaintId);
+    if (isAuthenticated) {
+      fetchCustomers();
+      fetchItems();
+      fetchShops();
+      fetchGrowtags();
+      fetchInvoices();
     }
-  }, [invoiceData.complaintId]);
+  }, [isAuthenticated]);
 
-  useEffect(() => {
-    if (complaintData) {
-      setInvoiceData((prev) => ({
-        ...prev,
-        complaintId: complaintData.id,
-        customer: {
-          name: complaintData.customer_name,
-          state: complaintData.state,
-          city: complaintData.city,
-        },
-      }));
-
-      // 🔥 DIRECTLY OPEN FORM (skip invoice list)
-      setCurrentScreen("form");
-      setEditIndex(null);
+  // Fetch customers from API
+  const fetchCustomers = async () => {
+    try {
+      const response = await axiosInstance.get("/api/customers/");
+      const data = response.data;
+      setCustomers(Array.isArray(data) ? data : data?.results || []);
+    } catch (error) {
+      console.error("Fetch customers error:", error);
     }
-  }, [complaintData]);
+  };
 
-  // Auto-generate invoice ID
-  useEffect(() => {
-    if (currentScreen === "form" && editIndex === null) {
-      if (!invoiceData.invoiceId || invoiceData.invoiceId.startsWith("INV-Auto")) {
-        const nextId = `INV-${String(invoices.length + 1).padStart(3, '0')}`;
-        setInvoiceData(prev => ({ ...prev, invoiceId: nextId }));
+  // Fetch items from API
+  const fetchItems = async () => {
+    try {
+      const response = await axiosInstance.get("/zoho/local-items/");
+      const data = response.data;
+      setItems(Array.isArray(data) ? data : data?.results || []);
+    } catch (error) {
+      console.error("Fetch items error:", error);
+    }
+  };
+
+  // Fetch shops from API
+  const fetchShops = async () => {
+    try {
+      const response = await axiosInstance.get("/api/shops/");
+      const data = response.data;
+      setShops(Array.isArray(data) ? data : data?.results || []);
+    } catch (error) {
+      console.error("Fetch shops error:", error);
+    }
+  };
+
+  // Fetch growtags from API
+  const fetchGrowtags = async () => {
+    try {
+      const response = await axiosInstance.get("/api/growtags/");
+      const data = response.data;
+      setGrowtags(Array.isArray(data) ? data : data?.results || []);
+    } catch (error) {
+      console.error("Fetch growtags error:", error);
+    }
+  };
+
+  // Generate invoice number
+  const generateInvoiceNumber = () => {
+    const lastInvoice = invoices[0];
+    let lastNumber = 0;
+
+    if (lastInvoice && lastInvoice.invoice_number) {
+      const match = lastInvoice.invoice_number.match(/INV-(\d+)/);
+      if (match) {
+        lastNumber = parseInt(match[1]);
       }
     }
-  }, [currentScreen, editIndex, invoices.length]);
 
-  // Calculate totals for current invoice with CORRECT GST logic
-  const { 
-    subTotal, 
-    totalServiceCharge,
-    taxableAmount,
-    discountAmount,
-    gstBase,
-    totalTax, 
-    total, 
-    cgstAmount, 
-    sgstAmount, 
-    igstAmount,
-    taxBreakdown,
-    isSameState,
-    gstTreatmentLabel
-  } = useMemo(() => {
+    const newNumber = (lastNumber + 1).toString().padStart(4, "0");
+    return `INV-${newNumber}`;
+  };
+
+  // Fetch invoices from API - REMOVED customer_name from state
+  const fetchInvoices = async () => {
+    setIsLoading(true);
+    try {
+      const response = await axiosInstance.get("/zoho/local-invoices/");
+      const data = response.data;
+      const invoicesList = Array.isArray(data) ? data : data?.results || [];
+
+      // Transform API data to frontend format - store only customer ID
+      const transformed = invoicesList.map((inv) => {
+        const safeInv = inv || {};
+
+        // Determine assign type and name
+        let assign_type = null;
+        let assign_id = null;
+        let assign_name = null;
+        let assign_shop_type = null;
+
+        if (safeInv.assigned_shop) {
+          assign_type = "shop";
+          assign_id = safeInv.assigned_shop;
+          assign_name = safeInv.assigned_shop_name || "";
+          assign_shop_type = safeInv.assigned_shop_type || null;
+        } else if (safeInv.assigned_growtag) {
+          assign_type = "growtag";
+          assign_id = safeInv.assigned_growtag;
+          assign_name = safeInv.assigned_growtag_name || "";
+        }
+
+        // Safely transform lines
+        const lines = Array.isArray(safeInv.lines) ? safeInv.lines : [];
+        const items = lines.map((line) => {
+          const safeLine = line || {};
+          return {
+            id: safeLine.id || null,
+            item_id: safeLine.item || null,
+            item_name: safeLine.item_name || "",
+            qty: parseFloat(safeLine.qty) || 0,
+            rate: parseFloat(safeLine.rate) || 0,
+            description: safeLine.description || "",
+            service_charge_type: safeLine.service_charge_type || "AMOUNT",
+            service_charge_value:
+              parseFloat(safeLine.service_charge_value) || 0,
+            service_charge_amount:
+              parseFloat(safeLine.service_charge_amount) || 0,
+            gst_treatment: safeLine.gst_treatment || "GST_5",
+            line_amount: parseFloat(safeLine.line_amount) || 0,
+            taxable_amount: parseFloat(safeLine.taxable_amount) || 0,
+            line_tax: parseFloat(safeLine.line_tax) || 0,
+            line_total: parseFloat(safeLine.line_total) || 0,
+          };
+        });
+
+        // Store only customer ID, not customer_name
+        return {
+          id: safeInv.id,
+          customer: safeInv.customer,
+          customer_phone: safeInv.customer_phone,
+          customer_email: safeInv.customer_email,
+          customer_address: safeInv.customer_address,
+          customer_state: safeInv.customer_state || "Kerala",
+          customer_city: safeInv.customer_city,
+          customer_pincode: safeInv.customer_pincode,
+          assign_type,
+          assign_id,
+          assign_name,
+          assign_shop_type,
+          invoice_number: safeInv.invoice_number,
+          status: safeInv.status,
+          invoice_date: safeInv.invoice_date,
+          due_date: safeInv.due_date,
+          discount_type: safeInv.discount_type || "PERCENT",
+          discount_value: parseFloat(safeInv.discount_value) || 0,
+          terms_conditions: safeInv.terms_conditions || "",
+          lines: lines,
+          items: items,
+          sub_total: parseFloat(safeInv.sub_total) || 0,
+          service_charge_total: parseFloat(safeInv.service_charge_total) || 0,
+          taxable_amount: parseFloat(safeInv.taxable_amount) || 0,
+          gst_breakdown: safeInv.gst_breakdown || {},
+          grand_total: parseFloat(safeInv.grand_total) || 0,
+          supply_type: safeInv.supply_type || "INTRASTATE",
+          gst_mode: safeInv.gst_mode || "CGST+SGST",
+          pdf_url: safeInv.pdf_url,
+          sync_status: safeInv.sync_status,
+          last_error: safeInv.last_error,
+        };
+      });
+
+      setInvoices(transformed);
+    } catch (error) {
+      console.error("Fetch invoices error:", error);
+      if (error.response?.status !== 401 && error.response?.status !== 404) {
+        showToast("Failed to load invoices", "error");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Calculate totals for display during editing
+  const calculatedTotals = useMemo(() => {
+    // Calculate line amounts and service charges
     let subTotal = 0;
-    let totalServiceCharge = 0;
+    let serviceChargeTotal = 0;
 
-    const isSameState = invoiceData.customer.state === BUSINESS_INFO.state;
-    const gstTreatmentLabel = isSameState ? "CGST + SGST" : "IGST";
+    const itemsWithCalculations = invoiceData.items.map((item) => {
+      const qty = parseFloat(item.qty) || 0;
+      const rate = parseFloat(item.rate) || 0;
+      const lineAmount = qty * rate;
+      subTotal += lineAmount;
 
-    // First pass: Calculate subTotal and totalServiceCharge
-    invoiceData.items.forEach(item => {
-      const itemAmount = item.qty * item.rate;
-      subTotal += itemAmount;
-      
-      let itemServiceCharge = 0;
-      if (item.serviceChargeType === 'percentage') {
-        itemServiceCharge = (itemAmount * Number(item.serviceCharge || 0)) / 100;
+      // Calculate service charge
+      const serviceValue = parseFloat(item.service_charge_value) || 0;
+      let serviceAmount = 0;
+      if (item.service_charge_type === "PERCENTAGE") {
+        serviceAmount = (lineAmount * serviceValue) / 100;
       } else {
-        itemServiceCharge = Number(item.serviceCharge || 0);
+        serviceAmount = serviceValue;
       }
-      
-      totalServiceCharge += itemServiceCharge;
+      serviceChargeTotal += serviceAmount;
+
+      return {
+        ...item,
+        line_amount: lineAmount,
+        service_charge_amount: serviceAmount,
+        taxable_amount: lineAmount + serviceAmount,
+      };
     });
 
-    // Calculate Taxable Amount (Sub Total + Service Charge)
-    const taxableAmount = subTotal + totalServiceCharge;
-    
-    // Calculate discount amount (apply to Taxable Amount)
-    let discountAmount = 0;
-    if (invoiceData.discountType === 'percentage') {
-      discountAmount = (taxableAmount * Number(invoiceData.discount || 0)) / 100;
-    } else {
-      discountAmount = Number(invoiceData.discount || 0);
-    }
-    
-    // Ensure discount doesn't exceed taxable amount
-    discountAmount = Math.min(discountAmount, taxableAmount);
-    
-    // Calculate GST Base (Taxable Amount - Discount)
-    const gstBase = Math.max(0, taxableAmount - discountAmount);
-    
-    // Second pass: Calculate GST on the GST Base proportionally per item
-    let totalCGST = 0;
-    let totalSGST = 0;
-    let totalIGST = 0;
-    let taxBreakdown = {};
-    
-    invoiceData.items.forEach(item => {
-      const itemAmount = item.qty * item.rate;
-      
-      let itemServiceCharge = 0;
-      if (item.serviceChargeType === 'percentage') {
-        itemServiceCharge = (itemAmount * Number(item.serviceCharge || 0)) / 100;
-      } else {
-        itemServiceCharge = Number(item.serviceCharge || 0);
-      }
-      
-      // Calculate this item's proportion of the total taxable amount
-      const itemTaxableAmount = itemAmount + itemServiceCharge;
-      const itemProportion = taxableAmount > 0 ? itemTaxableAmount / taxableAmount : 0;
-      
-      // Calculate this item's share of the GST base
-      const itemGstBase = gstBase * itemProportion;
-      
-      // Calculate GST on the item's share of GST base
-      const itemCGST = (Number(item.cgst || 0) / 100) * itemGstBase;
-      const itemSGST = (Number(item.sgst || 0) / 100) * itemGstBase;
-      const itemIGST = (Number(item.igst || 0) / 100) * itemGstBase;
-      
-      totalCGST += itemCGST;
-      totalSGST += itemSGST;
-      totalIGST += itemIGST;
+    const taxableAmount = subTotal + serviceChargeTotal;
 
-      const gstRate = item.gstRate;
-      if (!taxBreakdown[gstRate]) {
-        taxBreakdown[gstRate] = {
-          rate: gstRate,
+    // Calculate discount
+    const discountValue = parseFloat(invoiceData.discount_value) || 0;
+    let discountAmount = 0;
+    if (invoiceData.discount_type === "PERCENT") {
+      discountAmount = (taxableAmount * discountValue) / 100;
+    } else {
+      discountAmount = discountValue;
+    }
+    discountAmount = Math.min(discountAmount, taxableAmount);
+
+    const gstBase = Math.max(0, taxableAmount - discountAmount);
+
+    // Calculate GST breakdown
+    let totalGST = 0;
+    const gstBreakdown = {};
+
+    itemsWithCalculations.forEach((item) => {
+      const itemTaxable = item.taxable_amount;
+      const proportion = taxableAmount > 0 ? itemTaxable / taxableAmount : 0;
+      const itemGstBase = gstBase * proportion;
+
+      // Get GST rate from gst_treatment
+      const gstRate = parseFloat(
+        (item.gst_treatment || "GST_5").replace("GST_", "").replace("_", "."),
+      );
+
+      const gstAmount = (gstRate / 100) * itemGstBase;
+      totalGST += gstAmount;
+
+      // Build breakdown
+      const rateKey = `GST_${item.gst_treatment?.replace("GST_", "")}`;
+      if (!gstBreakdown[rateKey]) {
+        gstBreakdown[rateKey] = {
+          rate: gstRate.toString(),
           taxable: 0,
-          cgst: 0,
-          sgst: 0,
-          igst: 0,
-          total: 0
+          tax: 0,
         };
       }
-      
-      taxBreakdown[gstRate].taxable += itemGstBase;
-      taxBreakdown[gstRate].cgst += itemCGST;
-      taxBreakdown[gstRate].sgst += itemSGST;
-      taxBreakdown[gstRate].igst += itemIGST;
-      taxBreakdown[gstRate].total += itemCGST + itemSGST + itemIGST;
+      gstBreakdown[rateKey].taxable += itemGstBase;
+      gstBreakdown[rateKey].tax += gstAmount;
     });
 
-    const totalTax = totalCGST + totalSGST + totalIGST;
-    const total = gstBase + totalTax;
+    const grandTotal = gstBase + totalGST;
 
-    return { 
-      subTotal, 
-      totalServiceCharge,
+    return {
+      subTotal,
+      serviceChargeTotal,
       taxableAmount,
       discountAmount,
       gstBase,
-      totalTax, 
-      total, 
-      cgstAmount: totalCGST, 
-      sgstAmount: totalSGST, 
-      igstAmount: totalIGST,
-      taxBreakdown,
-      isSameState,
-      gstTreatmentLabel
+      totalGST,
+      grandTotal,
+      gstBreakdown,
+      itemsWithCalculations,
+      isSameState: invoiceData.customer_state === "Kerala",
+      gstMode: invoiceData.customer_state === "Kerala" ? "CGST+SGST" : "IGST",
     };
-  }, [invoiceData.items, invoiceData.customer.state, invoiceData.discount, invoiceData.discountType]);
+  }, [
+    invoiceData.items,
+    invoiceData.discount_value,
+    invoiceData.discount_type,
+    invoiceData.customer_state,
+  ]);
 
-  // Calculate invoice total for list view (with correct GST logic)
-  const calculateInvoiceTotal = useCallback((inv) => {
-    let invSubTotal = 0;
-    let totalServiceCharge = 0;
-    
-    // First pass: Calculate subTotal and service charge
-    inv.items.forEach(item => {
-      const itemAmount = item.qty * item.rate;
-      invSubTotal += itemAmount;
-      
-      let itemServiceCharge = 0;
-      if (item.serviceChargeType === 'percentage') {
-        itemServiceCharge = (itemAmount * Number(item.serviceCharge || 0)) / 100;
-      } else {
-        itemServiceCharge = Number(item.serviceCharge || 0);
-      }
-      
-      totalServiceCharge += itemServiceCharge;
-    });
-    
-    // Taxable Amount
-    const taxableAmount = invSubTotal + totalServiceCharge;
-    
-    // Discount (apply to Taxable Amount)
-    let discountAmount = 0;
-    if (inv.discountType === 'percentage') {
-      discountAmount = (taxableAmount * Number(inv.discount || 0)) / 100;
-    } else {
-      discountAmount = Number(inv.discount || 0);
+  // Handle customer selection change
+  const handleCustomerChange = (customerId) => {
+    const id = customerId ? parseInt(customerId) : null;
+    const customer = customers.find((c) => c.id === id);
+
+    let assign_type = null;
+    let assign_id = null;
+    let assign_name = "";
+
+    // get complaints
+    const complaints = customer?.complaints_history || [];
+    setCustomerComplaints(complaints);
+
+    // get latest complaint
+    const latestComplaint =
+      complaints.length > 0 ? complaints[complaints.length - 1] : null;
+
+    if (latestComplaint?.assigned_to_display) {
+      assign_type =
+        latestComplaint.assigned_to_display.assign_type === "shop"
+          ? "shop"
+          : "growtag";
+
+      assign_id = latestComplaint.assigned_to_display.id;
+      assign_name = latestComplaint.assigned_to_display.name;
     }
-    
-    // Ensure discount doesn't exceed taxable amount
-    discountAmount = Math.min(discountAmount, taxableAmount);
-    
-    // GST Base
-    const gstBase = Math.max(0, taxableAmount - discountAmount);
-    
-    // Second pass: Calculate GST proportionally
-    let totalCGST = 0;
-    let totalSGST = 0;
-    let totalIGST = 0;
-    
-    inv.items.forEach(item => {
-      const itemAmount = item.qty * item.rate;
-      
-      let itemServiceCharge = 0;
-      if (item.serviceChargeType === 'percentage') {
-        itemServiceCharge = (itemAmount * Number(item.serviceCharge || 0)) / 100;
-      } else {
-        itemServiceCharge = Number(item.serviceCharge || 0);
-      }
-      
-      // Calculate this item's proportion of the total taxable amount
-      const itemTaxableAmount = itemAmount + itemServiceCharge;
-      const itemProportion = taxableAmount > 0 ? itemTaxableAmount / taxableAmount : 0;
-      
-      // Calculate this item's share of the GST base
-      const itemGstBase = gstBase * itemProportion;
-      
-      // Calculate GST on the item's share of GST base
-      const itemCGST = (Number(item.cgst || 0) / 100) * itemGstBase;
-      const itemSGST = (Number(item.sgst || 0) / 100) * itemGstBase;
-      const itemIGST = (Number(item.igst || 0) / 100) * itemGstBase;
-      
-      totalCGST += itemCGST;
-      totalSGST += itemSGST;
-      totalIGST += itemIGST;
+
+    setInvoiceData({
+      ...invoiceData,
+      customer: id,
+      customer_phone: customer?.customer_phone || "",
+      customer_email: customer?.email || "",
+      customer_address: customer?.address || "",
+      customer_state: customer?.state || "Kerala",
+      customer_city: customer?.area || customer?.city || "",
+      customer_pincode: customer?.pincode || "",
+      assign_type: assign_type || "shop",
+      assign_id: assign_id,
+      assign_name: assign_name,
     });
-    
-    const totalTax = totalCGST + totalSGST + totalIGST;
-    return gstBase + totalTax;
-  }, []);
-
-  // Filtering Logic
-  const filteredInvoices = useMemo(() => {
-    const search = quickSearch.toLowerCase();
-    
-    return invoices.filter(inv => {
-      const matchesSearch = 
-        inv.invoiceId.toLowerCase().includes(search) ||
-        inv.customer.name.toLowerCase().includes(search) ||
-        inv.status.toLowerCase().includes(search);
-
-      return matchesSearch;
-    });
-  }, [invoices, quickSearch]);
-
-  // Get assigned details for current complaint ID
-  const assignedDetails = useMemo(() => {
-    if (invoiceData.complaintId && assignedDataByComplaint[invoiceData.complaintId]) {
-      return assignedDataByComplaint[invoiceData.complaintId];
-    }
-    return null;
-  }, [invoiceData.complaintId]);
-
-  const exitScreen = () => {
-    setCurrentScreen("list");
-    setEditIndex(null);
-    setSelectedGSTRate(gstOptionsSameState[0].label);
-    setInvoiceData(initialInvoiceState);
-    setErrors({});
   };
-  
+
+  // Handle complaint data
+  useEffect(() => {
+    if (complaintData && customers.length > 0) {
+      const customer = customers.find((c) => c.id === complaintData.customer);
+      setInvoiceData((prev) => ({
+        ...prev,
+        customer: customer?.id || null,
+        customer_phone: customer?.customer_phone || "",
+        customer_email: customer?.email || "",
+        customer_address: customer?.address || "",
+        customer_state: customer?.state || "Kerala",
+        customer_city: customer?.area || customer?.city || "",
+        customer_pincode: customer?.pincode || "",
+      }));
+      setCurrentScreen("form");
+      setEditIndex(null);
+    }
+  }, [complaintData, customers]);
+
+  // Handle quotation data
+  useEffect(() => {
+    if (quotationData && customers.length > 0) {
+      const customer = customers.find((c) => c.id === quotationData.customer);
+      const defaultGst = "GST_5";
+
+      // Transform quotation items
+      const items = (quotationData.items || []).map((item) => ({
+        item_id: item.item,
+        item_name: item.item_name,
+        qty: parseFloat(item.quantity),
+        rate: parseFloat(item.rate),
+        description: item.description || "",
+        service_charge_type: item.service_charge_type || "AMOUNT",
+        service_charge_value: parseFloat(item.service_charge_value || 0),
+        service_charge_amount: 0,
+        gst_treatment: item.gst_treatment || defaultGst,
+      }));
+
+      setInvoiceData((prev) => ({
+        ...prev,
+        customer: customer?.id || null,
+        customer_phone: customer?.customer_phone || "",
+        customer_email: customer?.email || "",
+        customer_address: customer?.address || "",
+        customer_state: customer?.state || "Kerala",
+        customer_city: customer?.area || customer?.city || "",
+        customer_pincode: customer?.pincode || "",
+        invoice_number: `INV-${quotationData.quote_number?.split("-").pop() || String(invoices.length + 1).padStart(4, "0")}`,
+        invoice_date:
+          quotationData.quote_date || new Date().toISOString().split("T")[0],
+        due_date: quotationData.expiry_date || "",
+        items: items,
+        discount_type: quotationData.discount_type || "PERCENT",
+        discount_value: parseFloat(quotationData.discount_value || 0),
+        terms_conditions:
+          quotationData.terms_conditions || prev.terms_conditions,
+      }));
+
+      setCurrentScreen("form");
+      setEditIndex(null);
+    }
+  }, [quotationData, customers, invoices.length]);
+
+  // Show toast notification
+  const showToast = (message, type = "error") => {
+    setToastMsg({ show: true, message, type });
+  };
+
   // Validate form
   const validateForm = () => {
     const newErrors = {};
-    
-    // Customer Name validation
-    if (!invoiceData.customer.name || invoiceData.customer.name.trim() === "") {
-      newErrors.customerName = "Customer name is required";
+
+    if (!invoiceData.customer) {
+      newErrors.customer = "Customer is required";
+    } else if (isNaN(parseInt(invoiceData.customer))) {
+      newErrors.customer = "Invalid customer selected";
     }
-    
-    // Invoice ID validation
-    if (!invoiceData.invoiceId || invoiceData.invoiceId.trim() === "") {
-      newErrors.invoiceId = "Invoice ID is required";
-    } else if (!/^INV-\d{3,}$/.test(invoiceData.invoiceId)) {
-      newErrors.invoiceId = "Invoice ID should be in format INV-001, INV-002, etc.";
+
+    if (!invoiceData.invoice_number) {
+      newErrors.invoice_number = "Invoice number is required";
     }
-    
-    // Complaint ID validation
-    if (invoiceData.complaintId && !/^[A-Za-z0-9\-_]+$/.test(invoiceData.complaintId)) {
-      newErrors.complaintId = "Complaint ID can only contain letters, numbers, hyphens, and underscores";
+
+    if (!invoiceData.invoice_date) {
+      newErrors.invoice_date = "Invoice date is required";
     }
-    
-    // Items validation
+
+    if (
+      invoiceData.due_date &&
+      new Date(invoiceData.due_date) < new Date(invoiceData.invoice_date)
+    ) {
+      newErrors.due_date = "Due date cannot be before invoice date";
+    }
+
     if (invoiceData.items.length === 0) {
       newErrors.items = "At least one item is required";
     } else {
       invoiceData.items.forEach((item, index) => {
-        if (!item.item || item.item.trim() === "") {
-          newErrors[`item-${index}`] = "Item name is required";
+        if (!item.item_id) {
+          newErrors[`item_${index}`] = "Item is required";
         }
-        if (item.qty <= 0) {
-          newErrors[`qty-${index}`] = "Quantity must be greater than 0";
+        if (!item.qty || item.qty <= 0) {
+          newErrors[`qty_${index}`] = "Valid quantity required";
         }
-        if (item.rate < 0) {
-          newErrors[`rate-${index}`] = "Rate cannot be negative";
+        if (!item.rate || item.rate < 0) {
+          newErrors[`rate_${index}`] = "Valid rate required";
         }
-        if (!item.rate || item.rate === 0) {
-          newErrors[`rate-${index}`] = "Rate is required";
-        }
-        if (item.serviceCharge < 0) {
-          newErrors[`serviceCharge-${index}`] = "Service charge cannot be negative";
+        if (!item.gst_treatment) {
+          newErrors[`gst_${index}`] = "GST rate is required";
         }
       });
     }
-    
-    // Discount validation
-    if (invoiceData.discount < 0) {
+
+    if (invoiceData.discount_value < 0) {
       newErrors.discount = "Discount cannot be negative";
     }
-    if (invoiceData.discountType === 'percentage' && invoiceData.discount > 100) {
+    if (
+      invoiceData.discount_type === "PERCENT" &&
+      invoiceData.discount_value > 100
+    ) {
       newErrors.discount = "Discount percentage cannot exceed 100%";
     }
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
-  
-  // Show toast notification
-  const showToast = (message, type = "error") => {
-    setToast({ show: true, message, type });
-  };
-  
-  // Save invoice with validation
-  const saveInvoice = () => {
-    if (!validateForm()) {
-      showToast("Please fix all validation errors before saving.", "error");
-      
-      // Scroll to first error
-      const firstError = Object.keys(errors)[0];
-      if (firstError) {
-        const element = document.querySelector(`[data-error="${firstError}"]`);
-        if (element) {
-          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }
-      return;
+
+  // Transform to API format - with proper data formatting
+  const transformToAPIFormat = () => {
+    // Format numbers to 2 decimal places as strings
+    const formatNumber = (num) => {
+      const value = parseFloat(num) || 0;
+      return value.toFixed(2);
+    };
+
+    const discountValue = parseFloat(invoiceData.discount_value) || 0;
+
+    // Prepare lines payload with validation
+    const lines_payload = invoiceData.items
+      .filter((item) => item.item_id) // Only include items with valid item_id
+      .map((item) => ({
+        item_id: parseInt(item.item_id),
+        qty: parseFloat(item.qty) || 1,
+        rate: formatNumber(parseFloat(item.rate) || 0),
+        description: item.description || "",
+        service_charge_type: item.service_charge_type || "AMOUNT",
+        service_charge_value: formatNumber(
+          parseFloat(item.service_charge_value) || 0,
+        ),
+        gst_treatment: item.gst_treatment || "GST_5",
+      }));
+
+    const apiData = {
+      customer: parseInt(invoiceData.customer),
+      status: invoiceData.status || "DRAFT",
+      invoice_date: invoiceData.invoice_date,
+      due_date: invoiceData.due_date || null,
+      discount_type: invoiceData.discount_type || "PERCENT",
+      discount_value: formatNumber(discountValue),
+      terms_conditions: invoiceData.terms_conditions || "",
+      lines_payload: lines_payload,
+    };
+
+    // Add assign fields if selected
+    if (invoiceData.assign_type === "shop" && invoiceData.assign_id) {
+      apiData.assigned_shop = parseInt(invoiceData.assign_id);
+    } else if (invoiceData.assign_type === "growtag" && invoiceData.assign_id) {
+      apiData.assigned_growtag = parseInt(invoiceData.assign_id);
     }
-    
-    // Check if invoice ID already exists (for new invoices only)
-    if (editIndex === null) {
-      const existingInvoice = invoices.find(inv => inv.invoiceId === invoiceData.invoiceId);
-      if (existingInvoice) {
-        showToast(`Invoice ID "${invoiceData.invoiceId}" already exists. Please use a different ID.`, "error");
-        return;
-      }
-    }
-    
-    if (editIndex !== null) {
-      const updated = [...invoices];
-      updated[editIndex] = invoiceData;
-      setInvoices(updated);
-      showToast(`Invoice ${invoiceData.invoiceId} updated successfully!`, "success");
-    } else {
-      let finalInvoiceData = {...invoiceData};
-      setInvoices([...invoices, finalInvoiceData]);
-      showToast(`Invoice ${invoiceData.invoiceId} created successfully!`, "success");
-    }
-    
-    // Clear form after successful save
-    setTimeout(() => {
-      exitScreen();
-    }, 1500);
+
+    return apiData;
   };
 
-  const handleEdit = (index) => {
-    const inv = invoices[index];
-    setInvoiceData(inv);
-    setEditIndex(index);
-    setErrors({});
-    
-    const gstOptions = inv.customer.state === BUSINESS_INFO.state ? gstOptionsSameState : gstOptionsOtherState;
-    setSelectedGSTRate(gstOptions[0].label);
+  // Save invoice
+  const saveInvoice = async () => {
+    if (!validateForm()) {
+      showToast("Please fix validation errors", "error");
+      return;
+    }
+
+    // Check if there are any valid items
+    const validItems = invoiceData.items.filter((item) => item.item_id);
+    if (validItems.length === 0) {
+      showToast("At least one valid item is required", "error");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const apiData = transformToAPIFormat();
+
+      let response;
+      if (editIndex !== null && invoiceData.id) {
+        response = await axiosInstance.put(
+          `/zoho/local-invoices/${invoiceData.id}/`,
+          apiData,
+        );
+      } else {
+        response = await axiosInstance.post("/zoho/local-invoices/", apiData);
+      }
+
+      showToast(
+        `Invoice ${editIndex !== null ? "updated" : "created"} successfully!`,
+        "success",
+      );
+      await fetchInvoices();
+      exitScreen();
+    } catch (error) {
+      console.error("Save invoice error:", error);
+
+      if (error.response) {
+        console.error("Error status:", error.response.status);
+        console.error("Error data:", error.response.data);
+
+        if (error.response.status === 400) {
+          const errorData = error.response.data;
+          let errorMessage = "Validation failed";
+
+          if (typeof errorData === "object") {
+            const errors = [];
+            Object.keys(errorData).forEach((key) => {
+              if (Array.isArray(errorData[key])) {
+                errors.push(`${key}: ${errorData[key].join(", ")}`);
+              } else if (typeof errorData[key] === "object") {
+                Object.keys(errorData[key]).forEach((subKey) => {
+                  errors.push(`${key}.${subKey}: ${errorData[key][subKey]}`);
+                });
+              } else {
+                errors.push(`${key}: ${errorData[key]}`);
+              }
+            });
+            errorMessage = errors.join("\n");
+          }
+
+          showToast(errorMessage, "error");
+        } else {
+          showToast(
+            error.response.data?.message || "Failed to save invoice",
+            "error",
+          );
+        }
+      } else if (error.request) {
+        showToast(
+          "No response from server. Please check your connection.",
+          "error",
+        );
+      } else {
+        showToast("Error: " + error.message, "error");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Edit invoice - REMOVED customer_name from state
+  const handleEdit = (invoice) => {
+    // Don't copy customer_name from invoice - it will be derived from customers list
+    const { customer_name, ...invoiceWithoutName } = invoice;
+
+    setInvoiceData({
+      ...invoiceWithoutName,
+      items: invoice.items || [],
+    });
+    setEditIndex(invoices.findIndex((i) => i.id === invoice.id));
     setCurrentScreen("form");
   };
 
-  const handleView = (index) => {
-    setInvoiceData(invoices[index]);
-    setCurrentScreen("preview");
+  const handleDelete = (id) => {
+    toast(
+      (t) => (
+        <div className="flex flex-col gap-3">
+          <p className="text-sm font-semibold text-gray-800">
+            Delete this invoice?
+          </p>
+
+          <p className="text-xs text-gray-500">This action cannot be undone.</p>
+
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => toast.dismiss(t.id)}
+              className="px-3 py-1.5 bg-gray-200 rounded-md text-sm hover:bg-gray-300 transition-colors"
+            >
+              Cancel
+            </button>
+
+            <button
+              onClick={async () => {
+                toast.dismiss(t.id);
+                const loadingToast = toast.loading("Deleting invoice...");
+
+                try {
+                  await axiosInstance.delete(`/zoho/local-invoices/${id}/`);
+
+                  await fetchInvoices();
+
+                  toast.success("Invoice deleted successfully", {
+                    id: loadingToast,
+                  });
+                } catch (error) {
+                  console.error("Delete invoice error:", error);
+
+                  toast.error("Error deleting invoice", {
+                    id: loadingToast,
+                  });
+                }
+              }}
+              className="px-3 py-1.5 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 transition-colors"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      ),
+      { duration: Infinity },
+    );
   };
 
-  const handleDelete = (index) => {
-    if (window.confirm("Are you sure you want to delete this invoice?")) {
-      const deletedInvoice = invoices[index];
-      setInvoices(invoices.filter((_, i) => i !== index));
-      showToast(`Invoice ${deletedInvoice.invoiceId} deleted successfully!`, "success");
+  // Open PDF in new tab using axios
+  const openPDF = async (url) => {
+    if (!url) return;
+
+    setPdfLoading(true);
+    try {
+      const response = await axiosInstance.get(url, {
+        responseType: "blob",
+      });
+
+      const blob = new Blob([response.data], { type: "application/pdf" });
+      const blobUrl = window.URL.createObjectURL(blob);
+      window.open(blobUrl, "_blank");
+
+      setTimeout(() => {
+        window.URL.revokeObjectURL(blobUrl);
+      }, 100);
+    } catch (error) {
+      console.error("Error opening PDF:", error);
+      showToast("Failed to open PDF", "error");
+    } finally {
+      setPdfLoading(false);
     }
   };
 
-  // Add item row with service charge
+  // Add item
   const addItem = () => {
-    const gstOptions = getGstOptionsForCustomer();
-    const defaultGst = gstOptions[0];
-    
-    const newItem = { 
-      item: "",
-      description: "",
-      isManual: false,
+    const newItem = {
+      item_id: null,
+      item_name: "",
       qty: 1,
       rate: 0,
-      serviceCharge: 0,
-      serviceChargeType: 'rupee',
-      gstTreatment: defaultGst.label,
-      gstRate: defaultGst.totalRate, 
-      cgst: defaultGst.cgst, 
-      sgst: defaultGst.sgst, 
-      igst: defaultGst.igst 
+      description: "",
+      service_charge_type: "AMOUNT",
+      service_charge_value: 0,
+      service_charge_amount: 0,
+      gst_treatment: "GST_5",
     };
-
     setInvoiceData({
       ...invoiceData,
       items: [...invoiceData.items, newItem],
     });
-    
-    // Clear item errors when adding new item
-    const newErrors = { ...errors };
-    Object.keys(newErrors).forEach(key => {
-      if (key.startsWith('item-') || key.startsWith('qty-') || key.startsWith('rate-') || key.startsWith('serviceCharge-')) {
-        delete newErrors[key];
-      }
-    });
-    setErrors(newErrors);
   };
 
-  // Update item row including service charge
-  const updateItem = (index, key, value) => {
-    const updated = [...invoiceData.items];
-    
-    if (key === "gstTreatment") {
-      const gstOptions = getGstOptionsForCustomer();
-      const rateOption = gstOptions.find(o => o.label === value);
-      if (rateOption) {
-        updated[index] = {
-          ...updated[index],
-          gstTreatment: value,
-          gstRate: rateOption.totalRate,
-          cgst: rateOption.cgst,
-          sgst: rateOption.sgst,
-          igst: rateOption.igst
-        };
+  // Update item
+  const updateItem = (index, field, value) => {
+    const updatedItems = [...invoiceData.items];
+
+    if (field === "item_id") {
+      const selectedItem = items.find((i) => i.id === parseInt(value));
+
+      updatedItems[index] = {
+        ...updatedItems[index],
+        item_id: parseInt(value),
+        item_name: selectedItem?.name || "",
+        rate: parseFloat(selectedItem?.selling_price) || 0,
+
+        // auto fill description from items API
+        description:
+          updatedItems[index].description ||
+          selectedItem?.sales_description ||
+          "",
+
+        // optional: auto fill GST if available
+        gst_treatment:
+          selectedItem?.gst_treatment?.replace("IGST", "GST") || "GST_5",
+
+        // optional: auto fill service charge
+        service_charge_value: parseFloat(selectedItem?.service_charge) || 0,
+      };
+    } else if (field === "qty" || field === "rate") {
+      updatedItems[index][field] = parseFloat(value) || 0;
+    } else if (field === "service_charge_value") {
+      updatedItems[index].service_charge_value = parseFloat(value) || 0;
+
+      // Calculate service charge amount immediately for UI
+      const itemAmount = updatedItems[index].qty * updatedItems[index].rate;
+      if (updatedItems[index].service_charge_type === "PERCENTAGE") {
+        updatedItems[index].service_charge_amount =
+          (itemAmount * (parseFloat(value) || 0)) / 100;
+      } else {
+        updatedItems[index].service_charge_amount = parseFloat(value) || 0;
+      }
+    } else if (field === "service_charge_type") {
+      updatedItems[index].service_charge_type = value;
+
+      // Recalculate service charge amount when type changes
+      const itemAmount = updatedItems[index].qty * updatedItems[index].rate;
+      if (value === "PERCENTAGE") {
+        updatedItems[index].service_charge_amount =
+          (itemAmount * (updatedItems[index].service_charge_value || 0)) / 100;
+      } else {
+        updatedItems[index].service_charge_amount =
+          updatedItems[index].service_charge_value || 0;
       }
     } else {
-      // Use parseNumberInput for numeric fields to handle leading zeros properly
-      if (key === 'qty' || key === 'rate' || key === 'serviceCharge') {
-        const parsedValue = parseNumberInput(value);
-        updated[index][key] = parsedValue;
-        
-        // Clear validation error for this field
-        const newErrors = { ...errors };
-        delete newErrors[`${key}-${index}`];
-        setErrors(newErrors);
-      } else {
-        updated[index][key] = value;
-        
-        // Clear validation error for this field
-        if (key === 'item') {
-          const newErrors = { ...errors };
-          delete newErrors[`item-${index}`];
-          setErrors(newErrors);
-        }
-      }
-
-      if (key === "item") {
-        const selected = demoItems.find((i) => i.name === value);
-        if (selected) updated[index].rate = selected.rate;
-      }
+      updatedItems[index][field] = value;
     }
 
-    setInvoiceData({ ...invoiceData, items: updated });
+    setInvoiceData({ ...invoiceData, items: updatedItems });
   };
 
+  // Remove item
   const removeItem = (index) => {
-    const updated = invoiceData.items.filter((_, i) => i !== index);
-    setInvoiceData({ ...invoiceData, items: updated });
-    
-    // Clear errors for removed item
-    const newErrors = { ...errors };
-    Object.keys(newErrors).forEach(key => {
-      if (key.startsWith(`item-${index}`) || 
-          key.startsWith(`qty-${index}`) || 
-          key.startsWith(`rate-${index}`) || 
-          key.startsWith(`serviceCharge-${index}`)) {
-        delete newErrors[key];
-      }
-    });
-    setErrors(newErrors);
-  };
-
-  // Update GST for all items
-  const updateAllGST = (optionLabel) => {
-    const gstOptions = getGstOptionsForCustomer();
-    const rateOption = gstOptions.find(o => o.label === optionLabel); 
-    
-    if (rateOption) {
-      setSelectedGSTRate(optionLabel);
-      const updatedItems = invoiceData.items.map(item => ({
-        ...item,
-        gstTreatment: optionLabel,
-        gstRate: rateOption.totalRate,
-        cgst: rateOption.cgst,
-        sgst: rateOption.sgst,
-        igst: rateOption.igst
-      }));
-      
-      setInvoiceData({
-        ...invoiceData,
-        items: updatedItems
-      });
-    }
-  }
-
-  // Enhanced PDF Download Functionality
-  const handleDownloadPDF = async () => {
-    if (!previewRef.current) {
-      console.error("No preview element found");
+    if (invoiceData.items.length === 1) {
+      showToast("At least one item is required", "error");
       return;
     }
-
-    setGeneratingPDF(true);
-    
-    try {
-      const invoiceElement = previewRef.current;
-      
-      const originalStyles = {
-        width: invoiceElement.style.width,
-        padding: invoiceElement.style.padding,
-      };
-      
-      invoiceElement.style.width = '794px';
-      invoiceElement.style.padding = '0px';
-      
-      const canvas = await html2canvas(invoiceElement, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff',
-        onclone: (clonedDoc) => {
-          const clonedElement = clonedDoc.getElementById('invoice-preview');
-          if (clonedElement) {
-            clonedElement.style.boxShadow = 'none';
-            clonedElement.style.border = 'none';
-          }
-        }
-      });
-
-      invoiceElement.style.width = originalStyles.width;
-      invoiceElement.style.padding = originalStyles.padding;
-      
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-      
-      const imgWidth = canvas.width;
-      const imgHeight = canvas.height;
-      const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
-      const imgX = (pdfWidth - imgWidth * ratio) / 2;
-      const imgY = 5;
-      
-      pdf.addImage(imgData, 'PNG', imgX, imgY, imgWidth * ratio, imgHeight * ratio);
-      
-      pdf.setFontSize(10);
-      pdf.setTextColor(100, 100, 100);
-      pdf.text(`Generated on: ${new Date().toLocaleDateString()}`, pdfWidth / 2, pdfHeight - 10, { align: 'center' });
-      pdf.text(`Invoice ID: ${invoiceData.invoiceId}`, pdfWidth / 2, pdfHeight - 5, { align: 'center' });
-      
-      pdf.save(`invoice-${invoiceData.invoiceId}.pdf`);
-      
-      showToast(`PDF downloaded successfully!`, "success");
-      
-    } catch (error) {
-      console.error('Error generating PDF:', error);
-      showToast('Failed to generate PDF. Please try again.', "error");
-    } finally {
-      setGeneratingPDF(false);
-    }
+    const updatedItems = invoiceData.items.filter((_, i) => i !== index);
+    setInvoiceData({ ...invoiceData, items: updatedItems });
   };
 
-  const handleSendEmail = () => {
-    showToast(`Email simulated: Invoice ${invoiceData.invoiceId} sent to ${invoiceData.customer.name}.`, "success");
+  // Exit screen
+  const exitScreen = () => {
+    setCurrentScreen("list");
+    setEditIndex(null);
+    setInvoiceData(initialInvoiceState);
+    setErrors({});
   };
 
-  // Function to calculate item service charge
-  const calculateItemServiceCharge = (item) => {
-    const itemAmount = item.qty * item.rate;
-    if (item.serviceChargeType === 'percentage') {
-      return (itemAmount * Number(item.serviceCharge || 0)) / 100;
-    } else {
-      return Number(item.serviceCharge || 0);
-    }
+  // Handle login redirect
+  const handleLogin = () => {
+    navigate("/login");
   };
 
-  // Handle discount change with proper number parsing
-  const handleDiscountChange = (value) => {
-    const parsedValue = parseNumberInput(value);
-    setInvoiceData({ ...invoiceData, discount: parsedValue });
-    
-    // Clear discount error
-    const newErrors = { ...errors };
-    delete newErrors.discount;
-    setErrors(newErrors);
-  };
+  // Filter invoices
+  const filteredInvoices = useMemo(() => {
+    const search = quickSearch.toLowerCase();
+    return invoices.filter(
+      (inv) =>
+        inv.invoice_number?.toLowerCase().includes(search) ||
+        (getCustomerName(inv.customer) || "").toLowerCase().includes(search) ||
+        inv.status?.toLowerCase().includes(search),
+    );
+  }, [invoices, quickSearch, customers]);
 
-  // Handle terms and conditions change
-  const handleTermsChange = (value) => {
-    setInvoiceData({ ...invoiceData, termsAndConditions: value });
-  };
+  // Add animation style
+  useEffect(() => {
+    const style = document.createElement("style");
+    style.innerHTML = `
+      @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+      }
+    `;
+    document.head.appendChild(style);
+    return () => style.remove();
+  }, []);
 
-  // Get icon for assign to type
-  const getAssignToIcon = (type) => {
-    switch(type?.toLowerCase()) {
-      case 'franchise': return <Building size={16} />;
-      case 'grow tag': return <Tag size={16} />;
-      case 'other shop': return <Store size={16} />;
-      default: return <Users size={16} />;
-    }
-  };
-
-  // Handle customer change with validation
-  const handleCustomerChange = (e) => {
-    const selectedCustomer = demoCustomers.find(c => c.name === e.target.value);
-    if (selectedCustomer) {
-      setInvoiceData({ 
-        ...invoiceData, 
-        customer: { ...selectedCustomer } 
-      });
-      
-      // Clear customer name error
-      const newErrors = { ...errors };
-      delete newErrors.customerName;
-      setErrors(newErrors);
-    }
-  };
-
-  // Handle invoice ID change with validation
-  const handleInvoiceIdChange = (e) => {
-    setInvoiceData({ ...invoiceData, invoiceId: e.target.value });
-    
-    // Clear invoice ID error
-    const newErrors = { ...errors };
-    delete newErrors.invoiceId;
-    setErrors(newErrors);
-  };
-
-  // Handle complaint ID change with validation
-  const handleComplaintIdChange = (e) => {
-    setInvoiceData({ ...invoiceData, complaintId: e.target.value });
-    
-    // Clear complaint ID error
-    const newErrors = { ...errors };
-    delete newErrors.complaintId;
-    setErrors(newErrors);
-  };
+  // If not authenticated, show login prompt
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-lg shadow-xl p-8 max-w-md w-full text-center">
+          <div className="bg-blue-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+            <LogIn className="text-blue-600" size={40} />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">
+            Authentication Required
+          </h2>
+          <p className="text-gray-600 mb-6">
+            Please log in to access and manage your invoices.
+          </p>
+          <button
+            onClick={handleLogin}
+            className="w-full bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 font-medium"
+          >
+            <LogIn size={18} />
+            Go to Login
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-2 sm:p-4 md:p-6 lg:p-10 font-sans">
-      {/* Toast Notification */}
-      {toast.show && (
-        <Toast 
-          message={toast.message} 
-          type={toast.type} 
-          onClose={() => setToast({ show: false, message: "", type: "" })} 
+    <div className="min-h-screen bg-gray-50 p-4 md:p-6 lg:p-8 font-sans">
+      {toastMsg.show && (
+        <Toast
+          message={toastMsg.message}
+          type={toastMsg.type}
+          onClose={() => setToastMsg({ show: false, message: "", type: "" })}
         />
       )}
 
-      {/* INVOICE LIST VIEW - Mobile Responsive */}
+      {/* LIST VIEW */}
       {currentScreen === "list" && (
         <>
-          <div className="mb-6">
-            {/* Mobile Header */}
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
-              <div className="flex justify-between items-center sm:block">
-                <div>
-                  <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-800">Invoices 🧾</h2>
-                  <div className="flex flex-wrap items-center gap-1 sm:gap-2 mt-1 text-xs sm:text-sm text-gray-600">
-                    <Flag className="text-green-600" size={12} />
-                    <span className="truncate">Kerala GST Registered</span>
-                    <MapPin size={12} />
-                    <span>State: <strong className="text-green-700">{BUSINESS_INFO.state}</strong></span>
-                  </div>
-                </div>
-                {/* Mobile Menu Button */}
-                <button 
-                  onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                  className="sm:hidden p-2 rounded-lg bg-gray-100"
-                >
-                  <Menu size={24} />
-                </button>
-              </div>
-              
-              <div className={`${mobileMenuOpen ? 'block' : 'hidden'} sm:block`}>
-                <button
-                  onClick={() => setCurrentScreen("form")}
-                  className="w-full sm:w-auto bg-blue-600 text-white px-4 py-2 sm:px-5 sm:py-2 rounded-lg shadow-md hover:bg-blue-700 transition duration-150 ease-in-out flex items-center justify-center gap-2 font-medium text-sm sm:text-base"
-                >
-                  <Plus size={18} /> New Invoice
-                </button>
-              </div>
+          <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">
+                Invoices
+              </h1>
+              <p className="text-sm text-gray-600 mt-1">
+                Manage your sales invoices
+              </p>
+            </div>
+            <div className="flex gap-3 w-full sm:w-auto">
+              <button
+                onClick={() => {
+                  setInvoiceData({
+                    ...initialInvoiceState,
+                    invoice_number: generateInvoiceNumber(),
+                    items: [
+                      {
+                        item_id: null,
+                        item_name: "",
+                        qty: 1,
+                        rate: 0,
+                        description: "",
+                        service_charge_type: "AMOUNT",
+                        service_charge_value: 0,
+                        service_charge_amount: 0,
+                        gst_treatment: "GST_5",
+                      },
+                    ],
+                  });
+
+                  setCurrentScreen("form");
+                }}
+                className="w-full sm:w-auto bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2"
+              >
+                <Plus size={18} /> New Invoice
+              </button>
             </div>
           </div>
-          
-          {/* Search Bar - Mobile Optimized */}
+
+          {/* Search */}
           <div className="mb-6 relative">
-            <Search size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <Search
+              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+              size={18}
+            />
             <input
               type="text"
               placeholder="Search invoices..."
-              className="w-full border border-gray-300 rounded-lg pl-10 pr-4 py-3 text-gray-700 focus:ring-blue-500 focus:border-blue-500 shadow-sm text-sm sm:text-base"
               value={quickSearch}
               onChange={(e) => setQuickSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
             />
           </div>
-
-          {quickSearch && (
-            <div className="mb-4 p-3 bg-yellow-100 text-yellow-800 border-l-4 border-yellow-500 rounded flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 shadow-sm">
-              <p className="text-xs sm:text-sm font-medium flex items-center">
-                <Search size={14} className="inline mr-2" />
-                Filtered by: <span className="font-bold ml-1">"{quickSearch}"</span>
-              </p>
-              <button 
-                onClick={() => setQuickSearch("")} 
-                className="text-xs text-yellow-600 hover:text-yellow-900 flex items-center gap-1 font-semibold"
+          {selectedInvoices.length > 0 && (
+            <div className="mb-4 flex gap-3">
+              <button
+                onClick={bulkDeleteInvoices}
+                className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
               >
-                <RotateCcw size={12} /> Clear
+                Delete Selected ({selectedInvoices.length})
               </button>
             </div>
           )}
 
-          {/* Mobile Invoice Cards for Small Screens */}
-          <div className="sm:hidden">
-            {filteredInvoices.length ? (
-              <div className="space-y-4">
-                {filteredInvoices.map((inv, index) => {
-                  const isSameState = inv.customer.state === BUSINESS_INFO.state;
-                  return (
-                    <div key={index} className="bg-white shadow-lg rounded-xl p-4 border border-gray-200">
-                      <div className="flex justify-between items-start mb-3">
-                        <div>
-                          <div className="text-blue-600 font-bold text-lg">{inv.invoiceId}</div>
-                          <div className="font-medium text-gray-800 mt-1">{inv.customer.name}</div>
-                          <div className="text-xs text-gray-500">{inv.customer.city}</div>
-                        </div>
-                        <span className={getStatusBadge(inv.status)}>
-                          {inv.status}
-                        </span>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-3 mb-3 text-sm">
-                        <div>
-                          <div className="text-gray-500">Date</div>
-                          <div className="font-medium">{inv.invoiceDate}</div>
-                        </div>
-                        <div>
-                          <div className="text-gray-500">Due Date</div>
-                          <div className="font-medium">{inv.dueDate || 'N/A'}</div>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center justify-between mb-4">
-                        <div className={`flex items-center gap-2 ${isSameState ? 'text-green-600' : 'text-blue-600'}`}>
-                          <MapPin size={14} />
-                          <span className={`px-2 py-1 text-xs rounded-full ${isSameState ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
-                            {inv.customer.state}
-                            {isSameState && ' ✓'}
-                          </span>
-                        </div>
-                        <div className="font-bold text-gray-800 text-lg">
-                          ₹{format(calculateInvoiceTotal(inv))}
-                        </div>
-                      </div>
-                      
-                      <div className="flex justify-between items-center pt-3 border-t border-gray-100">
-                        <div className="flex gap-3">
-                          <button 
-                            onClick={() => handleView(index)}
-                            className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200"
-                            title="View"
-                          >
-                            <Eye size={18} className="text-gray-600" />
-                          </button>
-                          <button 
-                            onClick={() => handleEdit(index)}
-                            className="p-2 rounded-lg bg-blue-50 hover:bg-blue-100"
-                            title="Edit"
-                          >
-                            <Edit size={18} className="text-blue-600" />
-                          </button>
-                          <button 
-                            onClick={() => handleDelete(index)}
-                            className="p-2 rounded-lg bg-red-50 hover:bg-red-100"
-                            title="Delete"
-                          >
-                            <Trash2 size={18} className="text-red-600" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+          {/* Mobile Cards */}
+          <div className="sm:hidden space-y-4">
+            {isLoading ? (
+              <div className="text-center py-8">
+                <Loader2 className="animate-spin mx-auto mb-2" size={24} />
+                <p className="text-gray-500">Loading invoices...</p>
+              </div>
+            ) : filteredInvoices.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                {quickSearch ? "No invoices found" : "No invoices yet"}
               </div>
             ) : (
-              <div className="text-center py-12 text-gray-500 text-lg bg-white rounded-xl shadow-lg p-6">
-                {quickSearch
-                  ? `No invoices match: "${quickSearch}"`
-                  : "Start by creating your first invoice!"}
-                {!quickSearch && (
-                  <button
-                    onClick={() => setCurrentScreen("form")}
-                    className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg shadow-md hover:bg-blue-700 transition duration-150 ease-in-out flex items-center justify-center gap-2 font-medium mx-auto"
-                  >
-                    <Plus size={18} /> Create First Invoice
-                  </button>
-                )}
-              </div>
+              filteredInvoices.map((inv) => (
+                <div
+                  key={inv.id}
+                  className="bg-white rounded-lg shadow p-4 border"
+                >
+                  <div className="flex justify-between items-start mb-3">
+                    <div>
+                      <div className="text-blue-600 font-bold">
+                        {inv.invoice_number}
+                      </div>
+                      <div className="font-medium mt-1">
+                        {getCustomerName(inv.customer)}
+                      </div>
+                      {inv.assign_name && (
+                        <div className="flex items-center gap-1 text-xs text-gray-600 mt-1">
+                          {inv.assign_type === "shop" ? "🏪" : "🏷️"}
+                          {inv.assign_name}
+                        </div>
+                      )}
+                    </div>
+                    <span className={getStatusBadge(inv.status)}>
+                      {inv.status}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-sm mb-3">
+                    <div>
+                      <div className="text-gray-500">Date</div>
+                      <div>{inv.invoice_date}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-500">Due Date</div>
+                      <div>{inv.due_date || "N/A"}</div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between mb-3">
+                    <div
+                      className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full ${inv.customer_state === "Kerala" ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800"}`}
+                    >
+                      <MapPin size={12} />
+                      {inv.customer_state}
+                    </div>
+                    <div className="font-bold text-gray-800">
+                      ₹{format(inv.grand_total)}
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between pt-3 border-t">
+                    <button
+                      onClick={() => handleEdit(inv)}
+                      className="p-2 text-green-600 hover:bg-green-50 rounded"
+                      title="Edit"
+                    >
+                      <Edit size={18} />
+                    </button>
+                    {inv.pdf_url && (
+                      <button
+                        onClick={() => openPDF(inv.pdf_url)}
+                        disabled={pdfLoading}
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded disabled:opacity-50"
+                        title="View PDF"
+                      >
+                        {pdfLoading ? (
+                          <Loader2 size={18} className="animate-spin" />
+                        ) : (
+                          <Eye size={18} />
+                        )}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDelete(inv.id)}
+                      className="p-2 text-red-600 hover:bg-red-50 rounded"
+                      title="Delete"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                </div>
+              ))
             )}
           </div>
 
-          {/* Desktop Invoice Table */}
-          <div className="hidden sm:block bg-white shadow-xl rounded-xl overflow-hidden">
+          {/* Desktop Table */}
+          <div className="hidden sm:block bg-white rounded-lg shadow overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full border-collapse min-w-[640px]">
-                <thead className="bg-gray-100 border-b border-gray-200">
+              <table className="w-full">
+                <thead className="bg-gray-100">
                   <tr>
-                    {["Invoice ID", "Customer", "Customer State", "Date", "Due Date", "Status", "Total", "Actions"].map(
-                      (t, i) => (
-                        <th
-                          key={i}
-                          className="py-4 px-4 text-left text-gray-600 uppercase text-xs font-semibold tracking-wider"
-                        >
-                          {t}
-                        </th>
-                      )
-                    )}
+                    <th className="px-4 py-3 text-center">
+                      <input
+                        type="checkbox"
+                        checked={
+                          filteredInvoices.length > 0 &&
+                          selectedInvoices.length === filteredInvoices.length
+                        }
+                        onChange={toggleSelectAll}
+                      />
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">
+                      Invoice #
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">
+                      Customer
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">
+                      Assign To
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">
+                      Date
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">
+                      Due Date
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">
+                      State
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-600 uppercase">
+                      Total
+                    </th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-600 uppercase">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
-
-                <tbody>
-                  {filteredInvoices.length ? (
-                    filteredInvoices.map((inv, index) => {
-                      const isSameState = inv.customer.state === BUSINESS_INFO.state;
-                      return (
-                        <tr key={index} className="border-b border-gray-100 last:border-b-0 hover:bg-gray-50 transition duration-100">
-                          <td className="py-4 px-4 text-blue-600 font-medium">{inv.invoiceId}</td>
-                          <td className="py-4 px-4 text-gray-700">
-                            <div className="font-medium">{inv.customer.name}</div>
-                            <div className="text-xs text-gray-500">{inv.customer.city}</div>
-                          </td>
-                          <td className="py-4 px-4">
-                            <div className={`flex items-center gap-2 ${isSameState ? 'text-green-600' : 'text-blue-600'}`}>
-                              <MapPin size={14} />
-                              <span className={`px-2 py-1 text-xs rounded-full ${isSameState ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
-                                {inv.customer.state}
-                                {isSameState && ' ✓'}
-                              </span>
-                              <span className="text-xs text-gray-500">
-                                {isSameState ? 'CGST+SGST' : 'IGST'}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="py-4 px-4 text-gray-500">{inv.invoiceDate}</td>
-                          <td className="py-4 px-4 text-gray-500">{inv.dueDate || 'N/A'}</td>
-                          <td className="py-4 px-4">
-                            <span className={getStatusBadge(inv.status)}>
-                              {inv.status}
-                            </span>
-                          </td>
-                          <td className="py-4 px-4 font-bold text-gray-800">
-                            ₹{format(calculateInvoiceTotal(inv))}
-                          </td>
-
-                          <td className="py-4 px-4 flex items-center gap-3">
-                            <Eye className="cursor-pointer text-gray-500 hover:text-green-500" size={18} onClick={() => handleView(index)} title="View" />
-                            <Edit
-                              className="cursor-pointer text-blue-600 hover:text-blue-800" size={18}
-                              onClick={() => handleEdit(index)} title="Edit"
-                            />
-                            <Trash2
-                              className="cursor-pointer text-red-600 hover:text-red-800" size={18}
-                              onClick={() => handleDelete(index)} title="Delete"
-                            />
-                          </td>
-                        </tr>
-                      )
-                    })
-                  ) : (
+                <tbody className="divide-y divide-gray-200">
+                  {isLoading ? (
                     <tr>
-                      <td colSpan="8" className="text-center py-12 text-gray-500 text-lg">
-                        {quickSearch
-                          ? `No invoices match the search term: "${quickSearch}"`
-                          : "Start by creating your first invoice!"}
+                      <td
+                        colSpan="10"
+                        className="px-6 py-8 text-center text-gray-500"
+                      >
+                        <Loader2
+                          className="animate-spin mx-auto mb-2"
+                          size={24}
+                        />
+                        Loading invoices...
                       </td>
                     </tr>
+                  ) : filteredInvoices.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan="10"
+                        className="px-6 py-8 text-center text-gray-500"
+                      >
+                        {quickSearch ? "No invoices found" : "No invoices yet"}
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredInvoices.map((inv) => (
+                      <tr key={inv.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-4 text-center">
+                          <input
+                            type="checkbox"
+                            checked={selectedInvoices.includes(inv.id)}
+                            onChange={() => toggleInvoiceSelection(inv.id)}
+                          />
+                        </td>
+                        <td className="px-6 py-4 font-medium text-blue-600">
+                          {inv.invoice_number}
+                        </td>
+                        <td className="px-6 py-4">
+                          {getCustomerName(inv.customer)}
+                        </td>
+                        <td className="px-6 py-4">
+                          {inv.assign_name ? (
+                            <div className="flex items-center gap-1">
+                              <span>
+                                {inv.assign_type === "shop" ? "🏪" : "🏷️"}
+                              </span>
+                              <span>{inv.assign_name}</span>
+                            </div>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-gray-600">
+                          {inv.invoice_date}
+                        </td>
+                        <td className="px-6 py-4 text-gray-600">
+                          {inv.due_date || "-"}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full ${inv.customer_state === "Kerala" ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800"}`}
+                          >
+                            <MapPin size={12} />
+                            {inv.customer_state}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={getStatusBadge(inv.status)}>
+                            {inv.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right font-bold">
+                          ₹{format(inv.grand_total)}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              onClick={() => handleEdit(inv)}
+                              className="p-1.5 text-green-600 hover:bg-green-50 rounded"
+                              title="Edit"
+                            >
+                              <Edit size={16} />
+                            </button>
+                            {inv.pdf_url && (
+                              <button
+                                onClick={() => openPDF(inv.pdf_url)}
+                                disabled={pdfLoading}
+                                className="p-1.5 text-blue-600 hover:bg-blue-50 rounded disabled:opacity-50"
+                                title="View PDF"
+                              >
+                                {pdfLoading ? (
+                                  <Loader2 size={16} className="animate-spin" />
+                                ) : (
+                                  <Eye size={16} />
+                                )}
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleDelete(inv.id)}
+                              className="p-1.5 text-red-600 hover:bg-red-50 rounded"
+                              title="Delete"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
                   )}
                 </tbody>
               </table>
@@ -1138,865 +1345,600 @@ const Invoice = () => {
           </div>
         </>
       )}
-      
-      {/* INVOICE FORM VIEW - Mobile Responsive */}
-      {(currentScreen === "form") && (
-        <div className="max-w-6xl mx-auto p-1 sm:p-2"> 
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-            <button 
-              onClick={exitScreen} 
-              className="flex items-center text-blue-600 hover:text-blue-800 font-medium gap-1 p-2 rounded-lg hover:bg-white transition w-full sm:w-auto"
+
+      {/* FORM VIEW */}
+      {currentScreen === "form" && (
+        <div className="max-w-6xl mx-auto">
+          <div className="flex justify-between items-center mb-6">
+            <button
+              onClick={exitScreen}
+              className="flex items-center text-blue-600 hover:text-blue-800 gap-1"
             >
-              <ChevronLeft size={24} /> Back to Invoices
+              <ChevronLeft size={20} /> Back to Invoices
             </button>
-            <div className="flex gap-3 w-full sm:w-auto">
-              <button
-                onClick={saveInvoice}
-                className="bg-blue-600 text-white px-4 py-2 sm:px-6 sm:py-2 rounded-lg shadow-md hover:bg-blue-700 transition duration-150 font-medium text-sm sm:text-base w-full sm:w-auto"
-              >
-                {editIndex !== null ? "Update Invoice" : "Save Invoice"}
-              </button>
-            </div>
           </div>
-          
-          <div className="bg-white shadow-xl rounded-xl p-4 sm:p-6 md:p-8">
+
+          <div className="bg-white rounded-lg shadow p-6">
             {/* Validation Summary */}
             {Object.keys(errors).length > 0 && (
-              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg" data-error="validation-summary">
+              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
                 <div className="flex items-center gap-2 mb-2">
                   <AlertCircle className="text-red-600" size={20} />
-                  <h4 className="text-lg font-bold text-gray-800">Please fix the following errors:</h4>
+                  <h4 className="font-bold text-gray-800">
+                    Please fix the following errors:
+                  </h4>
                 </div>
-                <ul className="list-disc pl-5 space-y-1 text-sm text-red-700">
-                  {Object.entries(errors).map(([key, message]) => (
-                    <li key={key}>{message}</li>
+                <ul className="list-disc pl-5 text-sm text-red-700">
+                  {Object.entries(errors).map(([key, msg]) => (
+                    <li key={key}>{msg}</li>
                   ))}
                 </ul>
               </div>
             )}
 
-            <div className="flex flex-col sm:flex-row justify-between items-start mb-6 border-b pb-3">
-              <div className="w-full">
-                <h3 className="text-2xl sm:text-3xl font-extrabold text-gray-800 mb-2">
-                  {editIndex !== null ? `Edit: ${invoiceData.invoiceId}` : "New Invoice"}
-                </h3>
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs sm:text-sm">
-                  <div className="flex items-center gap-1 text-gray-600">
-                    <Flag size={12} className="text-green-600" />
-                    <span>Business: <strong className="text-green-700">{BUSINESS_INFO.state}</strong></span>
-                  </div>
-                  {invoiceData.customer.name && (
-                    <div className={`flex items-center gap-1 ${invoiceData.customer.state === BUSINESS_INFO.state ? 'text-green-600' : 'text-blue-600'}`}>
-                      <span>•</span>
-                      <span>Customer: <strong>{invoiceData.customer.state}</strong></span>
-                      <span className={`px-2 py-0.5 text-xs rounded-full ${invoiceData.customer.state === BUSINESS_INFO.state ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
-                        {invoiceData.customer.state === BUSINESS_INFO.state ? 'CGST+SGST' : 'IGST'}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-8">
-              {/* Customer Selection */}
-              <div className="col-span-full sm:col-span-2 lg:col-span-1" data-error="customerName">
-                <label className="text-sm font-medium text-gray-600 block mb-1">
+            {/* Customer Selection */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
+              <div className="col-span-1">
+                <label className="block text-sm font-medium mb-1">
                   Customer <span className="text-red-500">*</span>
-                  {errors.customerName && <span className="text-red-500 text-xs ml-2">({errors.customerName})</span>}
                 </label>
                 <select
-                  className={`w-full border rounded-lg px-3 py-2.5 bg-white text-gray-700 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base ${
-                    errors.customerName ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                  value={invoiceData.customer.name || ""}
-                  onChange={handleCustomerChange}
+                  value={invoiceData.customer || ""}
+                  onChange={(e) => handleCustomerChange(e.target.value)}
+                  className={`w-full px-3 py-2 border rounded-lg ${errors.customer ? "border-red-500" : "border-gray-300"}`}
                 >
                   <option value="">Select Customer</option>
-                  {demoCustomers.map((c, i) => (
-                    <option key={i} value={c.name}>
-                      {c.name} - {c.city}, {c.state}
-                      {c.state === BUSINESS_INFO.state && " ✓"}
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.customer_name} - {c.customer_phone}
                     </option>
                   ))}
                 </select>
               </div>
 
-              <div data-error="invoiceId">
-                <label className="text-sm font-medium text-gray-600 block mb-1">
-                  Invoice ID <span className="text-red-500">*</span>
-                  {errors.invoiceId && <span className="text-red-500 text-xs ml-2">({errors.invoiceId})</span>}
+              {/* Unified Assign Field */}
+              <div className="col-span-1">
+                <label className="block text-sm font-medium mb-1">
+                  Assign To
                 </label>
-                <input
-                  className={`w-full border rounded-lg px-3 py-2.5 text-gray-700 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base ${
-                    errors.invoiceId ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                  value={invoiceData.invoiceId}
-                  onChange={handleInvoiceIdChange}
-                  placeholder="INV-001"
-                />
-              </div>
-              
-              <div data-error="complaintId">
-                <label className="text-sm font-medium text-gray-600 block mb-1">
-                  Complaint ID
-                  {errors.complaintId && <span className="text-red-500 text-xs ml-2">({errors.complaintId})</span>}
-                </label>
-                <input
-                  className={`w-full border rounded-lg px-3 py-2.5 text-gray-700 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base ${
-                    errors.complaintId ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                  value={invoiceData.complaintId}
-                  onChange={handleComplaintIdChange}
-                  placeholder="CMP001"
-                />
+                <div className="flex gap-2">
+                  <select
+                    value={invoiceData.assign_type}
+                    onChange={(e) =>
+                      setInvoiceData({
+                        ...invoiceData,
+                        assign_type: e.target.value,
+                        assign_id: null,
+                        assign_name: "",
+                      })
+                    }
+                    className="w-1/3 px-3 py-2 border rounded-lg bg-gray-50"
+                  >
+                    <option value="shop">Shop</option>
+                    <option value="growtag">Growtag</option>
+                  </select>
+                  <select
+                    value={invoiceData.assign_id || ""}
+                    onChange={(e) => {
+                      const id = e.target.value
+                        ? parseInt(e.target.value)
+                        : null;
+                      const item =
+                        invoiceData.assign_type === "shop"
+                          ? shops.find((s) => s.id === id)
+                          : growtags.find((g) => g.id === id);
+                      setInvoiceData({
+                        ...invoiceData,
+                        assign_id: id,
+                        assign_name: item?.shopname || item?.name || "",
+                      });
+                    }}
+                    className="w-2/3 px-3 py-2 border rounded-lg"
+                  >
+                    <option value="">None</option>
+                    {invoiceData.assign_type === "shop"
+                      ? shops.map((shop) => (
+                          <option key={shop.id} value={shop.id}>
+                            {shop.shopname}
+                          </option>
+                        ))
+                      : growtags.map((gt) => (
+                          <option key={gt.id} value={gt.id}>
+                            {gt.name}
+                          </option>
+                        ))}
+                  </select>
+                </div>
               </div>
 
-              <div>
-                <label className="text-sm font-medium text-gray-600 block mb-1">Status</label>
+              <div className="col-span-1">
+                <label className="block text-sm font-medium mb-1">Status</label>
                 <select
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 bg-white text-gray-700 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
                   value={invoiceData.status}
-                  onChange={(e) => setInvoiceData({ ...invoiceData, status: e.target.value })}
+                  onChange={(e) =>
+                    setInvoiceData({ ...invoiceData, status: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border rounded-lg"
                 >
-                  <option>Draft</option>
-                  <option>Paid</option>
-                  <option>Partially Paid</option>
+                  <option value="DRAFT">DRAFT</option>
+                  <option value="PAID">PAID</option>
+                  <option value="PARTIALLY_PAID">PARTIALLY PAID</option>
+                  <option value="SENT">SENT</option>
+                  <option value="OVERDUE">OVERDUE</option>
+                  <option value="CANCELLED">CANCELLED</option>
                 </select>
               </div>
 
-              <div>
-                <label className="text-sm font-medium text-gray-600 block mb-1">Invoice Date</label>
+              <div className="col-span-1">
+                <label className="block text-sm font-medium mb-1">
+                  Invoice Number *
+                </label>
+
+                <input
+                  type="text"
+                  value={invoiceData.invoice_number}
+                  onChange={(e) =>
+                    setInvoiceData({
+                      ...invoiceData,
+                      invoice_number: e.target.value,
+                    })
+                  }
+                  className={`w-full px-3 py-2 border rounded-lg ${
+                    errors.invoice_number ? "border-red-500" : "border-gray-300"
+                  }`}
+                  placeholder="INV-0001"
+                />
+              </div>
+
+              <div className="col-span-1">
+                <label className="block text-sm font-medium mb-1">
+                  Invoice Date *
+                </label>
                 <input
                   type="date"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-gray-700 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
-                  value={invoiceData.invoiceDate}
-                  onChange={(e) => setInvoiceData({ ...invoiceData, invoiceDate: e.target.value })}
+                  value={invoiceData.invoice_date}
+                  onChange={(e) =>
+                    setInvoiceData({
+                      ...invoiceData,
+                      invoice_date: e.target.value,
+                    })
+                  }
+                  className={`w-full px-3 py-2 border rounded-lg ${errors.invoice_date ? "border-red-500" : "border-gray-300"}`}
                 />
               </div>
 
-              <div>
-                <label className="text-sm font-medium text-gray-600 block mb-1">Due Date</label>
-             <input
-  type="date"
-  min={invoiceData.invoiceDate}   // 🔥 prevents selecting earlier date
-  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-gray-700 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
-  value={invoiceData.dueDate}
-  onChange={(e) => {
-    const selected = e.target.value;
-
-    // Extra safety
-    if (selected < invoiceData.invoiceDate) {
-      showToast("Due date cannot be before invoice date", "error");
-      return;
-    }
-
-    setInvoiceData({ ...invoiceData, dueDate: selected });
-  }}
-/>
-
+              <div className="col-span-1">
+                <label className="block text-sm font-medium mb-1">
+                  Due Date
+                </label>
+                <input
+                  type="date"
+                  value={invoiceData.due_date || ""}
+                  min={invoiceData.invoice_date}
+                  onChange={(e) =>
+                    setInvoiceData({ ...invoiceData, due_date: e.target.value })
+                  }
+                  className={`w-full px-3 py-2 border rounded-lg ${errors.due_date ? "border-red-500" : "border-gray-300"}`}
+                />
               </div>
-              
-              {/* GST Application Dropdown */}
-              <div>
-                <label className="text-sm font-medium text-gray-600 block mb-1">Apply GST to All Items</label>
-                <select
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 bg-white text-gray-700 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
-                  value={selectedGSTRate}
-                  onChange={(e) => updateAllGST(e.target.value)}
+            </div>
+
+            {/* Customer Details Display */}
+            {invoiceData.customer && (
+              <div className="mb-8 p-4 bg-blue-50 rounded-lg">
+                <h4 className="font-bold mb-3 flex items-center gap-2">
+                  <User size={18} /> Customer Details
+                </h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-600">Name:</span>
+                    <p className="font-medium">
+                      {getCustomerName(invoiceData.customer)}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Phone:</span>
+                    <p className="font-medium">{invoiceData.customer_phone}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Email:</span>
+                    <p className="font-medium">{invoiceData.customer_email}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">State:</span>
+                    <p className="font-medium">{invoiceData.customer_state}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {customerComplaints.length > 0 && (
+              <div className="mb-6 p-4 bg-yellow-50 rounded-lg border">
+                <h4 className="font-semibold mb-3">Customer Complaints</h4>
+
+                {customerComplaints.map((c) => (
+                  <div key={c.id} className="border-b py-2 text-sm">
+                    <div>
+                      <b>Model:</b> {c.phone_model}
+                    </div>
+                    <div>
+                      <b>Issue:</b> {c.issue_details}
+                    </div>
+                    <div>
+                      <b>Status:</b> {c.status}
+                    </div>
+                    <div>
+                      <b>Assigned To:</b> {c.assigned_to_display?.name}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Items Table */}
+            <div className="mb-8">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-bold">Items</h3>
+                <button
+                  onClick={addItem}
+                  className="bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 flex items-center gap-2 text-sm"
                 >
-                  {getGstOptionsForCustomer().map((option, index) => (
-                    <option key={index} value={option.label}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                <div className="mt-1 text-xs text-gray-500">
-                  {invoiceData.customer.state === BUSINESS_INFO.state 
-                    ? "CGST + SGST" 
-                    : "IGST"}
-                </div>
+                  <Plus size={16} /> Add Item
+                </button>
               </div>
-            </div>
 
-            {/* Assigned Details Section - Shows when complaint ID has assigned data */}
-            {assignedDetails && (
-              <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex items-center gap-2 mb-3">
-                  <Users className="text-blue-600" size={20} />
-                  <h4 className="text-lg font-bold text-gray-800">Assigned Details</h4>
+              {errors.items && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                  {errors.items}
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="bg-white p-3 rounded-lg border">
-                    <div className="text-xs text-gray-500 mb-1">Assign To</div>
-                    <div className="flex items-center gap-2">
-                      {getAssignToIcon(assignedDetails.assignTo)}
-                      <span className="font-medium">{assignedDetails.assignTo}</span>
-                    </div>
-                  </div>
-                  <div className="bg-white p-3 rounded-lg border">
-                    <div className="text-xs text-gray-500 mb-1">Assigned To</div>
-                    <div className="font-medium">{assignedDetails.assignedTo}</div>
-                  </div>
-                  <div className="bg-white p-3 rounded-lg border">
-                    <div className="text-xs text-gray-500 mb-1">Assigned Date</div>
-                    <div className="font-medium">{assignedDetails.assignedDate}</div>
-                  </div>
-                </div>
-                {assignedDetails.details && (
-                  <div className="mt-3 bg-white p-3 rounded-lg border">
-                    <div className="text-xs text-gray-500 mb-1">Details</div>
-                    <div className="text-sm">{assignedDetails.details}</div>
-                  </div>
-                )}
-              </div>
-            )}
+              )}
 
-            <h4 className="text-lg sm:text-xl font-bold text-gray-800 mt-6 mb-4">Items Breakdown</h4>
-            
-            {errors.items && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg" data-error="items">
-                <div className="flex items-center gap-2 text-red-700">
-                  <AlertCircle size={16} />
-                  <span className="text-sm font-medium">{errors.items}</span>
-                </div>
-              </div>
-            )}
-
-            <div className="overflow-x-auto -mx-4 sm:mx-0">
-              <div className="min-w-[800px] sm:min-w-0">
-                <div className="overflow-x-auto border border-gray-200 rounded-lg shadow-sm">
-                  <table className="w-full">
-                    <thead className="bg-gray-100">
-                      <tr>
-                        <th className="p-3 text-left text-xs sm:text-sm font-semibold text-gray-700">Item <span className="text-red-500">*</span></th>
-                        <th className="p-3 text-center text-xs sm:text-sm font-semibold text-gray-700">Qty <span className="text-red-500">*</span></th>
-                        <th className="p-3 text-center text-xs sm:text-sm font-semibold text-gray-700">Rate (₹) <span className="text-red-500">*</span></th>
-                        <th className="p-3 text-center text-xs sm:text-sm font-semibold text-gray-700">Service</th>
-                        <th className="p-3 text-center text-xs sm:text-sm font-semibold text-gray-700">GST</th>
-                        <th className="p-3 text-right text-xs sm:text-sm font-semibold text-gray-700">Amount</th>
-                        <th className="p-3 text-center text-xs sm:text-sm font-semibold text-gray-700"></th>
-                      </tr>
-                    </thead>
-
-                    <tbody>
-                      {invoiceData.items.map((row, index) => (
-                        <tr key={index} className="border-t border-gray-100 hover:bg-gray-50">
-                          <td className="p-3 align-top" data-error={`item-${index}`}>
-                            <input
-                              list={`items-${index}`}
-                              type="text"
-                              placeholder="Select item"
-                              className={`w-full border rounded-md px-3 py-2 text-xs sm:text-sm focus:ring-blue-500 focus:border-blue-500 ${
-                                errors[`item-${index}`] ? 'border-red-500' : 'border-gray-300'
-                              }`}
-                              value={row.item}
-                              onChange={(e) => {
-                                const value = e.target.value;
-                                updateItem(index, "item", value);
-
-                                const selected = demoItems.find(i => i.name === value);
-                                if (selected) {
-                                  updateItem(index, "rate", selected.rate);
-                                }
-                              }}
-                            />
-
-                            <datalist id={`items-${index}`}>
-                              {demoItems.map((i, idx) => (
-                                <option key={idx} value={i.name}>
-                                  {i.name}
-                                </option>
-                              ))}
-                            </datalist>
-
-                            {errors[`item-${index}`] && (
-                              <div className="mt-1 text-xs text-red-500 flex items-center gap-1">
-                                <AlertCircle size={12} />
-                                {errors[`item-${index}`]}
-                              </div>
-                            )}
-
-                            {row.item && (
-                              <textarea
-                                rows={2}
-                                placeholder="Description"
-                                className="mt-2 w-full border border-gray-200 rounded-md px-3 py-2 text-xs text-gray-700 focus:ring-blue-500 focus:border-blue-500"
-                                value={row.description}
-                                onChange={(e) =>
-                                  updateItem(index, "description", e.target.value)
-                                }
-                              />
-                            )}
-                          </td>
-
-                          <td className="p-3" data-error={`qty-${index}`}>
-                            <input
-                              type="number"
-                              className={`w-full border rounded-md px-2 py-1.5 text-xs sm:text-sm text-center focus:ring-blue-500 focus:border-blue-500 ${
-                                errors[`qty-${index}`] ? 'border-red-500' : 'border-gray-300'
-                              }`}
-                              value={row.qty === 0 ? "" : row.qty}
-                              onChange={(e) => updateItem(index, "qty", e.target.value)}
-                              min="1"
-                              placeholder="1"
-                            />
-                            {errors[`qty-${index}`] && (
-                              <div className="mt-1 text-xs text-red-500 text-center">
-                                {errors[`qty-${index}`]}
-                              </div>
-                            )}
-                          </td>
-
-                          <td className="p-3" data-error={`rate-${index}`}>
-                            <input
-                              type="number"
-                              className={`w-full border rounded-md px-2 py-1.5 text-xs sm:text-sm text-center focus:ring-blue-500 focus:border-blue-500 ${
-                                errors[`rate-${index}`] ? 'border-red-500' : 'border-gray-300'
-                              }`}
-                              value={row.rate === 0 ? "" : row.rate}
-                              onChange={(e) => updateItem(index, "rate", e.target.value)}
-                              min="0"
-                              placeholder="0"
-                            />
-                            {errors[`rate-${index}`] && (
-                              <div className="mt-1 text-xs text-red-500 text-center">
-                                {errors[`rate-${index}`]}
-                              </div>
-                            )}
-                          </td>
-
-                          {/* Service Charge Column */}
-                          <td className="p-3" data-error={`serviceCharge-${index}`}>
-                            <div className="flex flex-col sm:flex-row items-center gap-1">
-                              <input
-                                type="number"
-                                className={`w-full border rounded-md px-2 py-1.5 text-xs sm:text-sm focus:ring-blue-500 focus:border-blue-500 ${
-                                  errors[`serviceCharge-${index}`] ? 'border-red-500' : 'border-gray-300'
-                                }`}
-                                value={row.serviceCharge === 0 ? "" : row.serviceCharge}
-                                onChange={(e) => updateItem(index, "serviceCharge", e.target.value)}
-                                min="0"
-                                placeholder="0"
-                              />
-                              <select
-                                className="w-full sm:w-auto border border-gray-300 rounded-md px-2 py-1.5 text-xs sm:text-sm bg-gray-100 focus:ring-blue-500 focus:border-blue-500"
-                                value={row.serviceChargeType}
-                                onChange={(e) => updateItem(index, "serviceChargeType", e.target.value)}
-                              >
-                                <option value="rupee">₹</option>
-                                <option value="percentage">%</option>
-                              </select>
-                            </div>
-                            {errors[`serviceCharge-${index}`] && (
-                              <div className="mt-1 text-xs text-red-500 text-center">
-                                {errors[`serviceCharge-${index}`]}
-                              </div>
-                            )}
-                          </td>
-
-                          {/* GST Treatment Column */}
-                          <td className="p-3">
-                            <select
-                              className={`w-full border rounded-md px-2 py-1.5 text-xs sm:text-sm focus:ring-blue-500 focus:border-blue-500 ${invoiceData.customer.state === BUSINESS_INFO.state ? 'border-green-300' : 'border-blue-300'}`}
-                              value={row.gstTreatment}
-                              onChange={(e) => updateItem(index, "gstTreatment", e.target.value)}
-                            >
-                              {getGstOptionsForCustomer().map((option, idx) => (
-                                <option key={idx} value={option.label}>
-                                  {option.label}
-                                </option>
-                              ))}
-                            </select>
-                          </td>
-
-                          <td className="p-3 text-right font-medium text-gray-800 text-xs sm:text-sm">
-                            ₹{format(row.qty * row.rate)}
-                            {row.serviceCharge > 0 && (
-                              <div className="text-xs text-gray-500">
-                                + ₹{format(calculateItemServiceCharge(row))}
-                              </div>
-                            )}
-                          </td>
-
-                          <td className="p-3 text-center">
-                            <button
-                              onClick={() => removeItem(index)}
-                              className="text-red-500 hover:text-red-700"
-                              title="Remove Item"
-                            >
-                              <X size={18} />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-
-            <button
-              onClick={addItem}
-              className="mt-4 text-blue-600 hover:text-blue-800 flex items-center gap-1 font-medium text-sm w-full sm:w-auto justify-center sm:justify-start"
-            >
-              <Plus size={16} /> Add Another Item
-            </button>
-
-            {/* TOTALS SUMMARY - Mobile Responsive */}
-            <div className="flex justify-end mt-8">
-              <div className="w-full sm:w-96 p-4 border border-gray-300 rounded-lg bg-gray-50 shadow-sm">
-                <div className="space-y-2">
-                  {/* Sub Total */}
-                  <div className="flex justify-between text-sm sm:text-base py-1">
-                    <span className="text-gray-600">Sub Total:</span>
-                    <span className="font-medium">₹{format(subTotal)}</span>
-                  </div>
-
-                  {/* Service Charge */}
-                  {totalServiceCharge > 0 && (
-                    <div className="flex justify-between text-sm sm:text-base py-1 text-purple-600">
-                      <span className="font-medium">Service Charge:</span>
-                      <span className="font-bold">+ ₹{format(totalServiceCharge)}</span>
-                    </div>
-                  )}
-
-                  {/* Taxable Amount */}
-                  <div className="flex justify-between text-sm sm:text-base py-1 border-t border-gray-200 pt-2">
-                    <span className="font-semibold text-gray-700">Taxable Amount:</span>
-                    <span className="font-bold">₹{format(taxableAmount)}</span>
-                  </div>
-
-                  {/* Discount */}
-                  <div className="flex justify-between items-center py-1" data-error="discount">
-                    <span className="text-gray-600 text-sm sm:text-base">Discount:</span>
-                    <div className="flex w-1/2 sm:w-3/5">
-                      <input
-                        type="number"
-                        className={`w-full border rounded-l-md px-2 py-0.5 text-right text-xs sm:text-sm focus:ring-blue-500 focus:border-blue-500 bg-white ${
-                          errors.discount ? 'border-red-500' : 'border-gray-300'
-                        }`}
-                        value={invoiceData.discount === 0 ? "" : invoiceData.discount}
-                        onChange={(e) => handleDiscountChange(e.target.value)}
-                        min="0"
-                        max={invoiceData.discountType === 'percentage' ? 100 : taxableAmount}
-                        placeholder="0"
-                      />
-                      <select
-                        className="border border-gray-300 border-l-0 rounded-r-md px-1 py-0.5 text-xs sm:text-sm bg-gray-100 text-gray-700"
-                        value={invoiceData.discountType}
-                        onChange={(e) => setInvoiceData({ ...invoiceData, discountType: e.target.value })}
-                      >
-                        <option value="percentage">%</option>
-                        <option value="rupee">₹</option>
-                      </select>
-                    </div>
-                  </div>
-                  {errors.discount && (
-                    <div className="text-right text-xs text-red-500">{errors.discount}</div>
-                  )}
-
-                  {/* Discount Amount */}
-                  {discountAmount > 0 && (
-                    <div className="flex justify-between py-1 text-xs sm:text-sm text-red-600">
-                      <span className="font-semibold">Discount Amount:</span>
-                      <span className="font-semibold">- ₹{format(discountAmount)}</span>
-                    </div>
-                  )}
-
-                  {/* GST Base */}
-                  <div className="flex justify-between text-sm sm:text-base py-1 border-t border-gray-200 pt-2">
-                    <span className="font-semibold text-blue-600">GST Base:</span>
-                    <span className="font-bold text-blue-700">₹{format(gstBase)}</span>
-                  </div>
-
-                  {/* GST Breakdown */}
-                  {totalTax > 0 && (
-                    <div className="mt-3 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <h5 className="font-semibold text-gray-700 text-xs sm:text-sm">GST Breakdown:</h5>
-                        <span className={`text-xs px-2 py-1 rounded ${isSameState ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
-                          {gstTreatmentLabel}
-                        </span>
-                      </div>
-                      {Object.values(taxBreakdown).map((tax, idx) => {
-                        if (tax.total === 0) return null;
-                        
-                        return (
-                          <div key={idx} className="text-xs text-gray-600 space-y-1">
-                            <div className="flex justify-between">
-                              <span>GST {tax.rate}%:</span>
-                              <span>₹{format(tax.total)}</span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {/* Total Tax */}
-                  {totalTax > 0 && (
-                    <div className="flex justify-between py-1 text-xs sm:text-sm text-gray-700">
-                      <span className="font-semibold">Total GST:</span>
-                      <span className="font-bold">₹{format(totalTax)}</span>
-                    </div>
-                  )}
-
-                  {/* Grand Total */}
-                  <div className="flex justify-between mt-3 border-t border-gray-300 pt-3 font-extrabold text-lg sm:text-xl text-blue-700">
-                    <span>TOTAL:</span>
-                    <span>₹{format(total)}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* TERMS AND CONDITIONS SECTION */}
-            <div className="mt-8 border-t pt-8">
-              <div className="flex items-center gap-2 mb-4">
-                <FileText size={20} className="text-blue-600" />
-                <h4 className="text-lg sm:text-xl font-bold text-gray-800">Terms & Conditions</h4>
-              </div>
-              <div className="bg-gray-50 p-3 sm:p-4 rounded-lg border border-gray-200">
-                <textarea
-                  rows={4}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-700 focus:ring-blue-500 focus:border-blue-500 bg-white text-sm sm:text-base"
-                  value={invoiceData.termsAndConditions}
-                  onChange={(e) => handleTermsChange(e.target.value)}
-                  placeholder="Enter terms and conditions..."
-                />
-                <div className="mt-2 text-xs text-gray-500">
-                  <p>💡 Include payment terms, delivery conditions, warranty, etc.</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="text-center sm:text-right mt-8">
-              <button
-                onClick={saveInvoice}
-                className="bg-blue-600 text-white px-6 py-3 sm:px-8 sm:py-3 rounded-lg shadow-lg hover:bg-blue-700 transition duration-150 font-semibold text-base sm:text-lg w-full sm:w-auto"
-              >
-                {editIndex !== null ? "Update Invoice" : "Save Invoice"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* INVOICE PREVIEW VIEW - Mobile Responsive */}
-      {currentScreen === "preview" && (
-        <div className="max-w-6xl mx-auto p-1 sm:p-2"> 
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-            <button 
-              onClick={exitScreen} 
-              className="flex items-center text-blue-600 hover:text-blue-800 font-medium gap-1 p-2 rounded-lg hover:bg-white transition w-full sm:w-auto"
-            >
-              <ChevronLeft size={24} /> Back to Invoices
-            </button>
-
-            <div className="flex gap-3 w-full sm:w-auto">
-              <button
-                onClick={handleSendEmail}
-                className="bg-green-600 text-white px-3 py-2 sm:px-4 sm:py-2 rounded-lg shadow hover:bg-green-700 flex items-center justify-center gap-2 text-xs sm:text-sm font-medium w-full sm:w-auto"
-                disabled={generatingPDF}
-              >
-                <Mail size={14} /> Email
-              </button>
-              <button
-                onClick={handleDownloadPDF}
-                className="bg-red-600 text-white px-3 py-2 sm:px-4 sm:py-2 rounded-lg shadow hover:bg-red-700 flex items-center justify-center gap-2 text-xs sm:text-sm font-medium w-full sm:w-auto"
-                disabled={generatingPDF}
-              >
-                {generatingPDF ? (
-                  <>
-                    <Loader2 size={14} className="animate-spin" /> Generating...
-                  </>
-                ) : (
-                  <>
-                    <Download size={14} /> PDF
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        
-          {/* Invoice Preview Content */}
-          <div id="invoice-preview" ref={previewRef} className="bg-white p-4 sm:p-6 md:p-8 shadow-xl rounded-xl overflow-hidden">
-            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-start border-b pb-4 sm:pb-6 mb-4 sm:mb-6 gap-4">
-              <div className="w-full">
-                <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800">{BUSINESS_INFO.name}</h2>
-                <p className="text-xs sm:text-sm text-gray-600 mt-1">{BUSINESS_INFO.address}</p>
-                <p className="text-xs sm:text-sm text-gray-600">GSTIN: {BUSINESS_INFO.gstin}</p>
-                <p className="text-xs sm:text-sm text-gray-600">Phone: {BUSINESS_INFO.phone}</p>
-                <p className="text-xs sm:text-sm text-gray-600">Email: {BUSINESS_INFO.email}</p>
-              </div>
-              
-              <div className="text-right w-full lg:w-auto">
-                <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-blue-700 mb-2">INVOICE</h1>
-                <div className="bg-blue-50 p-3 sm:p-4 rounded-lg inline-block w-full lg:w-auto">
-                  <div className="text-xs sm:text-sm text-gray-600">Invoice ID</div>
-                  <div className="text-xl sm:text-2xl font-bold text-blue-700">{invoiceData.invoiceId}</div>
-                  <div className="text-xs sm:text-sm text-gray-600 mt-1 sm:mt-2">Date: {invoiceData.invoiceDate}</div>
-                  {invoiceData.dueDate && (
-                    <div className="text-xs sm:text-sm text-red-600">Due: {invoiceData.dueDate}</div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-8 mb-6 sm:mb-8">
-              <div>
-                <h3 className="text-base sm:text-lg font-bold text-gray-700 mb-2">Bill From:</h3>
-                <div className="bg-gray-50 p-3 sm:p-4 rounded-lg">
-                  <p className="font-semibold text-sm sm:text-base">{BUSINESS_INFO.name}</p>
-                  <p className="text-xs sm:text-sm text-gray-600">{BUSINESS_INFO.address}</p>
-                  <p className="text-xs sm:text-sm text-gray-600">GSTIN: {BUSINESS_INFO.gstin}</p>
-                  <p className="text-xs sm:text-sm text-gray-600">State: {BUSINESS_INFO.state}</p>
-                </div>
-              </div>
-              
-              <div className="mt-4 lg:mt-0">
-                <h3 className="text-base sm:text-lg font-bold text-gray-700 mb-2">Bill To:</h3>
-                <div className="bg-gray-50 p-3 sm:p-4 rounded-lg">
-                  <p className="font-semibold text-sm sm:text-base">{invoiceData.customer.name}</p>
-                  <p className="text-xs sm:text-sm text-gray-600">{invoiceData.customer.city}, {invoiceData.customer.state}</p>
-                  <div className={`mt-2 inline-block px-3 py-1 rounded-full text-xs ${invoiceData.customer.state === BUSINESS_INFO.state ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
-                    {invoiceData.customer.state === BUSINESS_INFO.state ? 'Same State (CGST+SGST)' : 'Other State (IGST)'}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Assigned Details in Preview */}
-            {assignedDetails && (
-              <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex items-center gap-2 mb-3">
-                  <Users className="text-blue-600" size={20} />
-                  <h4 className="text-lg font-bold text-gray-800">Assigned Details</h4>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="bg-white p-3 rounded-lg border">
-                    <div className="text-xs text-gray-500 mb-1">Assign To</div>
-                    <div className="flex items-center gap-2">
-                      {getAssignToIcon(assignedDetails.assignTo)}
-                      <span className="font-medium">{assignedDetails.assignTo}</span>
-                    </div>
-                  </div>
-                  <div className="bg-white p-3 rounded-lg border">
-                    <div className="text-xs text-gray-500 mb-1">Assigned To</div>
-                    <div className="font-medium">{assignedDetails.assignedTo}</div>
-                  </div>
-                  <div className="bg-white p-3 rounded-lg border">
-                    <div className="text-xs text-gray-500 mb-1">Assigned Date</div>
-                    <div className="font-medium">{assignedDetails.assignedDate}</div>
-                  </div>
-                </div>
-                {assignedDetails.details && (
-                  <div className="mt-3 bg-white p-3 rounded-lg border">
-                    <div className="text-xs text-gray-500 mb-1">Details</div>
-                    <div className="text-sm">{assignedDetails.details}</div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Items Table - Mobile Responsive */}
-            <div className="overflow-x-auto -mx-4 sm:mx-0 mb-6 sm:mb-8">
-              <div className="min-w-[600px] sm:min-w-0">
-                <table className="w-full border-collapse">
-                  <thead className="bg-gray-800 text-white">
+              <div className="overflow-x-auto">
+                <table className="w-full border">
+                  <thead className="bg-gray-100">
                     <tr>
-                      <th className="p-2 sm:p-3 text-left text-xs sm:text-sm">Item</th>
-                      <th className="p-2 sm:p-3 text-center text-xs sm:text-sm">Qty</th>
-                      <th className="p-2 sm:p-3 text-center text-xs sm:text-sm">Rate</th>
-                      <th className="p-2 sm:p-3 text-center text-xs sm:text-sm">Service</th>
-                      <th className="p-2 sm:p-3 text-center text-xs sm:text-sm">GST</th>
-                      <th className="p-2 sm:p-3 text-right text-xs sm:text-sm">Amount</th>
+                      <th className="px-4 py-2 text-left text-sm">Item</th>
+                      <th className="px-4 py-2 text-center text-sm">Qty</th>
+                      <th className="px-4 py-2 text-center text-sm">
+                        Rate (₹)
+                      </th>
+                      <th className="px-4 py-2 text-center text-sm">Service</th>
+                      <th className="px-4 py-2 text-center text-sm">Tax %</th>
+                      <th className="px-4 py-2 text-right text-sm">Amount</th>
+                      <th className="px-4 py-2 text-center"></th>
                     </tr>
                   </thead>
                   <tbody>
                     {invoiceData.items.map((item, index) => (
-                      <tr key={index} className="border-b hover:bg-gray-50">
-                        <td className="p-2 sm:p-3">
-                          <div className="font-medium text-xs sm:text-sm">{item.item || "Item"}</div>
-                          {item.description && (
-                            <div className="text-xs text-gray-500 mt-1">
-                              {item.description}
-                            </div>
-                          )}
-                        </td>
+                      <React.Fragment key={index}>
+                        <tr className="border-t">
+                          <td className="px-4 py-2">
+                            <select
+                              value={item.item_id || ""}
+                              onChange={(e) =>
+                                updateItem(index, "item_id", e.target.value)
+                              }
+                              className="w-full px-2 py-1 border rounded text-sm"
+                            >
+                              <option value="">Select Item</option>
+                              {items.map((i) => (
+                                <option key={i.id} value={i.id}>
+                                  {i.name}
+                                </option>
+                              ))}
+                            </select>
+                            {errors[`item_${index}`] && (
+                              <div className="text-xs text-red-500 mt-1">
+                                {errors[`item_${index}`]}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-2">
+                            <input
+                              type="number"
+                              value={item.qty || ""}
+                              onChange={(e) =>
+                                updateItem(index, "qty", e.target.value)
+                              }
+                              min="1"
+                              className="w-20 px-2 py-1 border rounded text-center text-sm"
+                            />
+                            {errors[`qty_${index}`] && (
+                              <div className="text-xs text-red-500 mt-1">
+                                {errors[`qty_${index}`]}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-2">
+                            <input
+                              type="number"
+                              value={item.rate || ""}
+                              onChange={(e) =>
+                                updateItem(index, "rate", e.target.value)
+                              }
+                              min="0"
+                              step="0.01"
+                              className="w-24 px-2 py-1 border rounded text-right text-sm"
+                            />
+                            {errors[`rate_${index}`] && (
+                              <div className="text-xs text-red-500 mt-1">
+                                {errors[`rate_${index}`]}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-2">
+                            <div className="flex items-center border rounded-lg overflow-hidden w-[110px] bg-white">
+                              <input
+                                type="number"
+                                value={item.service_charge_value || ""}
+                                onChange={(e) =>
+                                  updateItem(
+                                    index,
+                                    "service_charge_value",
+                                    e.target.value,
+                                  )
+                                }
+                                min="0"
+                                placeholder="0"
+                                className="w-full px-2 py-1.5 text-sm text-right outline-none"
+                              />
 
-                        <td className="p-2 sm:p-3 text-center text-xs sm:text-sm">{item.qty}</td>
-                        <td className="p-2 sm:p-3 text-center text-xs sm:text-sm">₹{format(item.rate)}</td>
-                        <td className="p-2 sm:p-3 text-center text-xs sm:text-sm">
-                          {item.serviceCharge > 0 ? (
-                            <span className="text-purple-600 text-xs sm:text-sm">
-                              {item.serviceCharge}{item.serviceChargeType === 'percentage' ? '%' : '₹'}
-                            </span>
-                          ) : '-'}
-                        </td>
-                        <td className="p-2 sm:p-3 text-center">
-                          <span className={`px-2 py-1 rounded text-xs ${item.gstRate > 0 ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
-                            {item.gstRate}%
-                          </span>
-                        </td>
-                        <td className="p-2 sm:p-3 text-right font-medium text-xs sm:text-sm">
-                          ₹{format(item.qty * item.rate)}
-                          {item.serviceCharge > 0 && (
-                            <div className="text-xs text-gray-500">
-                              + ₹{format(calculateItemServiceCharge(item))}
+                              <select
+                                value={item.service_charge_type}
+                                onChange={(e) =>
+                                  updateItem(
+                                    index,
+                                    "service_charge_type",
+                                    e.target.value,
+                                  )
+                                }
+                                className="px-2 py-1.5 text-sm bg-gray-100 border-l outline-none cursor-pointer"
+                              >
+                                <option value="AMOUNT">₹</option>
+                                <option value="PERCENTAGE">%</option>
+                              </select>
                             </div>
-                          )}
-                        </td>
-                      </tr>
+                          </td>
+                          <td className="px-4 py-2">
+                            <select
+                              value={item.gst_treatment || "GST_5"}
+                              onChange={(e) =>
+                                updateItem(
+                                  index,
+                                  "gst_treatment",
+                                  e.target.value,
+                                )
+                              }
+                              className="w-full px-2 py-1 border rounded text-sm"
+                            >
+                              {gstOptions.map((option, idx) => (
+                                <option key={idx} value={option.value}>
+                                  {option.rate}%
+                                </option>
+                              ))}
+                            </select>
+                            {errors[`gst_${index}`] && (
+                              <div className="text-xs text-red-500 mt-1">
+                                {errors[`gst_${index}`]}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-2 text-right font-medium">
+                            ₹{format(item.qty * item.rate)}
+                            {item.service_charge_amount > 0 && (
+                              <div className="text-xs text-purple-600">
+                                + ₹{format(item.service_charge_amount)}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-2 text-center">
+                            <button
+                              onClick={() => removeItem(index)}
+                              className="text-red-600 hover:text-red-800 p-1"
+                            >
+                              <X size={16} />
+                            </button>
+                          </td>
+                        </tr>
+                        {/* Description row below item column */}
+                        <tr className="bg-gray-50">
+                          <td className="px-4 py-2">
+                            <input
+                              type="text"
+                              value={item.description || ""}
+                              onChange={(e) =>
+                                updateItem(index, "description", e.target.value)
+                              }
+                              placeholder="Item description (optional)"
+                              className="w-full px-3 py-1.5 border rounded text-sm bg-white"
+                            />
+                          </td>
+
+                          {/* empty cells to keep table alignment */}
+                          <td></td>
+                          <td></td>
+                          <td></td>
+                          <td></td>
+                          <td></td>
+                          <td></td>
+                        </tr>
+                      </React.Fragment>
                     ))}
                   </tbody>
                 </table>
               </div>
             </div>
 
-            {/* Totals Section - Mobile Responsive */}
-            <div className="flex justify-end">
-              <div className="w-full sm:w-96 bg-gray-50 p-4 sm:p-6 rounded-lg">
-                <div className="space-y-2 sm:space-y-3">
-                  {/* Sub Total */}
-                  <div className="flex justify-between text-sm sm:text-base">
-                    <span className="text-gray-600">Sub Total:</span>
-                    <span className="font-medium">₹{format(subTotal)}</span>
+            {/* Invoice Summary Card - Using calculated values for real-time updates */}
+            <div className="mb-8 bg-gray-50 rounded-lg p-4 border border-gray-200">
+              <h4 className="font-semibold mb-3 text-gray-700">
+                Invoice Summary
+              </h4>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Sub Total:</span>
+                  <span className="font-medium">
+                    ₹{format(calculatedTotals.subTotal)}
+                  </span>
+                </div>
+
+                {calculatedTotals.serviceChargeTotal > 0 && (
+                  <div className="flex justify-between text-sm text-purple-600">
+                    <span>Service Charges:</span>
+                    <span className="font-bold">
+                      + ₹{format(calculatedTotals.serviceChargeTotal)}
+                    </span>
                   </div>
-                  
-                  {/* Service Charge */}
-                  {totalServiceCharge > 0 && (
-                    <div className="flex justify-between text-sm sm:text-base text-purple-600">
-                      <span className="font-medium">Service Charge:</span>
-                      <span className="font-bold">+ ₹{format(totalServiceCharge)}</span>
+                )}
+
+                <div className="flex justify-between text-sm border-t pt-2">
+                  <span className="font-medium">Taxable Amount:</span>
+                  <span className="font-bold">
+                    ₹{format(calculatedTotals.taxableAmount)}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-600">Discount:</span>
+                  <div className="flex w-40">
+                    <input
+                      type="number"
+                      value={invoiceData.discount_value || ""}
+                      onChange={(e) =>
+                        setInvoiceData({
+                          ...invoiceData,
+                          discount_value: parseFloat(e.target.value) || 0,
+                        })
+                      }
+                      min="0"
+                      max={
+                        invoiceData.discount_type === "PERCENT"
+                          ? 100
+                          : calculatedTotals.taxableAmount
+                      }
+                      className="w-24 px-2 py-1 border rounded-l text-right text-sm"
+                    />
+                    <select
+                      value={invoiceData.discount_type}
+                      onChange={(e) =>
+                        setInvoiceData({
+                          ...invoiceData,
+                          discount_type: e.target.value,
+                        })
+                      }
+                      className="w-16 px-2 py-1 border border-l-0 rounded-r text-sm bg-gray-50"
+                    >
+                      <option value="PERCENT">%</option>
+                      <option value="AMOUNT">₹</option>
+                    </select>
+                  </div>
+                </div>
+
+                {calculatedTotals.discountAmount > 0 && (
+                  <div className="flex justify-between text-sm text-red-600">
+                    <span>Discount Amount:</span>
+                    <span className="font-bold">
+                      - ₹{format(calculatedTotals.discountAmount)}
+                    </span>
+                  </div>
+                )}
+
+                {/* GST Breakdown */}
+                {calculatedTotals.totalGST > 0 && (
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="font-medium">GST:</span>
+                      <span
+                        className={`text-xs px-2 py-1 rounded ${calculatedTotals.isSameState ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800"}`}
+                      >
+                        {calculatedTotals.gstMode}
+                      </span>
                     </div>
-                  )}
-                  
-                  {/* Taxable Amount */}
-                  <div className="flex justify-between border-t border-gray-300 pt-2 text-sm sm:text-base">
-                    <span className="font-semibold text-gray-700">Taxable Amount:</span>
-                    <span className="font-bold">₹{format(taxableAmount)}</span>
-                  </div>
-                  
-                  {/* Discount */}
-                  {discountAmount > 0 && (
-                    <div className="flex justify-between text-sm sm:text-base text-red-600">
-                      <span className="font-medium">Discount:</span>
-                      <span className="font-bold">- ₹{format(discountAmount)}</span>
-                    </div>
-                  )}
-                  
-                  {/* GST Base */}
-                  <div className="flex justify-between border-t border-gray-300 pt-2 text-sm sm:text-base">
-                    <span className="font-semibold text-blue-600">GST Base:</span>
-                    <span className="font-bold text-blue-700">₹{format(gstBase)}</span>
-                  </div>
-                  
-                  {/* GST Breakdown */}
-                  {totalTax > 0 && (
-                    <div className="pt-3">
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="font-semibold text-gray-700 text-sm">GST:</span>
-                        <span className={`text-xs px-2 py-1 rounded ${isSameState ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
-                          {gstTreatmentLabel}
-                        </span>
-                      </div>
-                      {Object.values(taxBreakdown).map((tax, idx) => {
-                        if (tax.total === 0) return null;
-                        return (
-                          <div key={idx} className="text-xs text-gray-600 space-y-1 mb-2">
-                            <div className="flex justify-between">
-                              <span>GST {tax.rate}%:</span>
-                              <span>₹{format(tax.total)}</span>
-                            </div>
+                    {Object.entries(calculatedTotals.gstBreakdown).map(
+                      ([key, tax]) =>
+                        tax.tax > 0 && (
+                          <div
+                            key={key}
+                            className="flex justify-between text-xs text-gray-600 pl-4"
+                          >
+                            <span>GST {tax.rate}%:</span>
+                            <span>₹{format(tax.tax)}</span>
                           </div>
-                        );
-                      })}
-                      <div className="flex justify-between border-t border-gray-300 pt-2 text-sm sm:text-base">
-                        <span className="font-semibold">Total GST:</span>
-                        <span className="font-bold">₹{format(totalTax)}</span>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Grand Total */}
-                  <div className="pt-3 sm:pt-4 border-t border-gray-300">
-                    <div className="flex justify-between text-lg sm:text-xl font-extrabold text-blue-700">
-                      <span>TOTAL:</span>
-                      <span>₹{format(total)}</span>
+                        ),
+                    )}
+                    <div className="flex justify-between text-sm font-medium">
+                      <span>Total GST:</span>
+                      <span>₹{format(calculatedTotals.totalGST)}</span>
                     </div>
                   </div>
+                )}
+
+                <div className="flex justify-between pt-3 border-t-2 text-lg font-bold text-blue-700">
+                  <span>TOTAL:</span>
+                  <span>₹{format(calculatedTotals.grandTotal)}</span>
                 </div>
               </div>
             </div>
 
-            {/* Bank Details */}
-            <div className="mt-6 sm:mt-8 p-3 sm:p-4 bg-gray-50 rounded-lg border border-gray-200">
-              <h4 className="text-base sm:text-lg font-bold text-gray-700 mb-2">Bank Details</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
-                <div>
-                  <p className="text-xs sm:text-sm text-gray-600">Bank: <span className="font-medium">{BUSINESS_INFO.bankDetails.name}</span></p>
-                  <p className="text-xs sm:text-sm text-gray-600">Account: <span className="font-medium">{BUSINESS_INFO.bankDetails.accountNumber}</span></p>
-                </div>
-                <div>
-                  <p className="text-xs sm:text-sm text-gray-600">IFSC: <span className="font-medium">{BUSINESS_INFO.bankDetails.ifscCode}</span></p>
-                  <p className="text-xs sm:text-sm text-gray-600">Branch: <span className="font-medium">{BUSINESS_INFO.bankDetails.branch}</span></p>
-                </div>
-              </div>
+            {/* Terms */}
+            <div className="mb-8">
+              <h4 className="font-bold mb-2">Terms & Conditions</h4>
+              <textarea
+                value={invoiceData.terms_conditions}
+                onChange={(e) =>
+                  setInvoiceData({
+                    ...invoiceData,
+                    terms_conditions: e.target.value,
+                  })
+                }
+                rows="4"
+                className="w-full px-3 py-2 border rounded-lg"
+                placeholder="Enter terms and conditions..."
+              />
             </div>
 
-            {/* Terms and Conditions Section */}
-            {invoiceData.termsAndConditions && (
-              <div className="mt-6 sm:mt-8 pt-4 sm:pt-6 border-t">
-                <h4 className="text-base sm:text-lg font-bold text-gray-700 mb-2">Terms & Conditions</h4>
-                <div className="bg-gray-50 p-3 sm:p-4 rounded-lg">
-                  {invoiceData.termsAndConditions.split('\n').map((line, index) => (
-                    line.trim() && (
-                      <div key={index} className="flex items-start mb-1 sm:mb-2 text-xs sm:text-sm text-gray-600">
-                        <span className="mr-2">•</span>
-                        <span>{line.trim()}</span>
-                      </div>
-                    )
-                  ))}
+            {/* PDF Link - Show only if PDF exists */}
+            {invoiceData.pdf_url && (
+              <div className="mb-4 p-3 bg-blue-50 rounded-lg flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Eye size={18} className="text-blue-600" />
+                  <span className="text-sm text-gray-700">
+                    Invoice PDF available
+                  </span>
                 </div>
+                <button
+                  onClick={() => openPDF(invoiceData.pdf_url)}
+                  disabled={pdfLoading}
+                  className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1"
+                >
+                  {pdfLoading ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <Eye size={14} />
+                  )}
+                  View PDF
+                </button>
               </div>
             )}
 
-            {/* Status and Footer */}
-            <div className="mt-6 sm:mt-8 pt-4 sm:pt-6 border-t">
-              <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-                <div className="text-center sm:text-left">
-                  <div className={getStatusBadge(invoiceData.status)}>
-                    {invoiceData.status}
-                  </div>
-                </div>
-                <div className="text-center sm:text-right text-xs sm:text-sm text-gray-500">
-                  <p>Generated: {new Date().toLocaleDateString()}</p>
-                  <p>Thank you for your business!</p>
-                </div>
-              </div>
+            {/* Create/Update Button at Bottom */}
+            <div className="flex justify-end pt-4 border-t">
+              <button
+                onClick={saveInvoice}
+                disabled={isLoading}
+                className="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2 text-lg font-semibold"
+              >
+                {isLoading ? (
+                  <Loader2 className="animate-spin" size={20} />
+                ) : (
+                  <Save size={20} />
+                )}
+                {editIndex !== null ? "Update Invoice" : "Create Invoice"}
+              </button>
             </div>
           </div>
         </div>
       )}
-      
-      {/* Add CSS animation for toast */}
-      <style jsx>{`
-        @keyframes slideIn {
-          from {
-            transform: translateX(100%);
-            opacity: 0;
-          }
-          to {
-            transform: translateX(0);
-            opacity: 1;
-          }
-        }
-        .animate-slideIn {
-          animation: slideIn 0.3s ease-out;
-        }
-      `}</style>
     </div>
   );
 };

@@ -8,14 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
-import {
-  Mail,
-  Lock,
-  Eye,
-  EyeOff,
-  User,
-  AlertCircle,
-} from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, User, AlertCircle } from "lucide-react";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -36,29 +29,29 @@ export default function LoginPage() {
 
   const redirectBasedOnRole = (userData) => {
     console.log("Redirecting user:", userData);
-    
+
     // Handle different roles based on API response
-    switch(userData.role) {
+    switch (userData.role) {
       case "ADMIN":
         navigate("/admindashboard");
         break;
-        
+
       case "GROWTAG":
         navigate("/growtagdashboard");
         break;
-        
+
       case "CUSTOMER":
         navigate("/customerdashboard");
         break;
-        
+
       case "FRANCHISE":
         navigate("/franchisedashboard");
         break;
-        
+
       case "OTHERSHOP":
         navigate("/othershopdashboard");
         break;
-        
+
       default:
         console.error("Unknown role:", userData.role);
         navigate("/login");
@@ -91,7 +84,7 @@ export default function LoginPage() {
 
     try {
       console.log("Attempting login with:", loginValue);
-      
+
       const result = await login(loginValue, password);
 
       console.log("Login result:", result);
@@ -146,7 +139,10 @@ export default function LoginPage() {
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-700">
-                  Login ID <span className="text-xs text-gray-500">(username or email)</span>
+                  Login ID{" "}
+                  <span className="text-xs text-gray-500">
+                    (username or email)
+                  </span>
                 </label>
                 <div className="relative">
                   <Input
@@ -198,7 +194,7 @@ export default function LoginPage() {
               <div className="flex justify-end">
                 <button
                   type="button"
-                  onClick={() => toast.error("Please contact your administrator")}
+                  onClick={() => navigate("/reset-password")}
                   className="text-sm text-blue-600 hover:underline"
                   disabled={isLoading}
                 >

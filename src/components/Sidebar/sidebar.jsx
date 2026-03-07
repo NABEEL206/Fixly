@@ -8,11 +8,7 @@ import {
   Boxes,
   Receipt,
   X,
-  LogOut,
-  Home,
   AlertCircle,
-  Briefcase,
-  Building,
   TrendingUp,
   Package,
   DollarSign,
@@ -20,9 +16,7 @@ import {
   Users2,
   ClipboardList,
   ChevronDown,
-  ShoppingCart,
   UserCircle,
-  FileText,
   HelpCircle,
 } from "lucide-react";
 import { useAuth } from "/src/auth/AuthContext";
@@ -39,8 +33,6 @@ export default function Sidebar({ isOpen, closeSidebar }) {
   const toggleMenu = (key) => {
     setOpenMenus((prev) => ({ ...prev, [key]: !prev[key] }));
   };
-
-
 
   // Role-based menu items configuration - Updated with actual roles
   const roleBasedMenuItems = {
@@ -67,6 +59,11 @@ export default function Sidebar({ isOpen, closeSidebar }) {
       },
       { path: "/items", label: "Items", icon: <Package size={20} /> },
       { path: "/stock", label: "Stock", icon: <Boxes size={20} /> },
+      {
+        label: "sales",
+        icon: <TrendingUp size={20} />,
+        children: [{ path: "/quotes", label: "Quotes" }],
+      },
       {
         label: "Purchase",
         icon: <DollarSign size={20} />,
@@ -186,23 +183,23 @@ export default function Sidebar({ isOpen, closeSidebar }) {
         icon: <AlertCircle size={20} />,
       },
       { path: "/invoice", label: "My Invoices", icon: <Receipt size={20} /> },
-      {
-        path: "/profile",
-        label: "My Profile",
-        icon: <UserCircle size={20} />,
-      },
-      {
-        path: "/support",
-        label: "Support",
-        icon: <HelpCircle size={20} />,
-      },
+      // {
+      //   path: "/profile",
+      //   label: "My Profile",
+      //   icon: <UserCircle size={20} />,
+      // },
+      // {
+      //   path: "/support",
+      //   label: "Support",
+      //   icon: <HelpCircle size={20} />,
+      // },
     ],
   };
 
   // Get menu items based on role
   const getMenuItems = () => {
     if (!role) return [];
-    
+
     // Return menu items for the specific role
     return roleBasedMenuItems[role] || [];
   };
@@ -257,7 +254,9 @@ export default function Sidebar({ isOpen, closeSidebar }) {
     >
       {/* Header with user info */}
       <div className="p-4 border-b border-gray-700">
-        <div className="font-semibold text-lg truncate">{getSidebarHeader()}</div>
+        <div className="font-semibold text-lg truncate">
+          {getSidebarHeader()}
+        </div>
         <div className="text-xs text-gray-400 mt-1">{getRoleDisplay()}</div>
       </div>
 
@@ -350,7 +349,6 @@ export default function Sidebar({ isOpen, closeSidebar }) {
           </div>
         )}
       </div>
-
     </div>
   );
 }

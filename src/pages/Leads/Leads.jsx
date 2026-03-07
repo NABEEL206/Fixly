@@ -40,12 +40,12 @@ const getFormattedDate = (timestamp) =>
 const VALIDATION_PATTERNS = {
   name: /^[a-zA-Z\s]{2,50}$/,
   phone: /^\d{10}$/,
-  email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+  email: /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
   pincode: /^\d{6}$/,
-  phoneModel: /^.{2,100}$/,
-  issueDetail: /^.{5,200}$/,
-  address: /^.{10,200}$/,
-  area: /^.{3,50}$/,
+  phoneModel: /^[\s\S]{2,100}$/,
+  issueDetail: /^[\s\S]{5,200}$/,
+  address: /^[\s\S]{10,200}$/,
+  area: /^[\s\S]{3,50}$/,
 };
 
 const VALIDATION_MESSAGES = {
@@ -400,11 +400,45 @@ const Leads = () => {
     }
   };
 
-  // ---------- Form Handlers ----------
-  const handleNewLeadChange = (field, value) => {
-    setNewLeadData((prev) => ({ ...prev, [field]: value }));
-    if (touchedFields[field]) validateField(field, value);
-  };
+// ---------- Form Handlers ----------
+const handleNewLeadChange = (field, value) => {
+  // Field-specific real-time processing
+  let processedValue = value;
+
+  switch (field) {
+    case "name":
+      // Only allow letters, spaces, dots, and hyphens for names
+      processedValue = value.replace(/[^a-zA-Z\s\.\-]/g, '');
+      // Prevent multiple consecutive spaces
+      processedValue = processedValue.replace(/\s+/g, ' ').trimStart();
+      break;
+      
+    case "phone":
+      // Only allow digits, max 10
+      processedValue = value.replace(/\D/g, '').slice(0, 10);
+      break;
+    
+    case "pincode":
+      // Only allow digits, max 6
+      processedValue = value.replace(/\D/g, '').slice(0, 6);
+      break;
+    
+    default:
+      break;
+  }
+
+  setNewLeadData((prev) => ({ ...prev, [field]: processedValue }));
+  
+  // Validate if field is touched
+  if (touchedFields[field]) {
+    validateField(field, processedValue);
+  }
+
+  // Handle pincode lookup
+  if (field === "pincode" && processedValue.length === 6) {
+    handlePincodeChange(processedValue);
+  }
+};
 
   const handleFieldBlur = (field) => {
     setTouchedFields((prev) => ({ ...prev, [field]: true }));
@@ -1261,7 +1295,7 @@ const Leads = () => {
               <div className="flex justify-between items-center p-4 border-b bg-green-50">
                 <h2 className="text-xl font-bold text-green-700 flex items-center gap-2">
                   <PlusCircle size={24} />
-                  {leadModalMode === "view" ? "Lead Details" : editingLeadId ? "Update Lead" : "New Lead"}
+                  {leadModalMode === "view" ? "Lead Details" : editingLeadId ? "Update Lead" : "Create New Lead"}
                 </h2>
                 <button
                   onClick={() => {
@@ -1278,12 +1312,14 @@ const Leads = () => {
                 <div className="space-y-8">
                   {/* Customer & Device Information */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    {/* Customer Information Column */}
                     <div className="space-y-6">
                       <h4 className="font-semibold text-gray-700 flex items-center gap-2">
                         <User size={18} /> Customer Information
                       </h4>
 
                       <div className="grid grid-cols-1 gap-4">
+                        {/* Name Field - Standard without green border */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
                             Customer Name *
@@ -1291,8 +1327,9 @@ const Leads = () => {
                           <input
                             value={newLeadData.name}
                             disabled={leadModalMode === "view" || submitLoading}
-                            onChange={(e) => leadModalMode !== "view" && handleNewLeadChange("name", e.target.value)}
+                            onChange={(e) => handleNewLeadChange("name", e.target.value)}
                             onBlur={() => leadModalMode !== "view" && handleFieldBlur("name")}
+                            maxLength={50}
                             className={`w-full border p-2 rounded-lg ${
                               leadModalMode === "view"
                                 ? "bg-gray-100 cursor-not-allowed"
@@ -1300,6 +1337,7 @@ const Leads = () => {
                                   ? "border-red-500 ring-1 ring-red-500"
                                   : "border-gray-300"
                             }`}
+                            placeholder="Enter full name"
                           />
                           {leadModalMode !== "view" && newLeadErrors.name && (
                             <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
@@ -1308,6 +1346,7 @@ const Leads = () => {
                           )}
                         </div>
 
+                        {/* Phone Field */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
                             Phone Number *
@@ -1316,10 +1355,7 @@ const Leads = () => {
                             type="tel"
                             value={newLeadData.phone}
                             disabled={leadModalMode === "view" || submitLoading}
-                            onChange={(e) =>
-                              leadModalMode !== "view" &&
-                              handleNewLeadChange("phone", e.target.value.replace(/\D/g, "").slice(0, 10))
-                            }
+                            onChange={(e) => handleNewLeadChange("phone", e.target.value)}
                             onBlur={() => leadModalMode !== "view" && handleFieldBlur("phone")}
                             className={`w-full border p-2 rounded-lg ${
                               leadModalMode === "view"
@@ -1328,6 +1364,7 @@ const Leads = () => {
                                   ? "border-red-500 ring-1 ring-red-500"
                                   : "border-gray-300"
                             }`}
+                            placeholder="10-digit mobile number"
                           />
                           {leadModalMode !== "view" && newLeadErrors.phone && (
                             <p className="text-red-500 text-xs mt-1">
@@ -1336,6 +1373,7 @@ const Leads = () => {
                           )}
                         </div>
 
+                        {/* Email Field */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
                             Email Address *
@@ -1344,8 +1382,9 @@ const Leads = () => {
                             type="email"
                             value={newLeadData.email}
                             disabled={leadModalMode === "view" || submitLoading}
-                            onChange={(e) => leadModalMode !== "view" && handleNewLeadChange("email", e.target.value)}
+                            onChange={(e) => handleNewLeadChange("email", e.target.value)}
                             onBlur={() => leadModalMode !== "view" && handleFieldBlur("email")}
+                            maxLength={100}
                             className={`w-full border p-2 rounded-lg ${
                               leadModalMode === "view"
                                 ? "bg-gray-100 cursor-not-allowed"
@@ -1353,6 +1392,7 @@ const Leads = () => {
                                   ? "border-red-500 ring-1 ring-red-500"
                                   : "border-gray-300"
                             }`}
+                            placeholder="example@domain.com"
                           />
                           {leadModalMode !== "view" && newLeadErrors.email && (
                             <p className="text-red-500 text-xs mt-1">
@@ -1363,12 +1403,14 @@ const Leads = () => {
                       </div>
                     </div>
 
+                    {/* Device Information Column */}
                     <div className="space-y-6">
                       <h4 className="font-semibold text-gray-700 flex items-center gap-2">
                         <Smartphone size={18} /> Device Information
                       </h4>
 
                       <div className="grid grid-cols-1 gap-4">
+                        {/* Phone Model Field */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
                             Phone Model *
@@ -1376,8 +1418,9 @@ const Leads = () => {
                           <input
                             value={newLeadData.phoneModel}
                             disabled={leadModalMode === "view" || submitLoading}
-                            onChange={(e) => leadModalMode !== "view" && handleNewLeadChange("phoneModel", e.target.value)}
+                            onChange={(e) => handleNewLeadChange("phoneModel", e.target.value)}
                             onBlur={() => leadModalMode !== "view" && handleFieldBlur("phoneModel")}
+                            maxLength={100}
                             className={`w-full border p-2 rounded-lg ${
                               leadModalMode === "view"
                                 ? "bg-gray-100 cursor-not-allowed"
@@ -1385,6 +1428,7 @@ const Leads = () => {
                                   ? "border-red-500 ring-1 ring-red-500"
                                   : "border-gray-300"
                             }`}
+                            placeholder="e.g., iPhone 13, Samsung S23"
                           />
                           {leadModalMode !== "view" && newLeadErrors.phoneModel && (
                             <p className="text-red-500 text-xs mt-1">
@@ -1393,26 +1437,48 @@ const Leads = () => {
                           )}
                         </div>
 
+                        {/* Issue Detail Field with Live Counter */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
                             Issue Detail *
                           </label>
-                          <textarea
-                            value={newLeadData.issueDetail}
-                            disabled={leadModalMode === "view" || submitLoading}
-                            onChange={(e) => leadModalMode !== "view" && handleNewLeadChange("issueDetail", e.target.value)}
-                            onBlur={() => leadModalMode !== "view" && handleFieldBlur("issueDetail")}
-                            rows="2"
-                            className={`w-full border p-2 rounded-lg ${
-                              leadModalMode === "view"
-                                ? "bg-gray-100 cursor-not-allowed"
-                                : newLeadErrors.issueDetail
-                                  ? "border-red-500 ring-1 ring-red-500"
-                                  : "border-gray-300"
-                            }`}
-                          />
+                          <div className="relative">
+                            <textarea
+                              value={newLeadData.issueDetail}
+                              disabled={leadModalMode === "view" || submitLoading}
+                              onChange={(e) => {
+                                if (leadModalMode !== "view") {
+                                  const value = e.target.value;
+                                  if (value.length <= 200) {
+                                    handleNewLeadChange("issueDetail", value);
+                                  }
+                                }
+                              }}
+                              onBlur={() => leadModalMode !== "view" && handleFieldBlur("issueDetail")}
+                              rows="3"
+                              maxLength={200}
+                              className={`w-full border p-2 pr-16 rounded-lg ${
+                                leadModalMode === "view"
+                                  ? "bg-gray-100 cursor-not-allowed"
+                                  : newLeadErrors.issueDetail
+                                    ? "border-red-500 ring-1 ring-red-500"
+                                    : "border-gray-300"
+                              }`}
+                              placeholder="Describe the issue in detail (5-200 characters)"
+                            />
+                            
+                            {/* Character Counter */}
+                            {leadModalMode !== "view" && (
+                              <div className="absolute bottom-2 right-3 text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600">
+                                <span className="font-bold">{newLeadData.issueDetail.length}</span>
+                                <span className="opacity-75">/200</span>
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* Validation Message */}
                           {leadModalMode !== "view" && newLeadErrors.issueDetail && (
-                            <p className="text-red-500 text-xs mt-1">
+                            <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
                               <AlertTriangle size={12} /> {newLeadErrors.issueDetail}
                             </p>
                           )}
@@ -1427,33 +1493,55 @@ const Leads = () => {
                       <MapPin size={18} /> Address Information
                     </h4>
 
+                    {/* Address Field with Live Counter */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Complete Address *
                       </label>
-                      <textarea
-                        rows="2"
-                        value={newLeadData.address}
-                        disabled={leadModalMode === "view" || submitLoading}
-                        onChange={(e) => leadModalMode !== "view" && handleNewLeadChange("address", e.target.value)}
-                        onBlur={() => leadModalMode !== "view" && handleFieldBlur("address")}
-                        className={`w-full border p-2 rounded-lg ${
-                          leadModalMode === "view"
-                            ? "bg-gray-100 cursor-not-allowed"
-                            : newLeadErrors.address
-                              ? "border-red-500 ring-1 ring-red-500"
-                              : "border-gray-300"
-                        }`}
-                        placeholder="House no, street, landmark"
-                      />
+                      <div className="relative">
+                        <textarea
+                          rows="3"
+                          value={newLeadData.address}
+                          disabled={leadModalMode === "view" || submitLoading}
+                          onChange={(e) => {
+                            if (leadModalMode !== "view") {
+                              const value = e.target.value;
+                              if (value.length <= 200) {
+                                handleNewLeadChange("address", value);
+                              }
+                            }
+                          }}
+                          onBlur={() => leadModalMode !== "view" && handleFieldBlur("address")}
+                          maxLength={200}
+                          className={`w-full border p-2 pr-16 rounded-lg ${
+                            leadModalMode === "view"
+                              ? "bg-gray-100 cursor-not-allowed"
+                              : newLeadErrors.address
+                                ? "border-red-500 ring-1 ring-red-500"
+                                : "border-gray-300"
+                          }`}
+                          placeholder="House no, street, landmark (10-200 characters)"
+                        />
+                        
+                        {/* Character Counter */}
+                        {leadModalMode !== "view" && (
+                          <div className="absolute bottom-2 right-3 text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600">
+                            <span className="font-bold">{newLeadData.address.length}</span>
+                            <span className="opacity-75">/200</span>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Validation Message */}
                       {leadModalMode !== "view" && newLeadErrors.address && (
-                        <p className="text-red-500 text-xs mt-1">
+                        <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
                           <AlertTriangle size={12} /> {newLeadErrors.address}
                         </p>
                       )}
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {/* State Field */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           State *
@@ -1466,6 +1554,7 @@ const Leads = () => {
                         />
                       </div>
 
+                      {/* Pincode Field */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Pincode *
@@ -1474,12 +1563,7 @@ const Leads = () => {
                           type="text"
                           value={newLeadData.pincode}
                           disabled={leadModalMode === "view" || submitLoading}
-                          onChange={(e) => {
-                            if (leadModalMode === "view") return;
-                            const v = e.target.value.replace(/\D/g, "").slice(0, 6);
-                            handleNewLeadChange("pincode", v);
-                            if (v.length === 6) handlePincodeChange(v);
-                          }}
+                          onChange={(e) => handleNewLeadChange("pincode", e.target.value)}
                           onBlur={() => leadModalMode !== "view" && handleFieldBlur("pincode")}
                           className={`w-full border p-2 rounded-lg ${
                             leadModalMode === "view"
@@ -1488,6 +1572,7 @@ const Leads = () => {
                                 ? "border-red-500 ring-1 ring-red-500"
                                 : "border-gray-300"
                           }`}
+                          placeholder="6-digit pincode"
                         />
                         {leadModalMode !== "view" && newLeadErrors.pincode && (
                           <p className="text-red-500 text-xs mt-1">
@@ -1496,6 +1581,7 @@ const Leads = () => {
                         )}
                       </div>
 
+                      {/* Area Field */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Area *
@@ -1503,7 +1589,7 @@ const Leads = () => {
                         <select
                           value={newLeadData.area}
                           disabled={leadModalMode === "view" || submitLoading || areaOptions.length === 0}
-                          onChange={(e) => leadModalMode !== "view" && handleNewLeadChange("area", e.target.value)}
+                          onChange={(e) => handleNewLeadChange("area", e.target.value)}
                           onBlur={() => leadModalMode !== "view" && handleFieldBlur("area")}
                           className={`w-full border p-2 rounded-lg ${
                             leadModalMode === "view"
@@ -1539,7 +1625,7 @@ const Leads = () => {
                       className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition"
                       disabled={submitLoading}
                     >
-                      {leadModalMode === "view" ? "Close" : "Cancel"}
+                      Cancel
                     </button>
 
                     {leadModalMode !== "view" && (
@@ -1549,7 +1635,7 @@ const Leads = () => {
                         onClick={handleSaveNewLead}
                         className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
                       >
-                        {editingLeadId ? "Update" : "Create"}
+                        {editingLeadId ? "Update Lead" : "Create Lead"}
                       </LoadingButton>
                     )}
                   </div>

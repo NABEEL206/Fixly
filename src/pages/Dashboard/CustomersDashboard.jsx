@@ -1,264 +1,515 @@
-import React from 'react';
+// src/pages/CustomerDashboard.jsx
+import React, { useState, useEffect } from 'react';
 import {
-  User, Phone, Mail, MapPin, Calendar, Smartphone,
-  CheckCircle, Clock, AlertCircle
+  CheckCircle,
+  Clock,
+  Mail,
+  Phone,
+  User,
+  FileText,
+  Loader2,
+  Eye,
+  MapPin,
+  Calendar,
+  Award,
+  Smartphone,
+  Star,
+  MapPinned,
+  IdCard,
+  Home,
+  Hash,
+  CalendarDays,
+  ClipboardList,
+  AlertCircle
 } from 'lucide-react';
+import axiosInstance from "@/API/axiosInstance";
 
-const CustomerDashboard = () => {
-  // Customer data from your API response
-  const customer = {
-    id: 1,
-    customer_phone: "8086770440",
-    email: "alzamanpoothakkal@gmail.com",
-    complaints_history: [
-      {
-        id: 1,
-        phone_model: "vivo",
-        issue_details: "Speaker",
-        status: "Assigned",
-        assign_to: "franchise",
-        created_at: "2025-12-15T10:46:31.970618Z"
-      }
-    ],
-    customer_name: "Zaman",
-    password: "123456",
-    address: "manjeri",
-    pincode: "673642",
-    created_at: "2025-12-15T10:46:31.955308Z"
-  };
+const CustomersDashboard = () => {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [dashboardData, setDashboardData] = useState(null);
+  const [complaints, setComplaints] = useState([]);
+  const [selectedComplaint, setSelectedComplaint] = useState(null);
+  const [stats, setStats] = useState({
+    total: 0,
+    pending: 0,
+    resolved: 0,
+    inProgress: 0
+  });
 
-  // Format date
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-IN', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric'
-    });
-  };
-
-  // Get status color
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'Assigned': return 'bg-amber-50 text-amber-700 border-amber-200';
-      case 'Completed': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-      case 'In Progress': return 'bg-blue-50 text-blue-700 border-blue-200';
-      default: return 'bg-gray-50 text-gray-700 border-gray-200';
-    }
-  };
-
-  // Get status icon
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'Assigned': return <AlertCircle size={16} className="text-amber-600" />;
-      case 'Completed': return <CheckCircle size={16} className="text-emerald-600" />;
-      case 'In Progress': return <Clock size={16} className="text-blue-600" />;
-      default: return <AlertCircle size={16} className="text-gray-600" />;
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4 md:p-6">
-      <div className="max-w-4xl mx-auto">
+  // Fetch dashboard data from API
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
         
-        {/* Header with improved design */}
-        <div className="mb-8">
-          <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl p-6 shadow-lg">
-            <h1 className="text-2xl font-bold text-white mb-1">Welcome, {customer.customer_name}</h1>
-            <p className="text-blue-100 opacity-90">Your dashboard overview</p>
-          </div>
-        </div>
-
-        {/* Customer Info Card - Enhanced */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 mb-6 border border-gray-100 hover:shadow-xl transition-shadow duration-300">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-              <div className="p-2 bg-blue-50 rounded-lg">
-                <User size={18} className="text-blue-600" />
-              </div>
-              My Information
-            </h2>
-            <div className="text-xs font-medium px-3 py-1 bg-blue-50 text-blue-700 rounded-full">
-              Customer ID: #{customer.id}
-            </div>
-          </div>
+        const response = await axiosInstance.get('api/customers/dashboard');
+        
+        if (response.data) {
+          setDashboardData(response.data);
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
-              <div className="p-2 bg-white rounded-lg shadow-sm">
-                <User size={18} className="text-gray-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500 font-medium">Name</p>
-                <p className="font-semibold text-gray-800">{customer.customer_name}</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
-              <div className="p-2 bg-white rounded-lg shadow-sm">
-                <Phone size={18} className="text-gray-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500 font-medium">Phone</p>
-                <p className="font-semibold text-gray-800">{customer.customer_phone}</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
-              <div className="p-2 bg-white rounded-lg shadow-sm">
-                <Mail size={18} className="text-gray-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500 font-medium">Email</p>
-                <p className="font-semibold text-gray-800">{customer.email}</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
-              <div className="p-2 bg-white rounded-lg shadow-sm">
-                <MapPin size={18} className="text-gray-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500 font-medium">Address</p>
-                <p className="font-semibold text-gray-800">{customer.address}, {customer.pincode}</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
-              <div className="p-2 bg-white rounded-lg shadow-sm">
-                <Calendar size={18} className="text-gray-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500 font-medium">Member Since</p>
-                <p className="font-semibold text-gray-800">{formatDate(customer.created_at)}</p>
-              </div>
-            </div>
-          </div>
-        </div>
+          // Set complaints from recent_complaints
+          const recentComplaints = response.data.recent_complaints || [];
+          setComplaints(recentComplaints);
+          
+          // Set stats from counts
+          setStats({
+            total: response.data.counts?.total || 0,
+            pending: response.data.counts?.pending || 0,
+            inProgress: response.data.counts?.in_progress || 0,
+            resolved: response.data.counts?.resolved || 0
+          });
+        }
+      } catch (err) {
+        console.error('Error fetching dashboard data:', err);
+        setError(err.response?.data?.message || 'Failed to load dashboard data. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    };
 
-        {/* Complaints History - Enhanced */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 hover:shadow-xl transition-shadow duration-300">
-          <div className="flex justify-between items-center mb-6">
+    fetchDashboardData();
+  }, []);
+
+  const getStatusBadge = (status) => {
+    const statusConfig = {
+      'Pending': { bg: 'bg-amber-100', text: 'text-amber-700', icon: Clock },
+      'In Progress': { bg: 'bg-blue-100', text: 'text-blue-700', icon: Loader2 },
+      'Assigned': { bg: 'bg-purple-100', text: 'text-purple-700', icon: Loader2 },
+      'Resolved': { bg: 'bg-emerald-100', text: 'text-emerald-700', icon: CheckCircle }
+    };
+
+    const config = statusConfig[status] || statusConfig['Pending'];
+    const Icon = config.icon;
+
+    return (
+      <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${config.bg} ${config.text}`}>
+        <Icon size={12} />
+        {status}
+      </span>
+    );
+  };
+
+  const ComplaintDetailModal = ({ complaint, onClose }) => {
+    if (!complaint) return null;
+
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl">
+          <div className="flex justify-between items-center p-6 border-b bg-gradient-to-r from-slate-50 to-gray-50">
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mb-1">
-                <div className="p-2 bg-amber-50 rounded-lg">
-                  <Smartphone size={18} className="text-amber-600" />
-                </div>
-                My Repair Requests
-              </h2>
-              <p className="text-gray-500 text-sm">Track all your repair requests in one place</p>
+              <h2 className="text-xl font-bold text-gray-800">Complaint Details</h2>
+              <p className="text-sm text-gray-500 mt-1">ID: {complaint.code || complaint.complaint_id}</p>
             </div>
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-gray-600 font-medium">
-                Total: <span className="text-blue-600 font-bold">{customer.complaints_history.length}</span>
-              </span>
-            </div>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-200 text-gray-500 hover:text-gray-700 transition"
+            >
+              ✕
+            </button>
           </div>
 
-          {customer.complaints_history.length > 0 ? (
-            <div className="space-y-4">
-              {customer.complaints_history.map((complaint) => (
-                <div 
-                  key={complaint.id} 
-                  className="border border-gray-200 rounded-xl p-5 hover:border-blue-300 hover:shadow-md transition-all duration-300"
-                >
-                  <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className="p-2 bg-blue-50 rounded-lg">
-                          <Smartphone size={18} className="text-blue-600" />
-                        </div>
-                        <div>
-                          <span className="font-semibold text-gray-900 text-lg">{complaint.phone_model}</span>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className={`px-3 py-1.5 text-sm rounded-full flex items-center gap-2 font-medium border ${getStatusColor(complaint.status)}`}>
-                              {getStatusIcon(complaint.status)}
-                              {complaint.status}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="ml-12 space-y-2">
-                        <p className="text-gray-700">
-                          <span className="font-medium">Issue:</span> {complaint.issue_details}
-                        </p>
-                        <p className="text-gray-600 text-sm">
-                          <span className="font-medium">Assigned to:</span> {complaint.assign_to}
-                        </p>
-                      </div>
+          <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 140px)' }}>
+            <div className="space-y-6">
+              <div className="flex flex-wrap gap-2">
+                {getStatusBadge(complaint.status)}
+              </div>
+
+              <div className="bg-gray-50 p-5 rounded-xl">
+                <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                  <FileText size={16} className="text-blue-600" />
+                  Complaint Information
+                </h3>
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Issue Title</p>
+                    <p className="text-gray-900 font-medium">{complaint.issue_title || complaint.title}</p>
+                  </div>
+                  {complaint.issue_subtitle && (
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Subtitle</p>
+                      <p className="text-gray-600">{complaint.issue_subtitle}</p>
                     </div>
-                    
-                    <div className="text-right">
-                      <div className="inline-block bg-gray-50 rounded-lg p-3">
-                        <p className="text-sm text-gray-500 mb-1">Submitted on</p>
-                        <p className="font-medium text-gray-800">
-                          {formatDate(complaint.created_at)}
-                        </p>
-                      </div>
-                      <p className="text-xs text-gray-400 mt-2">
-                        Request #{complaint.id}
+                  )}
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Phone Model</p>
+                    <p className="text-gray-900 font-medium">{complaint.phone_model}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-gray-50 p-5 rounded-xl">
+                  <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                    <User size={16} className="text-blue-600" />
+                    Assignment Details
+                  </h3>
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Assigned To</p>
+                      <p className="text-gray-900 font-medium">{complaint.assigned_to || 'Not assigned'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Created On</p>
+                      <p className="text-gray-900 flex items-center gap-1">
+                        <Calendar size={14} className="text-gray-400" />
+                        {complaint.date ? new Date(complaint.date).toLocaleDateString('en-IN', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric'
+                        }) : 'N/A'}
                       </p>
                     </div>
                   </div>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-10">
-              <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CheckCircle size={32} className="text-emerald-500" />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-700 mb-2">No repair requests yet</h3>
-              <p className="text-gray-500">Submit your first repair request to get started</p>
-            </div>
-          )}
-        </div>
-
-        {/* Summary Cards - Enhanced */}
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-5">
-          <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-2xl shadow-lg p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-emerald-100 text-sm font-medium">Completed Requests</p>
-                <p className="text-3xl font-bold text-white mt-2">
-                  {customer.complaints_history.filter(c => c.status === 'Completed').length}
-                </p>
-              </div>
-              <div className="p-3 bg-white/20 rounded-xl">
-                <CheckCircle size={24} className="text-white" />
               </div>
             </div>
           </div>
-          
-          <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl shadow-lg p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-blue-100 text-sm font-medium">Total Requests</p>
-                <p className="text-3xl font-bold text-white mt-2">
-                  {customer.complaints_history.length}
-                </p>
-              </div>
-              <div className="p-3 bg-white/20 rounded-xl">
-                <AlertCircle size={24} className="text-white" />
-              </div>
-            </div>
-          </div>
-        </div>
 
-        {/* Footer - Enhanced */}
-        <div className="mt-8 pt-6 border-t border-gray-200">
-          <div className="text-center">
-            <p className="text-gray-600 text-sm">
-              Need help? Contact support at support@example.com
-            </p>
-            <p className="text-gray-500 text-xs mt-2">
-              © {new Date().getFullYear()} DeviceCare. All rights reserved.
-            </p>
+          <div className="flex justify-end p-6 border-t bg-gray-50">
+            <button
+              onClick={onClose}
+              className="px-6 py-2.5 bg-gray-600 text-white rounded-xl hover:bg-gray-700 transition font-medium shadow-sm"
+            >
+              Close
+            </button>
           </div>
         </div>
       </div>
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50">
+        <div className="text-center">
+          <div className="relative">
+            <div className="w-20 h-20 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+          </div>
+          <p className="text-gray-600 mt-4 font-medium">Loading your dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-orange-50">
+        <div className="text-center max-w-md mx-auto p-8">
+          <div className="bg-white rounded-2xl shadow-xl p-8">
+            <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">Oops! Something went wrong</h2>
+            <p className="text-gray-600 mb-6">{error}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition font-medium"
+            >
+              Try Again
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const profile = dashboardData?.profile || {};
+  const counts = dashboardData?.counts || {};
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Stylish Customer Details Card - Light White Colors */}
+        <div className="relative overflow-hidden bg-gradient-to-br from-white via-gray-50 to-blue-50 rounded-3xl p-8 mb-8 shadow-xl border border-gray-200/50">
+          {/* Decorative elements - light */}
+          <div className="absolute top-0 right-0 w-64 h-64 bg-blue-100/30 rounded-full -mr-20 -mt-20"></div>
+          <div className="absolute bottom-0 left-0 w-80 h-80 bg-purple-100/20 rounded-full -ml-20 -mb-20"></div>
+          
+          <div className="relative z-10">
+            {/* Header with badge */}
+            <div className="flex items-center gap-3 mb-6">
+              <div className="bg-white p-3 rounded-2xl shadow-sm border border-gray-200">
+                <IdCard className="w-8 h-8 text-blue-600" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-3xl font-bold text-gray-800">Customer Profile</h1>
+                </div>
+                <p className="text-gray-500 text-sm mt-1">
+                  ID: #{profile.id} • Member since {profile.member_since || 'N/A'}
+                </p>
+              </div>
+            </div>
+
+            {/* Main Info Grid - Light White */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Left Column - Personal Info */}
+              <div className="space-y-6">
+                <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-all">
+                  <h3 className="text-lg font-semibold text-gray-700 mb-4 flex items-center gap-2">
+                    <User className="w-5 h-5 text-blue-500" />
+                    Personal Information
+                  </h3>
+                  
+                  <div className="grid grid-cols-1 gap-4">
+                    <div className="flex items-start gap-4">
+                      <div className="bg-blue-50 p-2.5 rounded-xl">
+                        <User className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-gray-400 text-xs uppercase tracking-wider">Full Name</p>
+                        <p className="text-gray-800 text-xl font-semibold">{profile.full_name || 'N/A'}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-4">
+                      <div className="bg-blue-50 p-2.5 rounded-xl">
+                        <Mail className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-gray-400 text-xs uppercase tracking-wider">Email Address</p>
+                        <p className="text-gray-700 text-lg">{profile.email || 'N/A'}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-4">
+                      <div className="bg-blue-50 p-2.5 rounded-xl">
+                        <Phone className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-gray-400 text-xs uppercase tracking-wider">Phone Number</p>
+                        <p className="text-gray-800 text-lg font-medium">{profile.phone || 'N/A'}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column - Address */}
+              <div className="space-y-6">
+                <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-all h-full">
+                  <h3 className="text-lg font-semibold text-gray-700 mb-4 flex items-center gap-2">
+                    <MapPinned className="w-5 h-5 text-blue-500" />
+                    Address Details
+                  </h3>
+                  
+                  <div className="grid grid-cols-1 gap-4">
+                    <div className="flex items-start gap-4">
+                      <div className="bg-blue-50 p-2.5 rounded-xl">
+                        <Home className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-gray-400 text-xs uppercase tracking-wider">Address</p>
+                        <p className="text-gray-700 text-lg">{profile.address || 'N/A'}</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="flex items-start gap-3">
+                        <div className="bg-blue-50 p-2 rounded-xl">
+                          <MapPin className="w-4 h-4 text-blue-600" />
+                        </div>
+                        <div>
+                          <p className="text-gray-400 text-xs uppercase tracking-wider">State</p>
+                          <p className="text-gray-800 text-base font-medium">{profile.state || 'N/A'}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-3">
+                        <div className="bg-blue-50 p-2 rounded-xl">
+                          <MapPin className="w-4 h-4 text-blue-600" />
+                        </div>
+                        <div>
+                          <p className="text-gray-400 text-xs uppercase tracking-wider">Pincode</p>
+                          <p className="text-gray-800 text-base font-medium">{profile.pincode || 'N/A'}</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {profile.area && (
+                      <div className="flex items-start gap-3">
+                        <div className="bg-blue-50 p-2 rounded-xl">
+                          <MapPin className="w-4 h-4 text-blue-600" />
+                        </div>
+                        <div>
+                          <p className="text-gray-400 text-xs uppercase tracking-wider">Area</p>
+                          <p className="text-gray-800 text-base font-medium">{profile.area}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Quick Stats Badges */}
+                  <div className="mt-6 flex flex-wrap gap-2">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-xs border border-blue-200">
+                      <Award size={12} />
+                      {profile.is_active ? 'Active Customer' : 'Inactive Customer'}
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 text-purple-700 rounded-full text-xs border border-purple-200">
+                      <Star size={12} />
+                      {profile.complaints_count || 0} Total Complaints
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-all hover:-translate-y-1">
+            <div className="flex items-center justify-between mb-3">
+              <div className="p-2.5 bg-blue-100 rounded-xl">
+                <FileText className="w-5 h-5 text-blue-600" />
+              </div>
+              <span className="text-2xl font-bold text-gray-800">{stats.total}</span>
+            </div>
+            <h3 className="text-gray-600 text-sm font-medium">Total Complaints</h3>
+          </div>
+
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-all hover:-translate-y-1">
+            <div className="flex items-center justify-between mb-3">
+              <div className="p-2.5 bg-amber-100 rounded-xl">
+                <Clock className="w-5 h-5 text-amber-600" />
+              </div>
+              <span className="text-2xl font-bold text-gray-800">{stats.pending}</span>
+            </div>
+            <h3 className="text-gray-600 text-sm font-medium">Pending</h3>
+          </div>
+
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-all hover:-translate-y-1">
+            <div className="flex items-center justify-between mb-3">
+              <div className="p-2.5 bg-sky-100 rounded-xl">
+                <Loader2 className="w-5 h-5 text-sky-600" />
+              </div>
+              <span className="text-2xl font-bold text-gray-800">{stats.inProgress}</span>
+            </div>
+            <h3 className="text-gray-600 text-sm font-medium">In Progress</h3>
+          </div>
+
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-all hover:-translate-y-1">
+            <div className="flex items-center justify-between mb-3">
+              <div className="p-2.5 bg-emerald-100 rounded-xl">
+                <CheckCircle className="w-5 h-5 text-emerald-600" />
+              </div>
+              <span className="text-2xl font-bold text-gray-800">{stats.resolved}</span>
+            </div>
+            <h3 className="text-gray-600 text-sm font-medium">Resolved</h3>
+          </div>
+        </div>
+
+        {/* Recent Complaints */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
+            <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+              <ClipboardList className="w-5 h-5 text-blue-600" />
+              Recent Complaints
+            </h3>
+          </div>
+          
+          {complaints.length === 0 ? (
+            <div className="text-center py-12">
+              <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-500">No complaints found</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      <div className="flex items-center gap-1">
+                        <Hash size={14} className="text-gray-400" />
+                        ID
+                      </div>
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      <div className="flex items-center gap-1">
+                        <CalendarDays size={14} className="text-gray-400" />
+                        Date
+                      </div>
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      <div className="flex items-center gap-1">
+                        <FileText size={14} className="text-gray-400" />
+                        Issue
+                      </div>
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      <div className="flex items-center gap-1">
+                        <Smartphone size={14} className="text-gray-400" />
+                        Phone Model
+                      </div>
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      <div className="flex items-center gap-1">
+                        <Clock size={14} className="text-gray-400" />
+                        Status
+                      </div>
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      <div className="flex items-center gap-1">
+                        <User size={14} className="text-gray-400" />
+                        Assigned To
+                      </div>
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {complaints.map((complaint) => (
+                    <tr key={complaint.id} className="hover:bg-gray-50 transition">
+                      <td className="px-6 py-4">
+                        <span className="text-sm font-mono font-medium text-blue-600">{complaint.code}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-sm text-gray-600">
+                          {complaint.date ? new Date(complaint.date).toLocaleDateString('en-IN') : 'N/A'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div>
+                          <p className="text-sm text-gray-900 font-medium">{complaint.issue_title}</p>
+                          {complaint.issue_subtitle && (
+                            <p className="text-xs text-gray-500">{complaint.issue_subtitle}</p>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-sm text-gray-700">{complaint.phone_model}</span>
+                      </td>
+                      <td className="px-6 py-4">{getStatusBadge(complaint.status)}</td>
+                      <td className="px-6 py-4">
+                        <span className="text-sm text-gray-700">{complaint.assigned_to || 'Not assigned'}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <button
+                          onClick={() => setSelectedComplaint(complaint)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition text-sm font-medium"
+                        >
+                          <Eye size={16} />
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Detail Modal */}
+      {selectedComplaint && (
+        <ComplaintDetailModal
+          complaint={selectedComplaint}
+          onClose={() => setSelectedComplaint(null)}
+        />
+      )}
     </div>
   );
 };
 
-export default CustomerDashboard;
+export default CustomersDashboard;

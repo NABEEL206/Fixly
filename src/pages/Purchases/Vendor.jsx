@@ -1,9 +1,15 @@
 // src/pages/Purchases/Vendor.jsx
-import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
-import { 
-  Plus, 
-  Edit, 
-  Trash2, 
+import React, {
+  useState,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+} from "react";
+import {
+  Plus,
+  Edit,
+  Trash2,
   Eye,
   Building,
   Mail,
@@ -14,14 +20,15 @@ import {
   CheckCircle,
   XCircle,
   User,
-  RefreshCw
+  RefreshCw,
+  CreditCard,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import axiosInstance from "@/API/axiosInstance";
 
 const STATUS_OPTIONS = [
   { value: "active", label: "Active" },
-  { value: "inactive", label: "Inactive" }
+  { value: "inactive", label: "Inactive" },
 ];
 
 const getStatusClasses = (status) => {
@@ -35,18 +42,45 @@ const getStatusClasses = (status) => {
   }
 };
 
+// GST Validation Functions
+const validateGSTIN = (gstin) => {
+  if (!gstin || !gstin.trim()) return { isValid: true, message: "" }; // Optional field
+
+  const gstRegex =
+    /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}[Z]{1}[0-9A-Z]{1}$/;
+  const cleaned = gstin.trim().toUpperCase();
+
+  if (!gstRegex.test(cleaned)) {
+    return {
+      isValid: false,
+      message: "Invalid GSTIN format. Should be: 22AAAAA0000A1Z5",
+    };
+  }
+
+  // Validate state code (first 2 digits should be 01-37)
+  const stateCode = parseInt(cleaned.substring(0, 2));
+  if (stateCode < 1 || stateCode > 37) {
+    return {
+      isValid: false,
+      message: "Invalid state code. Must be between 01 and 37",
+    };
+  }
+
+  return { isValid: true, message: "" };
+};
+
 // Form Modal Component
-const FormModal = ({ 
-  isOpen, 
-  onClose, 
-  onSubmit, 
-  isEdit, 
+const FormModal = ({
+  isOpen,
+  onClose,
+  onSubmit,
+  isEdit,
   isSubmitting,
   formData,
   onFormChange,
   errors,
   fieldErrors,
-  onBlur
+  onBlur,
 }) => {
   if (!isOpen) return null;
 
@@ -58,7 +92,7 @@ const FormModal = ({
           <h2 className="text-lg font-semibold text-blue-700">
             {isEdit ? "Edit Vendor" : "Add New Vendor"}
           </h2>
-          <button 
+          <button
             onClick={onClose}
             className="text-gray-500 hover:text-red-600 text-xl"
             disabled={isSubmitting}
@@ -68,34 +102,43 @@ const FormModal = ({
         </div>
 
         {/* Modal Body */}
-        <div className="p-5 overflow-y-auto" style={{ maxHeight: "calc(95vh - 120px)" }}>
+        <div
+          className="p-5 overflow-y-auto"
+          style={{ maxHeight: "calc(95vh - 120px)" }}
+        >
           <form onSubmit={onSubmit} className="space-y-4">
             {/* Vendor Details Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Name */}
+              {/* Name - Only Characters */}
               <div>
                 <input
                   type="text"
                   name="name"
-                  value={formData.name || ''}
+                  value={formData.name || ""}
                   onChange={onFormChange}
-                  onBlur={() => onBlur('name')}
+                  onBlur={() => onBlur("name")}
                   className={`w-full px-3 py-2 text-sm border rounded-lg ${
                     fieldErrors.name ? "border-red-500" : "border-gray-300"
                   } focus:outline-none focus:ring-1 focus:ring-blue-200`}
-                  placeholder="Vendor Name *"
+                  placeholder="Vendor Name * (Letters only)"
+                  maxLength={50}
                   disabled={isSubmitting}
                 />
                 {fieldErrors.name && (
-                  <p className="text-red-500 text-xs mt-0.5">{fieldErrors.name}</p>
+                  <p className="text-red-500 text-xs mt-0.5">
+                    {fieldErrors.name}
+                  </p>
                 )}
+                <p className="text-xs text-gray-500 mt-1">
+                  {formData.name?.length || 0}/50 characters
+                </p>
               </div>
 
               {/* Status */}
               <div>
                 <select
                   name="status"
-                  value={formData.status || 'active'}
+                  value={formData.status || "active"}
                   onChange={onFormChange}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"
                   disabled={isSubmitting}
@@ -113,39 +156,80 @@ const FormModal = ({
                 <input
                   type="email"
                   name="email"
-                  value={formData.email || ''}
+                  value={formData.email || ""}
                   onChange={onFormChange}
-                  onBlur={() => onBlur('email')}
+                  onBlur={() => onBlur("email")}
                   className={`w-full px-3 py-2 text-sm border rounded-lg ${
-                    errors.email || fieldErrors.email ? "border-red-500" : "border-gray-300"
+                    errors.email || fieldErrors.email
+                      ? "border-red-500"
+                      : "border-gray-300"
                   } focus:outline-none focus:ring-1 focus:ring-blue-200`}
                   placeholder="Email Address *"
                   disabled={isSubmitting}
                 />
                 {(errors.email || fieldErrors.email) && (
-                  <p className="text-red-500 text-xs mt-0.5">{errors.email || fieldErrors.email}</p>
+                  <p className="text-red-500 text-xs mt-0.5">
+                    {errors.email || fieldErrors.email}
+                  </p>
                 )}
               </div>
 
-              {/* Phone */}
+              {/* Phone - Exactly 10 digits (no prefix validation) */}
               <div>
                 <input
                   type="tel"
                   name="phone"
-                  value={formData.phone || ''}
+                  value={formData.phone || ""}
                   onChange={onFormChange}
-                  onBlur={() => onBlur('phone')}
+                  onBlur={() => onBlur("phone")}
                   className={`w-full px-3 py-2 text-sm border rounded-lg ${
-                    errors.phone || fieldErrors.phone ? "border-red-500" : "border-gray-300"
+                    errors.phone || fieldErrors.phone
+                      ? "border-red-500"
+                      : "border-gray-300"
                   } focus:outline-none focus:ring-1 focus:ring-blue-200`}
-                  placeholder="Phone Number * (10-15 digits)"
-                  maxLength={15}
+                  placeholder="Phone Number * (10 digits)"
+                  maxLength={10}
                   disabled={isSubmitting}
                 />
                 {(errors.phone || fieldErrors.phone) && (
-                  <p className="text-red-500 text-xs mt-0.5">{errors.phone || fieldErrors.phone}</p>
+                  <p className="text-red-500 text-xs mt-0.5">
+                    {errors.phone || fieldErrors.phone}
+                  </p>
                 )}
+                <p className="text-xs text-gray-500 mt-1">
+                  {formData.phone?.length || 0}/10 digits
+                </p>
               </div>
+            </div>
+
+            {/* GST PIN (Optional) */}
+            <div>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                  <CreditCard size={16} className="text-gray-400" />
+                </div>
+                <input
+                  type="text"
+                  name="gst_pin"
+                  value={formData.gst_pin || ""}
+                  onChange={onFormChange}
+                  onBlur={() => onBlur("gst_pin")}
+                  className={`w-full pl-10 pr-3 py-2 text-sm border rounded-lg ${
+                    fieldErrors.gst_pin ? "border-red-500" : "border-gray-300"
+                  } focus:outline-none focus:ring-1 focus:ring-blue-200 uppercase`}
+                  placeholder="GST PIN (Optional) - 22AAAAA0000A1Z5"
+                  maxLength={15}
+                  disabled={isSubmitting}
+                />
+              </div>
+              {fieldErrors.gst_pin && (
+                <p className="text-red-500 text-xs mt-0.5">
+                  {fieldErrors.gst_pin}
+                </p>
+              )}
+              <p className="text-xs text-gray-500 mt-1">
+                15-character GST identification number (optional)
+              </p>
             </div>
 
             {/* Website - Full Width (Optional) */}
@@ -157,7 +241,7 @@ const FormModal = ({
                 <input
                   type="text"
                   name="website"
-                  value={formData.website || ''}
+                  value={formData.website || ""}
                   onChange={onFormChange}
                   className="w-full pl-10 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-200"
                   placeholder="Website (optional) - e.g., example.com"
@@ -165,18 +249,20 @@ const FormModal = ({
                 />
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                Website is optional. If provided, it will be automatically prefixed with https://
+                Website is optional. If provided, it will be automatically
+                prefixed with https://
               </p>
             </div>
 
-            {/* Address - Full Width */}
+            {/* Address - Full Width with Character Count */}
             <div>
               <textarea
                 name="address"
-                value={formData.address || ''}
+                value={formData.address || ""}
                 onChange={onFormChange}
-                onBlur={() => onBlur('address')}
-                rows={2}
+                onBlur={() => onBlur("address")}
+                rows={3}
+                maxLength={200}
                 className={`w-full px-3 py-2 text-sm border rounded-lg ${
                   fieldErrors.address ? "border-red-500" : "border-gray-300"
                 } focus:outline-none focus:ring-1 focus:ring-blue-200 resize-none`}
@@ -184,15 +270,27 @@ const FormModal = ({
                 disabled={isSubmitting}
               />
               {fieldErrors.address && (
-                <p className="text-red-500 text-xs mt-0.5">{fieldErrors.address}</p>
+                <p className="text-red-500 text-xs mt-0.5">
+                  {fieldErrors.address}
+                </p>
               )}
+              <div className="flex justify-between items-center mt-1">
+                <p className="text-xs text-gray-500">
+                  {formData.address?.length || 0}/200 characters
+                </p>
+                {formData.address?.length > 180 && (
+                  <p className="text-xs text-orange-500">
+                    Approaching character limit
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Submit Button */}
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               className={`w-full bg-green-600 text-white py-2.5 rounded-lg hover:bg-green-700 font-semibold text-sm flex items-center justify-center gap-2 transition-colors ${
-                isSubmitting ? 'opacity-70 cursor-not-allowed' : ''
+                isSubmitting ? "opacity-70 cursor-not-allowed" : ""
               }`}
               disabled={isSubmitting}
             >
@@ -201,8 +299,10 @@ const FormModal = ({
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                   {isEdit ? "Updating..." : "Creating..."}
                 </>
+              ) : isEdit ? (
+                "Update Vendor"
               ) : (
-                isEdit ? "Update Vendor" : "Add Vendor"
+                "Add Vendor"
               )}
             </button>
           </form>
@@ -216,13 +316,22 @@ const FormModal = ({
 const ViewModal = ({ isOpen, onClose, vendor, onEdit }) => {
   if (!isOpen || !vendor) return null;
 
+  const formatGSTIN = (gstin) => {
+    if (!gstin) return "Not provided";
+    // Format: XX XXXXX XXXX X XX
+    return gstin.replace(
+      /(.{2})(.{5})(.{4})(.{1})(.{2})(.{1})/,
+      "$1 $2 $3 $4 $5 $6",
+    );
+  };
+
   return (
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
       <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-gray-200">
         <div className="flex justify-between items-center p-6 border-b">
           <h2 className="text-2xl font-bold text-blue-700">Vendor Details</h2>
-          <button 
-            onClick={onClose} 
+          <button
+            onClick={onClose}
             className="text-gray-500 hover:text-red-600 text-lg"
           >
             ✖
@@ -233,10 +342,14 @@ const ViewModal = ({ isOpen, onClose, vendor, onEdit }) => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Left Column */}
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">Basic Information</h3>
-              
+              <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">
+                Basic Information
+              </h3>
+
               <div>
-                <label className="block text-sm font-medium text-gray-600">Vendor Name</label>
+                <label className="block text-sm font-medium text-gray-600">
+                  Vendor Name
+                </label>
                 <p className="mt-1 p-2 bg-gray-50 rounded-lg flex items-center gap-2">
                   <Building size={16} className="text-blue-500" />
                   {vendor.name}
@@ -244,14 +357,20 @@ const ViewModal = ({ isOpen, onClose, vendor, onEdit }) => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-600">Status</label>
-                <span className={`mt-1 px-3 py-1 rounded-full text-xs font-semibold inline-block ${getStatusClasses(vendor.status)}`}>
+                <label className="block text-sm font-medium text-gray-600">
+                  Status
+                </label>
+                <span
+                  className={`mt-1 px-3 py-1 rounded-full text-xs font-semibold inline-block ${getStatusClasses(vendor.status)}`}
+                >
                   {vendor.status === "active" ? "Active" : "Inactive"}
                 </span>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-600">Email Address</label>
+                <label className="block text-sm font-medium text-gray-600">
+                  Email Address
+                </label>
                 <p className="mt-1 p-2 bg-gray-50 rounded-lg flex items-center gap-2 break-all">
                   <Mail size={16} className="text-blue-500" />
                   {vendor.email}
@@ -259,7 +378,9 @@ const ViewModal = ({ isOpen, onClose, vendor, onEdit }) => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-600">Phone Number</label>
+                <label className="block text-sm font-medium text-gray-600">
+                  Phone Number
+                </label>
                 <p className="mt-1 p-2 bg-gray-50 rounded-lg flex items-center gap-2">
                   <Phone size={16} className="text-blue-500" />
                   {vendor.phone}
@@ -269,35 +390,63 @@ const ViewModal = ({ isOpen, onClose, vendor, onEdit }) => {
 
             {/* Right Column */}
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">Additional Information</h3>
+              <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">
+                Tax Information
+              </h3>
+
+              {/* GST PIN */}
+              <div>
+                <label className="block text-sm font-medium text-gray-600">
+                  GST PIN
+                </label>
+                <p className="mt-1 p-2 bg-gray-50 rounded-lg flex items-center gap-2">
+                  <CreditCard size={16} className="text-blue-500" />
+                  {vendor.gst_pin
+                    ? formatGSTIN(vendor.gst_pin)
+                    : "Not provided"}
+                </p>
+              </div>
+
+              <h3 className="text-lg font-semibold text-gray-800 border-b pb-2 mt-4">
+                Additional Information
+              </h3>
 
               <div>
-                <label className="block text-sm font-medium text-gray-600">Address</label>
+                <label className="block text-sm font-medium text-gray-600">
+                  Address
+                </label>
                 <p className="mt-1 p-2 bg-gray-50 rounded-lg flex items-start gap-2">
                   <MapPin size={16} className="text-blue-500 mt-1" />
                   {vendor.address}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {vendor.address?.length || 0} characters
                 </p>
               </div>
 
               {vendor.website && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-600">Website</label>
+                  <label className="block text-sm font-medium text-gray-600">
+                    Website
+                  </label>
                   <p className="mt-1 p-2 bg-gray-50 rounded-lg flex items-center gap-2">
                     <Globe size={16} className="text-blue-500" />
-                    <a 
-                      href={vendor.website} 
-                      target="_blank" 
+                    <a
+                      href={vendor.website}
+                      target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-600 hover:underline break-all"
                     >
-                      {vendor.website.replace(/^https?:\/\//, '')}
+                      {vendor.website.replace(/^https?:\/\//, "")}
                     </a>
                   </p>
                 </div>
               )}
 
               <div>
-                <label className="block text-sm font-medium text-gray-600">Created By</label>
+                <label className="block text-sm font-medium text-gray-600">
+                  Created By
+                </label>
                 <p className="mt-1 p-2 bg-gray-50 rounded-lg flex items-center gap-2">
                   <User size={16} className="text-blue-500" />
                   {vendor.created_by || "N/A"}
@@ -308,11 +457,15 @@ const ViewModal = ({ isOpen, onClose, vendor, onEdit }) => {
 
           {/* System Information */}
           <div className="mt-6 space-y-3">
-            <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">System Information</h3>
+            <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">
+              System Information
+            </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {vendor.created_at && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-600">Created At</label>
+                  <label className="block text-sm font-medium text-gray-600">
+                    Created At
+                  </label>
                   <p className="mt-1 p-2 bg-gray-50 rounded-lg">
                     {new Date(vendor.created_at).toLocaleString()}
                   </p>
@@ -320,7 +473,9 @@ const ViewModal = ({ isOpen, onClose, vendor, onEdit }) => {
               )}
               {vendor.updated_at && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-600">Updated At</label>
+                  <label className="block text-sm font-medium text-gray-600">
+                    Updated At
+                  </label>
                   <p className="mt-1 p-2 bg-gray-50 rounded-lg">
                     {new Date(vendor.updated_at).toLocaleString()}
                   </p>
@@ -331,17 +486,17 @@ const ViewModal = ({ isOpen, onClose, vendor, onEdit }) => {
         </div>
 
         <div className="p-6 border-t flex justify-end gap-3">
-          <button 
-            onClick={() => { 
-              onEdit(vendor); 
-              onClose(); 
-            }} 
+          <button
+            onClick={() => {
+              onEdit(vendor);
+              onClose();
+            }}
             className="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600"
           >
             Edit Vendor
           </button>
-          <button 
-            onClick={onClose} 
+          <button
+            onClick={onClose}
             className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
           >
             Close
@@ -361,7 +516,7 @@ export default function Vendor() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFetchingData, setIsFetchingData] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  
+
   // Use ref to track toast ID instead of state to prevent re-renders
   const toastIdRef = useRef(null);
   // Use ref to prevent multiple edits
@@ -383,7 +538,8 @@ export default function Vendor() {
     phone: "",
     address: "",
     website: "",
-    status: "active"
+    gst_pin: "",
+    status: "active",
   });
 
   // Validation errors
@@ -397,8 +553,8 @@ export default function Vendor() {
   // Get unique createdBy values for filter
   const uniqueCreatedBy = useMemo(() => {
     const set = new Set();
-    vendors.forEach((v) => { 
-      if (v.created_by) set.add(v.created_by); 
+    vendors.forEach((v) => {
+      if (v.created_by) set.add(v.created_by);
     });
     return Array.from(set).sort();
   }, [vendors]);
@@ -411,7 +567,8 @@ export default function Vendor() {
       phone: "",
       address: "",
       website: "",
-      status: "active"
+      gst_pin: "",
+      status: "active",
     });
     setEmailError("");
     setPhoneError("");
@@ -420,74 +577,122 @@ export default function Vendor() {
 
   // Validation functions
   const validateEmail = (value) => {
-    if (!value?.trim()) { 
-      setEmailError("Email is required"); 
-      return false; 
+    if (!value?.trim()) {
+      setEmailError("Email is required");
+      return false;
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) { 
-      setEmailError("Enter a valid email address"); 
-      return false; 
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+      setEmailError("Enter a valid email address");
+      return false;
     }
-    setEmailError(""); 
+    setEmailError("");
     return true;
   };
 
   const validatePhone = (value) => {
-    if (!value?.trim()) { 
-      setPhoneError("Phone number is required"); 
-      return false; 
+    if (!value?.trim()) {
+      setPhoneError("Phone number is required");
+      return false;
     }
-    const cleaned = value.replace(/\D/g, '');
-    if (cleaned.length < 10 || cleaned.length > 15) { 
-      setPhoneError("Phone number must be 10-15 digits"); 
-      return false; 
+    // Exactly 10 digits validation (no prefix validation)
+    const cleaned = value.replace(/\D/g, "");
+    if (cleaned.length !== 10) {
+      setPhoneError("Phone number must be exactly 10 digits");
+      return false;
     }
-    setPhoneError(""); 
+    setPhoneError("");
+    return true;
+  };
+
+  const validateName = (value) => {
+    if (!value?.trim()) {
+      return "Vendor name is required";
+    }
+    // Only allow letters, spaces, and common name characters
+    if (!/^[A-Za-z\s\-'.]+$/.test(value)) {
+      return "Name can only contain letters, spaces, hyphens, apostrophes, and dots";
+    }
+    if (value.length > 50) {
+      return "Name cannot exceed 50 characters";
+    }
+    return "";
+  };
+
+  const validateAddress = (value) => {
+    if (!value?.trim()) {
+      return "Address is required";
+    }
+    if (value.length > 200) {
+      return "Address cannot exceed 200 characters";
+    }
+    return "";
+  };
+
+  const validateGSTField = (value) => {
+    if (!value || !value.trim()) {
+      setFieldErrors((prev) => ({ ...prev, gst_pin: "" }));
+      return true; // Optional field
+    }
+
+    const result = validateGSTIN(value);
+    if (!result.isValid) {
+      setFieldErrors((prev) => ({ ...prev, gst_pin: result.message }));
+      return false;
+    }
+
+    setFieldErrors((prev) => ({ ...prev, gst_pin: "" }));
     return true;
   };
 
   const validateRequiredFields = () => {
     const errors = {};
-    if (!formData.name?.trim()) errors.name = "Vendor name is required";
+
+    const nameError = validateName(formData.name);
+    if (nameError) errors.name = nameError;
+
     if (!formData.email?.trim()) errors.email = "Email is required";
-    if (!formData.phone?.trim()) errors.phone = "Phone number is required";
-    if (!formData.address?.trim()) errors.address = "Address is required";
-    
-    setFieldErrors(errors);
+
+    const phoneError = validatePhone(formData.phone);
+    if (phoneError !== true) errors.phone = phoneError;
+
+    const addressError = validateAddress(formData.address);
+    if (addressError) errors.address = addressError;
+
+    setFieldErrors((prev) => ({ ...prev, ...errors }));
     return Object.keys(errors).length === 0;
   };
 
   const validateField = (fieldName) => {
-    switch(fieldName) {
-      case 'name':
-        if (!formData.name?.trim()) {
-          setFieldErrors(prev => ({ ...prev, name: "Vendor name is required" }));
-        } else {
-          setFieldErrors(prev => ({ ...prev, name: "" }));
-        }
+    switch (fieldName) {
+      case "name":
+        const nameError = validateName(formData.name);
+        setFieldErrors((prev) => ({ ...prev, name: nameError }));
         break;
-      case 'email':
+      case "email":
         validateEmail(formData.email);
         if (!formData.email?.trim()) {
-          setFieldErrors(prev => ({ ...prev, email: "Email is required" }));
+          setFieldErrors((prev) => ({ ...prev, email: "Email is required" }));
         } else {
-          setFieldErrors(prev => ({ ...prev, email: "" }));
+          setFieldErrors((prev) => ({ ...prev, email: "" }));
         }
         break;
-      case 'phone':
+      case "phone":
         validatePhone(formData.phone);
         if (!formData.phone?.trim()) {
-          setFieldErrors(prev => ({ ...prev, phone: "Phone number is required" }));
+          setFieldErrors((prev) => ({
+            ...prev,
+            phone: "Phone number is required",
+          }));
         } else {
-          setFieldErrors(prev => ({ ...prev, phone: "" }));
+          setFieldErrors((prev) => ({ ...prev, phone: "" }));
         }
         break;
-      case 'address':
-        if (!formData.address?.trim()) {
-          setFieldErrors(prev => ({ ...prev, address: "Address is required" }));
-        } else {
-          setFieldErrors(prev => ({ ...prev, address: "" }));
-        }
+      case "address":
+        const addressError = validateAddress(formData.address);
+        setFieldErrors((prev) => ({ ...prev, address: addressError }));
+        break;
+      case "gst_pin":
+        validateGSTField(formData.gst_pin);
         break;
       default:
         break;
@@ -497,18 +702,27 @@ export default function Vendor() {
   // Handle form input changes
   const handleFormChange = (e) => {
     const { name, value } = e.target;
-    
-    if (name === 'phone') {
-      // Only allow digits for phone
-      const cleaned = value.replace(/\D/g, '').slice(0, 15);
-      setFormData(prev => ({ ...prev, [name]: cleaned }));
+
+    if (name === "phone") {
+      // Only allow digits for phone, exactly 10 digits
+      const cleaned = value.replace(/\D/g, "").slice(0, 10);
+      setFormData((prev) => ({ ...prev, [name]: cleaned }));
+    } else if (name === "name") {
+      // Allow letters, spaces, hyphens, apostrophes, and dots
+      const cleaned = value.replace(/[^A-Za-z\s\-'.]/g, "");
+      setFormData((prev) => ({ ...prev, [name]: cleaned }));
+    } else if (name === "gst_pin") {
+      // Convert to uppercase for GST, only allow alphanumeric
+      const upperValue = value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+      const truncated = upperValue.slice(0, 15);
+      setFormData((prev) => ({ ...prev, [name]: truncated }));
     } else {
-      setFormData(prev => ({ ...prev, [name]: value }));
+      setFormData((prev) => ({ ...prev, [name]: value }));
     }
 
     // Clear field error when user starts typing
     if (fieldErrors[name]) {
-      setFieldErrors(prev => ({ ...prev, [name]: "" }));
+      setFieldErrors((prev) => ({ ...prev, [name]: "" }));
     }
   };
 
@@ -516,22 +730,21 @@ export default function Vendor() {
     validateField(fieldName);
   };
 
-  // Fetch vendors - FIXED: Added /api/ prefix
+  // Fetch vendors
   const fetchVendors = useCallback(async (showLoading = true) => {
     if (showLoading) {
       setIsFetchingData(true);
     } else {
       setIsRefreshing(true);
     }
-    
+
     try {
-      // ✅ FIXED: Added /api/ prefix
-      const response = await axiosInstance.get('/api/vendors/');
-      
+      const response = await axiosInstance.get("/api/vendors/");
+
       // Handle the API response structure
       const data = response.data;
       let vendorsList = [];
-      
+
       if (Array.isArray(data)) {
         vendorsList = data;
       } else if (data?.data && Array.isArray(data.data)) {
@@ -539,11 +752,10 @@ export default function Vendor() {
       } else if (data?.results) {
         vendorsList = data.results;
       }
-      
+
       setVendors(vendorsList);
     } catch (error) {
       console.error("Fetch vendors error:", error);
-      // 403/401 are handled by interceptor, don't show additional error
       if (error.response?.status !== 403 && error.response?.status !== 401) {
         toast.error("Failed to load vendors");
       }
@@ -553,11 +765,11 @@ export default function Vendor() {
     }
   }, []);
 
-  useEffect(() => { 
-    fetchVendors(); 
+  useEffect(() => {
+    fetchVendors();
   }, [fetchVendors]);
 
-  // Handle form submission - FIXED: Added /api/ prefix to all endpoints
+  // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -565,14 +777,15 @@ export default function Vendor() {
     const isEmailValid = validateEmail(formData.email);
     const isPhoneValid = validatePhone(formData.phone);
     const isRequiredValid = validateRequiredFields();
+    const isGSTValid = validateGSTField(formData.gst_pin);
 
-    if (!isRequiredValid || !isEmailValid || !isPhoneValid) {
+    if (!isRequiredValid || !isEmailValid || !isPhoneValid || !isGSTValid) {
       toast.error("Please fix the errors in the form");
       return;
     }
 
-    // Clean phone number
-    const cleanedPhone = formData.phone.replace(/\D/g, '');
+    // Clean phone number (already 10 digits)
+    const cleanedPhone = formData.phone.replace(/\D/g, "");
 
     const vendorData = {
       name: formData.name.trim(),
@@ -582,9 +795,8 @@ export default function Vendor() {
       status: formData.status.toLowerCase(),
     };
 
-    // Only include website if provided
+    // Only include optional fields if provided
     if (formData.website?.trim()) {
-      // Ensure website has protocol
       let websiteUrl = formData.website.trim();
       if (!/^https?:\/\//i.test(websiteUrl)) {
         websiteUrl = `https://${websiteUrl}`;
@@ -592,24 +804,31 @@ export default function Vendor() {
       vendorData.website = websiteUrl;
     }
 
+    if (formData.gst_pin?.trim()) {
+      vendorData.gst_pin = formData.gst_pin.trim().toUpperCase();
+    }
+
     setIsSubmitting(true);
-    
+
     // Dismiss any existing toast before showing new one
     if (toastIdRef.current) {
       toast.dismiss(toastIdRef.current);
     }
-    
-    const newToastId = toast.loading(isEdit ? "Updating vendor..." : "Creating vendor...");
+
+    const newToastId = toast.loading(
+      isEdit ? "Updating vendor..." : "Creating vendor...",
+    );
     toastIdRef.current = newToastId;
 
     try {
       let response;
       if (isEdit && editVendor?.id) {
-        // ✅ FIXED: Added /api/ prefix
-        response = await axiosInstance.put(`/api/vendors/${editVendor.id}/`, vendorData);
+        response = await axiosInstance.put(
+          `/api/vendors/${editVendor.id}/`,
+          vendorData,
+        );
       } else {
-        // ✅ FIXED: Added /api/ prefix
-        response = await axiosInstance.post('/api/vendors/', vendorData);
+        response = await axiosInstance.post("/api/vendors/", vendorData);
       }
 
       // Handle response
@@ -617,13 +836,17 @@ export default function Vendor() {
       const newVendor = responseData.data || responseData;
 
       if (isEdit) {
-        setVendors(prev => 
-          prev.map(v => v.id === newVendor.id ? newVendor : v)
+        setVendors((prev) =>
+          prev.map((v) => (v.id === newVendor.id ? newVendor : v)),
         );
-        toast.success(responseData.message || "Vendor updated successfully!", { id: newToastId });
+        toast.success(responseData.message || "Vendor updated successfully!", {
+          id: newToastId,
+        });
       } else {
-        setVendors(prev => [newVendor, ...prev]);
-        toast.success(responseData.message || "Vendor created successfully!", { id: newToastId });
+        setVendors((prev) => [newVendor, ...prev]);
+        toast.success(responseData.message || "Vendor created successfully!", {
+          id: newToastId,
+        });
       }
 
       // Close form and reset
@@ -631,30 +854,33 @@ export default function Vendor() {
       setIsEdit(false);
       setEditVendor(null);
       resetFormStates();
-
     } catch (error) {
       console.error("Submit error:", error);
-      
-      // Handle validation errors from API (400)
+
       if (error.response?.status === 400) {
         const apiErrors = error.response.data;
         const errorMessages = [];
-        
-        // Handle field-specific errors
-        Object.keys(apiErrors).forEach(key => {
+
+        Object.keys(apiErrors).forEach((key) => {
           if (Array.isArray(apiErrors[key])) {
-            errorMessages.push(`${key}: ${apiErrors[key].join(', ')}`);
-          } else if (typeof apiErrors[key] === 'string') {
+            errorMessages.push(`${key}: ${apiErrors[key].join(", ")}`);
+          } else if (typeof apiErrors[key] === "string") {
             errorMessages.push(apiErrors[key]);
           }
         });
 
-        toast.error(errorMessages.join('\n') || "Validation failed", { id: newToastId });
-      } 
-      // Don't handle 403/401 here - they're handled by the interceptor
-      else if (error.response?.status !== 403 && error.response?.status !== 401) {
-        // Only show generic error for non-auth errors
-        toast.error(error.response?.data?.message || `${isEdit ? "Update" : "Create"} failed. Please try again.`, { id: newToastId });
+        toast.error(errorMessages.join("\n") || "Validation failed", {
+          id: newToastId,
+        });
+      } else if (
+        error.response?.status !== 403 &&
+        error.response?.status !== 401
+      ) {
+        toast.error(
+          error.response?.data?.message ||
+            `${isEdit ? "Update" : "Create"} failed. Please try again.`,
+          { id: newToastId },
+        );
       }
     } finally {
       setIsSubmitting(false);
@@ -662,58 +888,58 @@ export default function Vendor() {
     }
   };
 
-  // Handle edit - with debounce to prevent double clicks
-  const handleEdit = useCallback((vendor) => {
-    // Prevent multiple edit clicks
-    if (isEditingRef.current) {
-      return;
-    }
-    
-    isEditingRef.current = true;
-    
-    // Dismiss any existing toasts
-    if (toastIdRef.current) {
-      toast.dismiss(toastIdRef.current);
-      toastIdRef.current = null;
-    }
-    
-    resetFormStates();
-    setEditVendor(vendor);
-    setFormData({
-      name: vendor.name || "",
-      email: vendor.email || "",
-      phone: vendor.phone || "",
-      address: vendor.address || "",
-      website: vendor.website || "",
-      status: vendor.status?.toLowerCase() || "active"
-    });
-    setIsEdit(true);
-    setOpenForm(true);
-    
-    // Reset the editing ref after a short delay
-    setTimeout(() => {
-      isEditingRef.current = false;
-    }, 300);
-  }, [resetFormStates]);
+  // Handle edit
+  const handleEdit = useCallback(
+    (vendor) => {
+      if (isEditingRef.current) {
+        return;
+      }
 
-  // Handle delete - FIXED: Added /api/ prefix
+      isEditingRef.current = true;
+
+      if (toastIdRef.current) {
+        toast.dismiss(toastIdRef.current);
+        toastIdRef.current = null;
+      }
+
+      resetFormStates();
+      setEditVendor(vendor);
+      setFormData({
+        name: vendor.name || "",
+        email: vendor.email || "",
+        phone: vendor.phone || "",
+        address: vendor.address || "",
+        website: vendor.website || "",
+        gst_pin: vendor.gst_pin || "",
+        status: vendor.status?.toLowerCase() || "active",
+      });
+      setIsEdit(true);
+      setOpenForm(true);
+
+      setTimeout(() => {
+        isEditingRef.current = false;
+      }, 300);
+    },
+    [resetFormStates],
+  );
+
+  // Handle delete
   const handleDelete = (id) => {
-    // Dismiss any existing toasts
     if (toastIdRef.current) {
       toast.dismiss(toastIdRef.current);
     }
-    
+
     const deleteToastId = toast(
       (t) => (
         <div className="flex flex-col gap-3">
           <p className="text-sm font-semibold text-gray-800">Delete vendor?</p>
           <p className="text-xs text-gray-500">This action cannot be undone.</p>
           <div className="flex justify-end gap-2">
-            <button 
+            <button
               onClick={() => {
                 toast.dismiss(t.id);
                 toastIdRef.current = null;
-              }} 
+              }}
               className="px-3 py-1.5 bg-gray-200 rounded-md text-sm"
             >
               Cancel
@@ -723,18 +949,23 @@ export default function Vendor() {
                 toast.dismiss(t.id);
                 const dt = toast.loading("Deleting vendor...");
                 toastIdRef.current = dt;
-                
+
                 try {
-                  // ✅ FIXED: Added /api/ prefix
                   await axiosInstance.delete(`/api/vendors/${id}/`);
                   setVendors((prev) => prev.filter((v) => v.id !== id));
                   setSelectedIds((prev) => prev.filter((vid) => vid !== id));
                   toast.success("Vendor deleted successfully", { id: dt });
                 } catch (error) {
                   console.error("Delete error:", error);
-                  // 403/401 are handled by interceptor, no need to show additional error
-                  if (error.response?.status !== 403 && error.response?.status !== 401) {
-                    toast.error(error.response?.data?.message || "Failed to delete vendor", { id: dt });
+                  if (
+                    error.response?.status !== 403 &&
+                    error.response?.status !== 401
+                  ) {
+                    toast.error(
+                      error.response?.data?.message ||
+                        "Failed to delete vendor",
+                      { id: dt },
+                    );
                   }
                 } finally {
                   toastIdRef.current = null;
@@ -747,35 +978,36 @@ export default function Vendor() {
           </div>
         </div>
       ),
-      { duration: Infinity }
+      { duration: Infinity },
     );
-    
+
     toastIdRef.current = deleteToastId;
   };
 
-  // Handle bulk delete - FIXED: Added /api/ prefix
+  // Handle bulk delete
   const handleBulkDelete = () => {
-    if (!selectedIds.length) { 
-      toast.error("Please select at least one vendor"); 
-      return; 
+    if (!selectedIds.length) {
+      toast.error("Please select at least one vendor");
+      return;
     }
-    
-    // Dismiss any existing toasts
+
     if (toastIdRef.current) {
       toast.dismiss(toastIdRef.current);
     }
-    
+
     const bulkToastId = toast(
       (t) => (
         <div className="flex flex-col gap-3">
-          <p className="text-sm font-semibold text-gray-800">Delete {selectedIds.length} selected vendors?</p>
+          <p className="text-sm font-semibold text-gray-800">
+            Delete {selectedIds.length} selected vendors?
+          </p>
           <p className="text-xs text-gray-500">This action cannot be undone.</p>
           <div className="flex justify-end gap-2">
-            <button 
+            <button
               onClick={() => {
                 toast.dismiss(t.id);
                 toastIdRef.current = null;
-              }} 
+              }}
               className="px-3 py-1.5 bg-gray-200 rounded-md text-sm"
             >
               Cancel
@@ -783,36 +1015,50 @@ export default function Vendor() {
             <button
               onClick={async () => {
                 toast.dismiss(t.id);
-                const dt = toast.loading(`Deleting ${selectedIds.length} vendors...`);
+                const dt = toast.loading(
+                  `Deleting ${selectedIds.length} vendors...`,
+                );
                 toastIdRef.current = dt;
-                
+
                 const results = await Promise.all(
                   selectedIds.map(async (id) => {
                     try {
-                      // ✅ FIXED: Added /api/ prefix
                       await axiosInstance.delete(`/api/vendors/${id}/`);
                       return { id, success: true };
                     } catch (error) {
-                      // 403/401 are handled by interceptor, just mark as failed
                       return { id, success: false };
                     }
-                  })
+                  }),
                 );
 
-                const deleted = results.filter(r => r.success).map(r => r.id);
-                const failed = results.filter(r => !r.success).map(r => r.id);
+                const deleted = results
+                  .filter((r) => r.success)
+                  .map((r) => r.id);
+                const failed = results
+                  .filter((r) => !r.success)
+                  .map((r) => r.id);
 
                 if (deleted.length > 0) {
-                  setVendors((prev) => prev.filter((v) => !deleted.includes(v.id)));
-                  setSelectedIds((prev) => prev.filter((id) => !deleted.includes(id)));
+                  setVendors((prev) =>
+                    prev.filter((v) => !deleted.includes(v.id)),
+                  );
+                  setSelectedIds((prev) =>
+                    prev.filter((id) => !deleted.includes(id)),
+                  );
                 }
 
                 if (deleted.length === selectedIds.length) {
-                  toast.success(`${deleted.length} vendor${deleted.length > 1 ? 's' : ''} deleted`, { id: dt });
+                  toast.success(
+                    `${deleted.length} vendor${deleted.length > 1 ? "s" : ""} deleted`,
+                    { id: dt },
+                  );
                 } else {
-                  toast.success(`${deleted.length} deleted, ${failed.length} failed`, { id: dt });
+                  toast.success(
+                    `${deleted.length} deleted, ${failed.length} failed`,
+                    { id: dt },
+                  );
                 }
-                
+
                 toastIdRef.current = null;
               }}
               className="px-3 py-1.5 bg-red-600 text-white rounded-md text-sm"
@@ -822,16 +1068,16 @@ export default function Vendor() {
           </div>
         </div>
       ),
-      { duration: Infinity }
+      { duration: Infinity },
     );
-    
+
     toastIdRef.current = bulkToastId;
   };
 
   // Toggle selection
   const toggleSelect = (id) => {
-    setSelectedIds((prev) => 
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
   };
 
@@ -846,15 +1092,18 @@ export default function Vendor() {
   // Filter vendors
   const filtered = vendors.filter((v) => {
     const searchLower = search.toLowerCase();
-    const matchesSearch = 
+    const matchesSearch =
       v.name?.toLowerCase().includes(searchLower) ||
       v.email?.toLowerCase().includes(searchLower) ||
       v.phone?.includes(search) ||
-      v.address?.toLowerCase().includes(searchLower);
-    
-    const matchesStatus = !filterStatus || v.status?.toLowerCase() === filterStatus.toLowerCase();
-    const matchesCreatedBy = !filterCreatedBy || v.created_by === filterCreatedBy;
-    
+      v.address?.toLowerCase().includes(searchLower) ||
+      v.gst_pin?.toLowerCase().includes(searchLower);
+
+    const matchesStatus =
+      !filterStatus || v.status?.toLowerCase() === filterStatus.toLowerCase();
+    const matchesCreatedBy =
+      !filterCreatedBy || v.created_by === filterCreatedBy;
+
     return matchesSearch && matchesStatus && matchesCreatedBy;
   });
 
@@ -865,12 +1114,11 @@ export default function Vendor() {
 
   // Handle modal close
   const handleCloseForm = () => {
-    // Dismiss any existing toasts when closing modal
     if (toastIdRef.current) {
       toast.dismiss(toastIdRef.current);
       toastIdRef.current = null;
     }
-    
+
     setOpenForm(false);
     setIsEdit(false);
     setEditVendor(null);
@@ -889,20 +1137,22 @@ export default function Vendor() {
             className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
             title="Refresh"
           >
-            <RefreshCw size={20} className={isRefreshing ? "animate-spin" : ""} />
+            <RefreshCw
+              size={20}
+              className={isRefreshing ? "animate-spin" : ""}
+            />
           </button>
         </div>
         <button
-          onClick={() => { 
-            // Dismiss any existing toasts
+          onClick={() => {
             if (toastIdRef.current) {
               toast.dismiss(toastIdRef.current);
               toastIdRef.current = null;
             }
-            setOpenForm(true); 
-            setIsEdit(false); 
-            setEditVendor(null); 
-            resetFormStates(); 
+            setOpenForm(true);
+            setIsEdit(false);
+            setEditVendor(null);
+            resetFormStates();
           }}
           className="bg-blue-600 text-white px-6 py-2 rounded-xl shadow-md hover:bg-blue-700 transition-all w-full md:w-auto flex items-center justify-center gap-2"
           disabled={isSubmitting}
@@ -918,7 +1168,9 @@ export default function Vendor() {
           <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
             {/* Status Filter */}
             <div className="flex items-center gap-2">
-              <label className="text-sm font-medium text-gray-600">Status:</label>
+              <label className="text-sm font-medium text-gray-600">
+                Status:
+              </label>
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
@@ -926,12 +1178,14 @@ export default function Vendor() {
               >
                 <option value="">All Status</option>
                 {STATUS_OPTIONS.map((s) => (
-                  <option key={s.value} value={s.value}>{s.label}</option>
+                  <option key={s.value} value={s.value}>
+                    {s.label}
+                  </option>
                 ))}
               </select>
               {filterStatus && (
-                <button 
-                  onClick={() => setFilterStatus("")} 
+                <button
+                  onClick={() => setFilterStatus("")}
                   className="text-red-500 hover:text-red-700"
                 >
                   <X size={16} />
@@ -942,7 +1196,9 @@ export default function Vendor() {
             {/* Created By Filter */}
             {uniqueCreatedBy.length > 0 && (
               <div className="flex items-center gap-2">
-                <label className="text-sm font-medium text-gray-600">Created By:</label>
+                <label className="text-sm font-medium text-gray-600">
+                  Created By:
+                </label>
                 <select
                   value={filterCreatedBy}
                   onChange={(e) => setFilterCreatedBy(e.target.value)}
@@ -950,12 +1206,14 @@ export default function Vendor() {
                 >
                   <option value="">All Creators</option>
                   {uniqueCreatedBy.map((creator) => (
-                    <option key={creator} value={creator}>{creator}</option>
+                    <option key={creator} value={creator}>
+                      {creator}
+                    </option>
                   ))}
                 </select>
                 {filterCreatedBy && (
-                  <button 
-                    onClick={() => setFilterCreatedBy("")} 
+                  <button
+                    onClick={() => setFilterCreatedBy("")}
                     className="text-red-500 hover:text-red-700"
                   >
                     <X size={16} />
@@ -973,19 +1231,19 @@ export default function Vendor() {
           <h2 className="font-semibold text-gray-700 text-sm sm:text-base">
             Vendor Records ({filtered.length})
           </h2>
-          
+
           {selectedIds.length > 0 && (
-            <button 
-              onClick={handleBulkDelete} 
+            <button
+              onClick={handleBulkDelete}
               className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 flex items-center gap-2"
             >
               <Trash2 size={16} /> Delete Selected ({selectedIds.length})
             </button>
           )}
-          
+
           <input
             type="text"
-            placeholder="Search by name, email, phone..."
+            placeholder="Search by name, email, phone, GST..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="border px-3 py-2 rounded-lg w-full sm:w-64 shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
@@ -998,24 +1256,43 @@ export default function Vendor() {
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="px-3 py-3 text-center w-12">
-                  <input 
-                    type="checkbox" 
-                    checked={filtered.length > 0 && selectedIds.length === filtered.length} 
-                    onChange={toggleSelectAll} 
+                  <input
+                    type="checkbox"
+                    checked={
+                      filtered.length > 0 &&
+                      selectedIds.length === filtered.length
+                    }
+                    onChange={toggleSelectAll}
                     className="accent-blue-600 rounded"
                   />
                 </th>
-                <th className="px-3 py-3 text-left font-semibold text-gray-700">Vendor</th>
-                <th className="px-3 py-3 text-left font-semibold text-gray-700">Email</th>
-                <th className="px-3 py-3 text-left font-semibold text-gray-700">Phone</th>
-                <th className="px-3 py-3 text-center font-semibold text-gray-700">Status</th>
-                <th className="px-3 py-3 text-center font-semibold text-gray-700">Actions</th>
+                <th className="px-3 py-3 text-left font-semibold text-gray-700">
+                  Vendor
+                </th>
+                <th className="px-3 py-3 text-left font-semibold text-gray-700">
+                  Email
+                </th>
+                <th className="px-3 py-3 text-left font-semibold text-gray-700">
+                  Phone
+                </th>
+                <th className="px-3 py-3 text-left font-semibold text-gray-700">
+                  GST
+                </th>
+                <th className="px-3 py-3 text-center font-semibold text-gray-700">
+                  Status
+                </th>
+                <th className="px-3 py-3 text-center font-semibold text-gray-700">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody>
               {isFetchingData ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-gray-500 font-semibold">
+                  <td
+                    colSpan={7}
+                    className="py-12 text-center text-gray-500 font-semibold"
+                  >
                     <div className="flex items-center justify-center gap-2">
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
                       Loading vendors...
@@ -1024,41 +1301,66 @@ export default function Vendor() {
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-gray-500 font-semibold">
+                  <td
+                    colSpan={7}
+                    className="py-12 text-center text-gray-500 font-semibold"
+                  >
                     No vendors found
                   </td>
                 </tr>
               ) : (
                 filtered.map((vendor) => (
-                  <tr key={vendor.id} className="border-b last:border-0 hover:bg-gray-50 transition">
+                  <tr
+                    key={vendor.id}
+                    className="border-b last:border-0 hover:bg-gray-50 transition"
+                  >
                     <td className="px-3 py-4 text-center align-middle">
-                      <input 
-                        type="checkbox" 
-                        checked={selectedIds.includes(vendor.id)} 
-                        onChange={() => toggleSelect(vendor.id)} 
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(vendor.id)}
+                        onChange={() => toggleSelect(vendor.id)}
                         className="accent-blue-600 rounded"
                       />
                     </td>
                     <td className="px-3 py-4">
                       <div className="flex items-center gap-2">
                         <Building size={16} className="text-blue-500" />
-                        <span className="font-medium text-gray-800">{vendor.name}</span>
+                        <span className="font-medium text-gray-800">
+                          {vendor.name}
+                        </span>
                       </div>
                     </td>
                     <td className="px-3 py-4">
                       <div className="flex items-center gap-2">
                         <Mail size={14} className="text-gray-400" />
-                        <span className="text-xs text-gray-600">{vendor.email}</span>
+                        <span className="text-xs text-gray-600">
+                          {vendor.email}
+                        </span>
                       </div>
                     </td>
                     <td className="px-3 py-4">
                       <div className="flex items-center gap-2">
                         <Phone size={14} className="text-gray-400" />
-                        <span className="text-xs text-gray-600">{vendor.phone}</span>
+                        <span className="text-xs text-gray-600">
+                          {vendor.phone}
+                        </span>
                       </div>
                     </td>
+                    <td className="px-3 py-4">
+                      {vendor.gst_pin ? (
+                        <span className="text-xs font-mono bg-blue-50 text-blue-700 px-2 py-1 rounded">
+                          {vendor.gst_pin}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-400">
+                          Not provided
+                        </span>
+                      )}
+                    </td>
                     <td className="px-3 py-4 text-center">
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold inline-block ${getStatusClasses(vendor.status)}`}>
+                      <span
+                        className={`px-3 py-1 rounded-full text-xs font-semibold inline-block ${getStatusClasses(vendor.status)}`}
+                      >
                         {vendor.status === "active" ? "Active" : "Inactive"}
                       </span>
                     </td>
@@ -1100,13 +1402,16 @@ export default function Vendor() {
         {/* Mobile View */}
         <div className="md:hidden space-y-4 mt-4 p-4">
           {filtered.map((vendor) => (
-            <div key={vendor.id} className="bg-white border rounded-xl shadow p-4 space-y-3">
+            <div
+              key={vendor.id}
+              className="bg-white border rounded-xl shadow p-4 space-y-3"
+            >
               <div className="flex justify-between items-start">
                 <div className="flex items-center gap-2">
-                  <input 
-                    type="checkbox" 
-                    checked={selectedIds.includes(vendor.id)} 
-                    onChange={() => toggleSelect(vendor.id)} 
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(vendor.id)}
+                    onChange={() => toggleSelect(vendor.id)}
                     className="accent-blue-600 rounded"
                   />
                   <div>
@@ -1122,13 +1427,20 @@ export default function Vendor() {
                       <Phone size={12} className="text-gray-400" />
                       {vendor.phone}
                     </p>
+                    {vendor.gst_pin && (
+                      <p className="text-xs font-mono mt-1 text-blue-600">
+                        GST: {vendor.gst_pin}
+                      </p>
+                    )}
                     <p className="text-xs text-gray-500 flex items-center gap-1 mt-1">
                       <User size={10} className="text-gray-400" />
                       Created by: {vendor.created_by || "N/A"}
                     </p>
                   </div>
                 </div>
-                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusClasses(vendor.status)}`}>
+                <span
+                  className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusClasses(vendor.status)}`}
+                >
                   {vendor.status === "active" ? "Active" : "Inactive"}
                 </span>
               </div>
@@ -1173,11 +1485,17 @@ export default function Vendor() {
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1">
                   <CheckCircle size={12} className="text-green-500" />
-                  <span>Active: {vendors.filter(v => v.status === "active").length}</span>
+                  <span>
+                    Active:{" "}
+                    {vendors.filter((v) => v.status === "active").length}
+                  </span>
                 </div>
                 <div className="flex items-center gap-1">
                   <XCircle size={12} className="text-gray-400" />
-                  <span>Inactive: {vendors.filter(v => v.status === "inactive").length}</span>
+                  <span>
+                    Inactive:{" "}
+                    {vendors.filter((v) => v.status === "inactive").length}
+                  </span>
                 </div>
               </div>
             </div>
@@ -1186,7 +1504,7 @@ export default function Vendor() {
       </div>
 
       {/* Modals */}
-      <FormModal 
+      <FormModal
         isOpen={openForm}
         onClose={handleCloseForm}
         onSubmit={handleSubmit}
@@ -1199,7 +1517,7 @@ export default function Vendor() {
         onBlur={handleFieldBlur}
       />
 
-      <ViewModal 
+      <ViewModal
         isOpen={viewModalOpen}
         onClose={() => setViewModalOpen(false)}
         vendor={selectedVendor}

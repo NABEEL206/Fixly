@@ -68,9 +68,11 @@ export default function Complaints() {
   const [mobile, setMobile] = useState("");
   const [model, setModel] = useState("");
   const [issue, setIssue] = useState("");
+  const [issueCharCount, setIssueCharCount] = useState(0);
   const [password, setPassword] = useState("");
   const [email, setEmail] = useState("");
   const [addressLine, setAddressLine] = useState("");
+  const [addressCharCount, setAddressCharCount] = useState(0);
   const [pincode, setPincode] = useState("");
   const [areas, setAreas] = useState([]);
   const [area, setArea] = useState("");
@@ -99,6 +101,10 @@ export default function Complaints() {
   const [isFetchingNearest, setIsFetchingNearest] = useState(false);
   const [isPincodeLoading, setIsPincodeLoading] = useState(false);
 
+  // Constants for character limits
+  const MAX_ADDRESS_CHARS = 200;
+  const MAX_ISSUE_CHARS = 500;
+
   const uniqueCreatedBy = React.useMemo(() => {
     const set = new Set();
     complaints.forEach((c) => { if (c.created_by) set.add(c.created_by); });
@@ -107,6 +113,7 @@ export default function Complaints() {
 
   const resetFormStates = useCallback(() => {
     setName(""); setMobile(""); setModel(""); setIssue("");
+    setIssueCharCount(0); setAddressCharCount(0);
     setPincode(""); setArea(""); setAreas([]); setState("");
     setPassword(""); setEmail(""); setAddressLine("");
     setSelectedShopId(""); setSelectedGrowTagId(""); setAssignedType("");
@@ -121,6 +128,7 @@ export default function Complaints() {
     setIsSubmitting(false);
   }, []);
 
+  // Validation functions with real-time filtering
   const validateEmail = (value) => {
     if (!value.trim()) { setEmailError("Email is required"); return false; }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) { setEmailError("Enter a valid email address"); return false; }
@@ -139,24 +147,51 @@ export default function Complaints() {
     setPincodeError(""); setPincodeMessage(""); return true;
   };
 
+  const validateName = (value) => {
+    return value.length >= 2 && value.length <= 50;
+  };
+
+  const validatePhoneModel = (value) => {
+    return value.length >= 2 && value.length <= 100;
+  };
+
   const validateRequiredFields = () => {
     const errors = {};
     if (!name.trim()) errors.name = "Customer name is required";
+    else if (name.length < 2) errors.name = "Name must be at least 2 characters";
+    else if (name.length > 50) errors.name = "Name must be less than 50 characters";
+    
     if (!mobile.trim()) errors.mobile = "Mobile number is required";
+    else if (!/^\d{10}$/.test(mobile)) errors.mobile = "Mobile number must be exactly 10 digits";
+    
     if (!email.trim()) errors.email = "Email is required";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = "Enter a valid email address";
+    
     // Only require password for new customers (not during edit)
     if (!isEdit && isNewCustomer && !password.trim()) errors.password = "Password is required for new customer";
+    
     if (!model.trim()) errors.model = "Phone model is required";
+    else if (model.length < 2) errors.model = "Phone model must be at least 2 characters";
+    
     if (!issue.trim()) errors.issue = "Issue details are required";
+    else if (issue.length < 5) errors.issue = "Issue details must be at least 5 characters";
+    
     if (!addressLine.trim()) errors.addressLine = "Address is required";
+    else if (addressLine.length < 10) errors.addressLine = "Address must be at least 10 characters";
+    
     if (!state.trim()) errors.state = "State is required";
     if (!pincode.trim()) errors.pincode = "Pincode is required";
+    else if (!/^\d{6}$/.test(pincode)) errors.pincode = "Pincode must be exactly 6 digits";
+    
     if (!area.trim()) errors.area = "Area is required";
+    else if (area.length < 3) errors.area = "Area must be at least 3 characters";
+    
     if (!assignedType.trim()) errors.assignedType = "Assignment type is required";
     if ((assignedType === "franchise" || assignedType === "other_shops") && !selectedShopId)
       errors.assignment = "Please select a shop";
     if (assignedType === "growtag" && !selectedGrowTagId)
       errors.assignment = "Please select a grow tag";
+    
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -256,6 +291,7 @@ export default function Complaints() {
     // Don't set password for existing customer
     setPassword("");
     setAddressLine(customer.address || "");
+    setAddressCharCount((customer.address || "").length);
     setState(customer.state || "");
     setPincode(customer.pincode || "");
     setIsNewCustomer(false);
@@ -337,12 +373,14 @@ export default function Complaints() {
   }, []);
 
   const handlePincode = async (value, skipNearest = false) => {
-    setPincode(value);
+    // Only allow digits and limit to 6
+    const cleanedValue = value.replace(/\D/g, '').slice(0, 6);
+    setPincode(cleanedValue);
     setPincodeError(""); setPincodeMessage("");
     setAreas([]); setArea(""); setState("");
 
-    if (!value) { setPincodeMessage("Pincode is required"); return; }
-    if (!/^\d{6}$/.test(value)) {
+    if (!cleanedValue) { setPincodeMessage("Pincode is required"); return; }
+    if (!/^\d{6}$/.test(cleanedValue)) {
       setPincodeError("Pincode must be exactly 6 digits");
       setPincodeMessage("Pincode must be exactly 6 digits");
       return;
@@ -350,7 +388,7 @@ export default function Complaints() {
 
     setIsPincodeLoading(true);
     try {
-      const res = await fetch(`https://api.postalpincode.in/pincode/${value}`);
+      const res = await fetch(`https://api.postalpincode.in/pincode/${cleanedValue}`);
       if (!res.ok) throw new Error();
       const data = await res.json();
       if (data[0]?.Status !== "Success") {
@@ -379,6 +417,40 @@ export default function Complaints() {
     setSelectedShopId(""); setSelectedGrowTagId(""); setAssignError(false);
   };
 
+  // Handle mobile input with real-time filtering
+  const handleMobileChange = (value) => {
+    const cleanedValue = value.replace(/\D/g, '').slice(0, 10);
+    setMobile(cleanedValue);
+    if (cleanedValue.length === 10) {
+      validateMobile(cleanedValue);
+    } else {
+      setMobileError("");
+    }
+  };
+
+  // Handle name input with real-time filtering (letters, spaces, dots, hyphens)
+  const handleNameChange = (value) => {
+    const filteredValue = value.replace(/[^a-zA-Z\s\.\-]/g, '');
+    const cleanValue = filteredValue.replace(/\s+/g, ' ').trimStart();
+    setName(cleanValue);
+  };
+
+  // Handle address with character count
+  const handleAddressChange = (value) => {
+    if (value.length <= MAX_ADDRESS_CHARS) {
+      setAddressLine(value);
+      setAddressCharCount(value.length);
+    }
+  };
+
+  // Handle issue with character count
+  const handleIssueChange = (value) => {
+    if (value.length <= MAX_ISSUE_CHARS) {
+      setIssue(value);
+      setIssueCharCount(value.length);
+    }
+  };
+
   // Populate form for edit
   useEffect(() => {
     if (!isEdit || !editComplaint) return;
@@ -390,7 +462,9 @@ export default function Complaints() {
     setPassword("");
     setModel(editComplaint.phone_model || "");
     setIssue(editComplaint.issue_details || "");
+    setIssueCharCount((editComplaint.issue_details || "").length);
     setAddressLine(editComplaint.address || "");
+    setAddressCharCount((editComplaint.address || "").length);
     setStatus(editComplaint.status || "Assigned");
     setPincode(editComplaint.pincode || "");
     setState(editComplaint.state || "");
@@ -880,12 +954,19 @@ export default function Complaints() {
                   <div>
                     <input
                       value={name}
-                      onChange={(e) => { setName(e.target.value); setFieldErrors((p) => ({ ...p, name: "" })); }}
+                      onChange={(e) => { 
+                        handleNameChange(e.target.value); 
+                        setFieldErrors((p) => ({ ...p, name: "" })); 
+                      }}
                       className={`w-full px-3 py-2 text-sm border rounded-lg ${fieldErrors.name ? "border-red-500" : "border-gray-300"} focus:outline-none focus:ring-1 focus:ring-blue-200`}
                       placeholder="Customer Name *"
                       disabled={isSubmitting || (selectedExistingCustomer && !isEdit)}
+                      maxLength={50}
                     />
                     {fieldErrors.name && <p className="text-red-500 text-xs mt-0.5">{fieldErrors.name}</p>}
+                    {name && !fieldErrors.name && (
+                      <p className="text-gray-400 text-xs mt-0.5 text-right">{name.length}/50</p>
+                    )}
                   </div>
 
                   {/* Mobile */}
@@ -893,7 +974,7 @@ export default function Complaints() {
                     <input
                       type="tel"
                       value={mobile}
-                      onChange={(e) => setMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                      onChange={(e) => handleMobileChange(e.target.value)}
                       onBlur={(e) => validateMobile(e.target.value)}
                       className={`w-full px-3 py-2 text-sm border rounded-lg ${mobileError ? "border-red-500" : "border-gray-300"} focus:outline-none focus:ring-1 focus:ring-blue-200`}
                       placeholder="Mobile Number * (10 digits)"
@@ -901,6 +982,9 @@ export default function Complaints() {
                       disabled={isSubmitting || (selectedExistingCustomer && !isEdit)}
                     />
                     {(mobileError || fieldErrors.mobile) && <p className="text-red-500 text-xs mt-0.5">{mobileError || fieldErrors.mobile}</p>}
+                    {mobile && !mobileError && (
+                      <p className="text-gray-400 text-xs mt-0.5 text-right">{mobile.length}/10</p>
+                    )}
                   </div>
 
                   {/* Email */}
@@ -928,6 +1012,7 @@ export default function Complaints() {
                           className={`w-full px-3 py-2 text-sm border rounded-lg ${fieldErrors.password ? "border-red-500" : "border-gray-300"} focus:outline-none focus:ring-1 focus:ring-blue-200 pr-8`}
                           placeholder="Password *"
                           disabled={isSubmitting}
+                          minLength={6}
                         />
                         <button
                           type="button"
@@ -956,12 +1041,19 @@ export default function Complaints() {
                   <div>
                     <input
                       value={model}
-                      onChange={(e) => { setModel(e.target.value); setFieldErrors((p) => ({ ...p, model: "" })); }}
+                      onChange={(e) => { 
+                        setModel(e.target.value); 
+                        setFieldErrors((p) => ({ ...p, model: "" })); 
+                      }}
                       className={`w-full px-3 py-2 text-sm border rounded-lg ${fieldErrors.model ? "border-red-500" : "border-gray-300"} focus:outline-none focus:ring-1 focus:ring-blue-200`}
                       placeholder="Phone Model *"
                       disabled={isSubmitting}
+                      maxLength={100}
                     />
                     {fieldErrors.model && <p className="text-red-500 text-xs mt-0.5">{fieldErrors.model}</p>}
+                    {model && !fieldErrors.model && (
+                      <p className="text-gray-400 text-xs mt-0.5 text-right">{model.length}/100</p>
+                    )}
                   </div>
 
                   {/* Status */}
@@ -975,17 +1067,33 @@ export default function Complaints() {
                   </select>
                 </div>
 
-                {/* Address - Full width */}
+                {/* Address - with live counter */}
                 <div>
-                  <textarea
-                    value={addressLine}
-                    onChange={(e) => { setAddressLine(e.target.value); setFieldErrors((p) => ({ ...p, addressLine: "" })); }}
-                    rows={1}
-                    className={`w-full px-3 py-2 text-sm border rounded-lg ${fieldErrors.addressLine ? "border-red-500" : "border-gray-300"} focus:outline-none focus:ring-1 focus:ring-blue-200 resize-none`}
-                    placeholder="Address Line *"
-                    disabled={isSubmitting || (selectedExistingCustomer && !isEdit)}
-                  />
+                  <div className="relative">
+                    <textarea
+                      value={addressLine}
+                      onChange={(e) => { 
+                        handleAddressChange(e.target.value); 
+                        setFieldErrors((p) => ({ ...p, addressLine: "" })); 
+                      }}
+                      rows={2}
+                      maxLength={MAX_ADDRESS_CHARS}
+                      className={`w-full px-3 py-2 text-sm border rounded-lg ${fieldErrors.addressLine ? "border-red-500" : "border-gray-300"} focus:outline-none focus:ring-1 focus:ring-blue-200 pr-16 resize-none`}
+                      placeholder="Address Line *"
+                      disabled={isSubmitting || (selectedExistingCustomer && !isEdit)}
+                    />
+                    {/* Character Counter */}
+                    <div className="absolute bottom-2 right-3 text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600">
+                      <span className="font-bold">{addressCharCount}</span>
+                      <span className="opacity-75">/{MAX_ADDRESS_CHARS}</span>
+                    </div>
+                  </div>
                   {fieldErrors.addressLine && <p className="text-red-500 text-xs mt-0.5">{fieldErrors.addressLine}</p>}
+                  {addressLine && addressLine.length < 10 && !fieldErrors.addressLine && (
+                    <p className="text-orange-500 text-xs mt-0.5">
+                      {10 - addressLine.length} more characters needed (minimum 10)
+                    </p>
+                  )}
                 </div>
 
                 {/* Location Grid - 3 columns */}
@@ -1007,7 +1115,7 @@ export default function Complaints() {
                       <input
                         type="text"
                         value={pincode}
-                        onChange={(e) => handlePincode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        onChange={(e) => handlePincode(e.target.value)}
                         onBlur={(e) => validatePincode(e.target.value)}
                         className={`w-full px-3 py-2 text-sm border rounded-lg ${pincodeMessage || pincodeError ? "border-red-500" : "border-gray-300"} focus:outline-none focus:ring-1 focus:ring-blue-200`}
                         placeholder="Pincode * (6 digits)"
@@ -1049,17 +1157,33 @@ export default function Complaints() {
                   </div>
                 </div>
 
-                {/* Issue Details */}
+                {/* Issue Details - with live counter */}
                 <div>
-                  <textarea
-                    value={issue}
-                    onChange={(e) => { setIssue(e.target.value); setFieldErrors((p) => ({ ...p, issue: "" })); }}
-                    rows={1}
-                    className={`w-full px-3 py-2 text-sm border rounded-lg ${fieldErrors.issue ? "border-red-500" : "border-gray-300"} focus:outline-none focus:ring-1 focus:ring-blue-200 resize-none`}
-                    placeholder="Issue Details *"
-                    disabled={isSubmitting}
-                  />
+                  <div className="relative">
+                    <textarea
+                      value={issue}
+                      onChange={(e) => { 
+                        handleIssueChange(e.target.value); 
+                        setFieldErrors((p) => ({ ...p, issue: "" })); 
+                      }}
+                      rows={2}
+                      maxLength={MAX_ISSUE_CHARS}
+                      className={`w-full px-3 py-2 text-sm border rounded-lg ${fieldErrors.issue ? "border-red-500" : "border-gray-300"} focus:outline-none focus:ring-1 focus:ring-blue-200 pr-16 resize-none`}
+                      placeholder="Issue Details *"
+                      disabled={isSubmitting}
+                    />
+                    {/* Character Counter */}
+                    <div className="absolute bottom-2 right-3 text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600">
+                      <span className="font-bold">{issueCharCount}</span>
+                      <span className="opacity-75">/{MAX_ISSUE_CHARS}</span>
+                    </div>
+                  </div>
                   {fieldErrors.issue && <p className="text-red-500 text-xs mt-0.5">{fieldErrors.issue}</p>}
+                  {issue && issue.length < 5 && !fieldErrors.issue && (
+                    <p className="text-orange-500 text-xs mt-0.5">
+                      {5 - issue.length} more characters needed (minimum 5)
+                    </p>
+                  )}
                 </div>
 
                 {/* ASSIGN SECTION */}
@@ -1157,7 +1281,6 @@ export default function Complaints() {
                     ["Name", selectedComplaint.customer_name],
                     ["Email", selectedComplaint.email],
                     ["Mobile", selectedComplaint.customer_phone],
-                    // ["Password", selectedComplaint.password || "N/A"],
                   ].map(([label, val]) => (
                     <div key={label}>
                       <label className="block text-sm font-medium text-gray-600">{label}</label>

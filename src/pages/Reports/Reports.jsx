@@ -44,6 +44,7 @@ const WEEKS = ["1", "2", "3", "4", "5"];
 /* ---------------------------------------------------------
     HELPER FUNCTIONS
 --------------------------------------------------------- */
+// Format currency values with ₹ symbol and 2 decimal places
 const formatCurrency = (amount, forPDF = false) => {
   if (amount === null || amount === undefined || amount === '') return forPDF ? '0.00' : '₹0.00';
   
@@ -54,6 +55,20 @@ const formatCurrency = (amount, forPDF = false) => {
   });
   
   return forPDF ? `Rs. ${formattedNum}` : `₹${formattedNum}`;
+};
+
+// NEW: Format count values WITHOUT currency symbol and WITHOUT decimals
+const formatNumber = (value, forPDF = false) => {
+  if (value === null || value === undefined || value === '') return forPDF ? '0' : '0';
+  
+  // If it's a string that might have currency symbols, clean it first
+  const num = typeof value === 'string' ? parseFloat(value.replace(/[₹,]/g, '')) : value;
+  
+  // Return as integer without decimal places and without currency symbol
+  // Use Math.floor to ensure no decimals, and toLocaleString for thousand separators
+  const formattedNum = Math.floor(num || 0).toLocaleString('en-IN');
+  
+  return formattedNum;
 };
 
 const getErrorMessage = (error) => {
@@ -103,7 +118,7 @@ const calculateReportTotals = (data, title) => {
         "Total Sales": formatCurrency(salesTotal),
         "Total Sales With Tax": formatCurrency(salesWithTaxTotal),
         "Total Tax": formatCurrency(taxTotal),
-        "Total Invoices": invoiceCountTotal
+        "Total Invoices": formatNumber(invoiceCountTotal) // Using formatNumber for count
       };
     
     case "Profit Share Distribution Report":
@@ -142,7 +157,7 @@ const calculateReportTotals = (data, title) => {
       
       return {
         "Total Expenses": formatCurrency(expenseTotal),
-        "Count": data.length
+        "Count": formatNumber(data.length) // Using formatNumber for count
       };
     
     case "Total Complaints Report":
@@ -152,9 +167,15 @@ const calculateReportTotals = (data, title) => {
         return acc;
       }, {});
       
+      // Format all status counts using formatNumber
+      const formattedStatusCounts = {};
+      Object.keys(statusCounts).forEach(key => {
+        formattedStatusCounts[key] = formatNumber(statusCounts[key]);
+      });
+      
       return {
-        "Total Complaints": data.length,
-        ...statusCounts
+        "Total Complaints": formatNumber(data.length), // Using formatNumber
+        ...formattedStatusCounts
       };
     
     case "Total Growth Tags Report":
@@ -162,9 +183,9 @@ const calculateReportTotals = (data, title) => {
       const inactiveCount = data.filter(row => row["STATUS"] === "Inactive").length;
       
       return {
-        "Total Growth Tags": data.length,
-        "Active": activeCount,
-        "Inactive": inactiveCount
+        "Total Growth Tags": formatNumber(data.length), // Using formatNumber
+        "Active": formatNumber(activeCount), // Using formatNumber
+        "Inactive": formatNumber(inactiveCount) // Using formatNumber
       };
     
     case "Total Customers Report":
@@ -174,14 +195,20 @@ const calculateReportTotals = (data, title) => {
         return acc;
       }, {});
       
+      // Format all assign type counts using formatNumber
+      const formattedAssignTypeCounts = {};
+      Object.keys(assignTypeCounts).forEach(key => {
+        formattedAssignTypeCounts[key] = formatNumber(assignTypeCounts[key]);
+      });
+      
       return {
-        "Total Customers": data.length,
-        ...assignTypeCounts
+        "Total Customers": formatNumber(data.length), // Using formatNumber
+        ...formattedAssignTypeCounts
       };
     
     default:
       return {
-        "Total Records": data.length
+        "Total Records": formatNumber(data.length) // Using formatNumber
       };
   }
 };
@@ -290,25 +317,61 @@ const ExportButton = ({ data, format, filteredData }) => {
         let rightY = startY;
         
         leftColumn.forEach(([key, value]) => {
-          // Handle both string and number values safely
+          // Check if this is a count value (based on key name)
+          const isCountKey = key.includes("Count") || 
+                             key.includes("Total Customers") || 
+                             key.includes("Total Complaints") || 
+                             key.includes("Total Growth Tags") ||
+                             key.includes("Active") || 
+                             key.includes("Inactive") ||
+                             key.includes("Total Invoices") ||
+                             key.includes("Franchise") ||
+                             key.includes("Other Shop") ||
+                             key.includes("Growtag") ||
+                             key.includes("Unknown");
+          
           let displayValue = value;
-          if (typeof value === 'string' && value.includes('₹')) {
+          if (isCountKey) {
+            // For count values, use formatNumber without currency
+            displayValue = formatNumber(value, true);
+          } else if (typeof value === 'string' && value.includes('₹')) {
+            // For currency values, replace ₹ with Rs.
             displayValue = value.replace('₹', 'Rs. ');
           } else if (typeof value === 'number') {
-            displayValue = formatCurrency(value, true);
+            // For other numbers, determine if they're currency or count
+            displayValue = isCountKey ? formatNumber(value, true) : formatCurrency(value, true);
           }
+          
           doc.text(`${key}: ${displayValue}`, 50, leftY);
           leftY += 20;
         });
         
         rightColumn.forEach(([key, value]) => {
-          // Handle both string and number values safely
+          // Check if this is a count value (based on key name)
+          const isCountKey = key.includes("Count") || 
+                             key.includes("Total Customers") || 
+                             key.includes("Total Complaints") || 
+                             key.includes("Total Growth Tags") ||
+                             key.includes("Active") || 
+                             key.includes("Inactive") ||
+                             key.includes("Total Invoices") ||
+                             key.includes("Franchise") ||
+                             key.includes("Other Shop") ||
+                             key.includes("Growtag") ||
+                             key.includes("Unknown");
+          
           let displayValue = value;
-          if (typeof value === 'string' && value.includes('₹')) {
+          if (isCountKey) {
+            // For count values, use formatNumber without currency
+            displayValue = formatNumber(value, true);
+          } else if (typeof value === 'string' && value.includes('₹')) {
+            // For currency values, replace ₹ with Rs.
             displayValue = value.replace('₹', 'Rs. ');
           } else if (typeof value === 'number') {
-            displayValue = formatCurrency(value, true);
+            // For other numbers, determine if they're currency or count
+            displayValue = isCountKey ? formatNumber(value, true) : formatCurrency(value, true);
           }
+          
           doc.text(`${key}: ${displayValue}`, pageWidth / 2 + 20, rightY);
           rightY += 20;
         });
@@ -334,7 +397,8 @@ const ExportButton = ({ data, format, filteredData }) => {
       const cleanValueForPDF = (value, columnName) => {
         if (value === null || value === undefined) return "";
         
-        const isIdColumn = ["ID", "CUSTOMER ID", "COMPLAINT ID", "INVOICE NO"].includes(columnName);
+        // Identify column types
+        const isIdColumn = ["ID", "CUSTOMER ID", "COMPLAINT ID", "INVOICE NO", "EXPENSE ID"].includes(columnName);
         const isCountColumn = ["INVOICE COUNT", "COUNT"].includes(columnName);
         const isAmountColumn = ["AMOUNT", "TOTAL AMOUNT", "TOTAL SALES", "TOTAL SALES WITH TAX", 
                                 "TOTAL TAX AMOUNT", "SHOP (40%)", "GROW TAGS (40%)", "ADMIN (20%)"].includes(columnName);
@@ -519,7 +583,7 @@ const ReportTable = ({ data, loading }) => {
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
         <div>
           <h3 className="text-xl md:text-2xl font-bold text-gray-800">{data.title}</h3>
-          <p className="text-sm text-gray-500 mt-1">Total Records: {data.data.length}</p>
+          <p className="text-sm text-gray-500 mt-1">Total Records: {formatNumber(data.data.length)}</p>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -527,6 +591,38 @@ const ReportTable = ({ data, loading }) => {
           <ExportButton data={data} format="pdf" filteredData={filtered} />
         </div>
       </div>
+
+      {/* Summary Section */}
+      {reportTotals && (
+        <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
+          <h4 className="text-sm font-semibold text-blue-800 mb-3">SUMMARY</h4>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {Object.entries(reportTotals).map(([key, value]) => {
+              // Check if this is a count value
+              const isCountKey = key.includes("Count") || 
+                                 key.includes("Total Customers") || 
+                                 key.includes("Total Complaints") || 
+                                 key.includes("Total Growth Tags") ||
+                                 key.includes("Active") || 
+                                 key.includes("Inactive") ||
+                                 key.includes("Total Invoices") ||
+                                 key.includes("Franchise") ||
+                                 key.includes("Other Shop") ||
+                                 key.includes("Growtag") ||
+                                 key.includes("Unknown");
+              
+              return (
+                <div key={key} className="bg-white p-3 rounded-lg shadow-sm">
+                  <div className="text-xs text-gray-500 mb-1">{key}</div>
+                  <div className={`text-lg font-semibold ${isCountKey ? 'text-green-600' : 'text-blue-600'}`}>
+                    {value}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       {!["Sales Summary Report", "Profit Share Distribution Report"].includes(data.title) && (
@@ -626,48 +722,60 @@ const ReportTable = ({ data, loading }) => {
           <tbody className="bg-white divide-y divide-gray-100">
             {filtered.map((row, idx) => (
               <tr key={idx} className="hover:bg-gray-50 transition-colors">
-                {displayColumns.map((col) => (
-                  <td 
-                    key={col} 
-                    className={`px-4 py-3 text-sm ${
-                      ["ID", "CUSTOMER ID", "COMPLAINT ID", "INVOICE NO", "INVOICE COUNT", "COUNT"].includes(col)
-                        ? "text-center" 
-                        : ["AMOUNT", "TOTAL AMOUNT", "TOTAL SALES", "TOTAL SALES WITH TAX", 
-                           "TOTAL TAX AMOUNT", "SHOP (40%)", "GROW TAGS (40%)", "ADMIN (20%)"].includes(col)
-                        ? "text-right"
-                        : "text-left"
-                    }`}
-                  >
-                    {["AMOUNT", "TOTAL AMOUNT", "TOTAL SALES", "TOTAL SALES WITH TAX", 
-                      "TOTAL TAX AMOUNT", "SHOP (40%)", "GROW TAGS (40%)", "ADMIN (20%)"].includes(col) ? (
-                      <span className="font-semibold text-blue-600">
-                        {row[col] && typeof row[col] === 'string' && row[col].includes('₹') 
-                          ? row[col] 
-                          : formatCurrency(row[col], false)}
-                      </span>
-                    ) : col === "STATUS" && row[col] ? (
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        ["Closed", "Active", "Resolved"].includes(row[col]) ? "bg-green-100 text-green-800" :
-                        row[col] === "In Progress" ? "bg-yellow-100 text-yellow-800" :
-                        ["Open", "Inactive", "Pending"].includes(row[col]) ? "bg-red-100 text-red-800" :
-                        "bg-gray-100 text-gray-800"
-                      }`}>
-                        {row[col]}
-                      </span>
-                    ) : col === "ASSIGN TYPE" && row[col] && row[col] !== "-" ? (
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        row[col] === "Franchise" ? "bg-purple-100 text-purple-800" :
-                        row[col] === "Other Shop" ? "bg-orange-100 text-orange-800" :
-                        row[col] === "Growtag" ? "bg-indigo-100 text-indigo-800" :
-                        "bg-gray-100 text-gray-800"
-                      }`}>
-                        {row[col]}
-                      </span>
-                    ) : (
-                      row[col] || "-"
-                    )}
-                  </td>
-                ))}
+                {displayColumns.map((col) => {
+                  // Determine column type for proper formatting
+                  const isAmountColumn = ["AMOUNT", "TOTAL AMOUNT", "TOTAL SALES", "TOTAL SALES WITH TAX", 
+                                         "TOTAL TAX AMOUNT", "SHOP (40%)", "GROW TAGS (40%)", "ADMIN (20%)"].includes(col);
+                  const isCountColumn = ["INVOICE COUNT", "COUNT"].includes(col);
+                  const isIdColumn = ["ID", "CUSTOMER ID", "COMPLAINT ID", "INVOICE NO"].includes(col);
+                  
+                  return (
+                    <td 
+                      key={col} 
+                      className={`px-4 py-3 text-sm ${
+                        isIdColumn || isCountColumn
+                          ? "text-center" 
+                          : isAmountColumn
+                          ? "text-right font-semibold"
+                          : "text-left"
+                      }`}
+                    >
+                      {isAmountColumn ? (
+                        // Format as currency with ₹ symbol
+                        <span className="font-semibold text-blue-600">
+                          {row[col] && typeof row[col] === 'string' && row[col].includes('₹') 
+                            ? row[col] 
+                            : formatCurrency(row[col], false)}
+                        </span>
+                      ) : isCountColumn ? (
+                        // Format as plain number without currency and without decimals
+                        <span className="font-medium text-green-600">
+                          {formatNumber(row[col])}
+                        </span>
+                      ) : col === "STATUS" && row[col] ? (
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          ["Closed", "Active", "Resolved"].includes(row[col]) ? "bg-green-100 text-green-800" :
+                          row[col] === "In Progress" ? "bg-yellow-100 text-yellow-800" :
+                          ["Open", "Inactive", "Pending"].includes(row[col]) ? "bg-red-100 text-red-800" :
+                          "bg-gray-100 text-gray-800"
+                        }`}>
+                          {row[col]}
+                        </span>
+                      ) : col === "ASSIGN TYPE" && row[col] && row[col] !== "-" ? (
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          row[col] === "Franchise" ? "bg-purple-100 text-purple-800" :
+                          row[col] === "Other Shop" ? "bg-orange-100 text-orange-800" :
+                          row[col] === "Growtag" ? "bg-indigo-100 text-indigo-800" :
+                          "bg-gray-100 text-gray-800"
+                        }`}>
+                          {row[col]}
+                        </span>
+                      ) : (
+                        row[col] || "-"
+                      )}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
 
@@ -684,6 +792,14 @@ const ReportTable = ({ data, loading }) => {
             )}
           </tbody>
         </table>
+      </div>
+      
+      {/* Footer with record count */}
+      <div className="mt-4 text-sm text-gray-500 flex justify-between items-center">
+        <span>Showing {filtered.length} of {data.data.length} records</span>
+        {filtered.length !== data.data.length && (
+          <span className="text-blue-600">Filters applied</span>
+        )}
       </div>
     </div>
   );

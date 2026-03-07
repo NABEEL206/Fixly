@@ -29,6 +29,8 @@ import Vendor from "./pages/Purchases/Vendor";
 import PurchaseOrder from "./pages/Purchases/PurchaseOrder";
 import Bill from "./pages/Purchases/Bill";
 import CustomerRegister from "./pages/loginPage/CustomerRegister";
+import Quotes from "./pages/Quotes/Quotes";
+import ResetPassword from "./pages/loginPage/ResetPassword";
 
 export default function App() {
   return (
@@ -36,7 +38,7 @@ export default function App() {
       <Toaster
         position="top-center"
         toastOptions={{
-          duration: 900,
+          duration: 1000,
         }}
       />
 
@@ -45,6 +47,7 @@ export default function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/unauthorized" element={<Unauthorized />} />
         <Route path="/customer-register" element={<CustomerRegister />} />
+        <Route path="/reset-password" element={<ResetPassword/>}/>
 
         {/* ALL PROTECTED ROUTES WITH LAYOUT */}
         <Route element={<ProtectedLayout />}>
@@ -232,6 +235,16 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+
+          <Route
+           path="/quotes"
+           element={
+            <ProtectedRoute allowedRoles={["ADMIN"]}>
+              <Quotes/>
+            </ProtectedRoute>
+           }
+           />
+
         </Route>
 
         {/* DEFAULT REDIRECT */}

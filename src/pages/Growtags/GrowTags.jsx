@@ -1,25 +1,25 @@
 // src/pages/Growtags/GrowTags.jsx
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { 
-  Eye, 
-  Edit, 
-  Trash2, 
+import {
+  Eye,
+  Edit,
+  Trash2,
   FileText,
-  EyeOff, 
-  Search, 
-  X, 
-  Filter, 
-  UserCircle, 
-  Tag, 
-  CheckCircle, 
+  EyeOff,
+  Search,
+  X,
+  Filter,
+  UserCircle,
+  Tag,
+  CheckCircle,
   XCircle,
   MapPin,
   Phone,
   Mail,
   CreditCard,
   Home,
-  Calendar
+  Calendar,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import axiosInstance from "@/API/axiosInstance";
@@ -27,7 +27,14 @@ import axiosInstance from "@/API/axiosInstance";
 // ----------------------------------------------------
 // Filter Panel Component - Same as Complaints Page
 // ----------------------------------------------------
-const FilterPanel = ({ isOpen, onClose, filters, onFilterChange, creators, onClearFilters }) => {
+const FilterPanel = ({
+  isOpen,
+  onClose,
+  filters,
+  onFilterChange,
+  creators,
+  onClearFilters,
+}) => {
   if (!isOpen) return null;
 
   return (
@@ -36,9 +43,14 @@ const FilterPanel = ({ isOpen, onClose, filters, onFilterChange, creators, onCle
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
         <div className="flex items-center gap-2">
           <Filter size={16} className="text-teal-600" />
-          <h3 className="font-semibold text-gray-700 text-sm">Filter Grow Tags</h3>
+          <h3 className="font-semibold text-gray-700 text-sm">
+            Filter Grow Tags
+          </h3>
         </div>
-        <button onClick={onClose} className="p-1 hover:bg-gray-200 rounded-full transition">
+        <button
+          onClick={onClose}
+          className="p-1 hover:bg-gray-200 rounded-full transition"
+        >
           <X size={16} className="text-gray-500" />
         </button>
       </div>
@@ -53,7 +65,7 @@ const FilterPanel = ({ isOpen, onClose, filters, onFilterChange, creators, onCle
           </label>
           <select
             value={filters.createdBy}
-            onChange={(e) => onFilterChange('createdBy', e.target.value)}
+            onChange={(e) => onFilterChange("createdBy", e.target.value)}
             className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
           >
             <option value="">All Creators</option>
@@ -67,10 +79,12 @@ const FilterPanel = ({ isOpen, onClose, filters, onFilterChange, creators, onCle
 
         {/* Status Filter */}
         <div className="space-y-2">
-          <label className="text-xs font-medium text-gray-600 uppercase tracking-wider">Status</label>
+          <label className="text-xs font-medium text-gray-600 uppercase tracking-wider">
+            Status
+          </label>
           <select
             value={filters.status}
-            onChange={(e) => onFilterChange('status', e.target.value)}
+            onChange={(e) => onFilterChange("status", e.target.value)}
             className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
           >
             <option value="all">All Status</option>
@@ -104,21 +118,21 @@ const FilterPanel = ({ isOpen, onClose, filters, onFilterChange, creators, onCle
 // ----------------------------------------------------
 const ActiveFilters = ({ filters, creators, onRemoveFilter, onClearAll }) => {
   const getFilterLabel = (key, value) => {
-    if (value === '' || value === 'all') return null;
-    
+    if (value === "" || value === "all") return null;
+
     switch (key) {
-      case 'createdBy':
-        const creator = creators.find(c => c.value === value);
+      case "createdBy":
+        const creator = creators.find((c) => c.value === value);
         return creator ? `Created by: ${creator.label}` : null;
-      case 'status':
+      case "status":
         return `Status: ${value}`;
       default:
         return null;
     }
   };
 
-  const activeFilters = Object.entries(filters).filter(([key, value]) => 
-    value && value !== '' && value !== 'all'
+  const activeFilters = Object.entries(filters).filter(
+    ([key, value]) => value && value !== "" && value !== "all",
   );
 
   if (activeFilters.length === 0) return null;
@@ -129,21 +143,27 @@ const ActiveFilters = ({ filters, creators, onRemoveFilter, onClearAll }) => {
       {activeFilters.map(([key, value]) => {
         const label = getFilterLabel(key, value);
         if (!label) return null;
-        
+
         return (
           <span
             key={key}
             className="inline-flex items-center gap-1 px-3 py-1 bg-teal-50 text-teal-700 rounded-full text-xs border border-teal-200"
           >
             {label}
-            <button onClick={() => onRemoveFilter(key)} className="hover:text-teal-900 transition">
+            <button
+              onClick={() => onRemoveFilter(key)}
+              className="hover:text-teal-900 transition"
+            >
               <X size={12} />
             </button>
           </span>
         );
       })}
       {activeFilters.length > 1 && (
-        <button onClick={onClearAll} className="text-xs text-gray-500 hover:text-gray-700 underline">
+        <button
+          onClick={onClearAll}
+          className="text-xs text-gray-500 hover:text-gray-700 underline"
+        >
           Clear all
         </button>
       )}
@@ -157,7 +177,7 @@ const ActiveFilters = ({ filters, creators, onRemoveFilter, onClearAll }) => {
 const GrowTagViewModal = ({ growTag, onClose, onEdit }) => {
   const [loading, setLoading] = useState(false);
   const [growTagDetails, setGrowTagDetails] = useState(null);
-  const [activeTab, setActiveTab] = useState('info');
+  const [activeTab, setActiveTab] = useState("info");
 
   useEffect(() => {
     if (growTag?.id) {
@@ -168,7 +188,9 @@ const GrowTagViewModal = ({ growTag, onClose, onEdit }) => {
   const fetchGrowTagDetails = async (growTagId) => {
     setLoading(true);
     try {
-      const response = await axiosInstance.get(`/api/growtags-popup/${growTagId}/`);
+      const response = await axiosInstance.get(
+        `/api/growtags-popup/${growTagId}/`,
+      );
       setGrowTagDetails(response.data);
     } catch (error) {
       console.error("Error fetching grow tag details:", error);
@@ -182,6 +204,17 @@ const GrowTagViewModal = ({ growTag, onClose, onEdit }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Format Aadhar number for display (with spaces)
+  const formatAadhar = (aadhar) => {
+    if (!aadhar) return "-";
+    const cleaned = aadhar.replace(/\D/g, '');
+    const match = cleaned.match(/^(\d{4})(\d{4})(\d{4})$/);
+    if (match) {
+      return `${match[1]} ${match[2]} ${match[3]}`;
+    }
+    return aadhar;
   };
 
   if (!growTag) return null;
@@ -205,14 +238,20 @@ const GrowTagViewModal = ({ growTag, onClose, onEdit }) => {
 
   // Info Card Component for consistent styling
   const InfoCard = ({ icon: Icon, label, value, colSpan = 1 }) => (
-    <div className={`bg-gray-50 rounded-lg p-4 border border-gray-100 hover:shadow-sm transition-shadow ${colSpan > 1 ? `col-span-${colSpan}` : ''}`}>
+    <div
+      className={`bg-gray-50 rounded-lg p-4 border border-gray-100 hover:shadow-sm transition-shadow ${colSpan > 1 ? `col-span-${colSpan}` : ""}`}
+    >
       <div className="flex items-start gap-3">
         <div className="p-2 bg-white rounded-lg shadow-sm">
           <Icon size={18} className="text-teal-600" />
         </div>
         <div className="flex-1">
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">{label}</p>
-          <p className="text-sm font-semibold text-gray-800 mt-1 break-words">{value || '-'}</p>
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+            {label}
+          </p>
+          <p className="text-sm font-semibold text-gray-800 mt-1 break-words">
+            {value || "-"}
+          </p>
         </div>
       </div>
     </div>
@@ -227,9 +266,9 @@ const GrowTagViewModal = ({ growTag, onClose, onEdit }) => {
             <div className="flex items-center gap-4">
               <div className="w-16 h-16 rounded-full bg-gradient-to-br from-teal-500 to-teal-600 flex items-center justify-center shadow-lg">
                 {displayData.image ? (
-                  <img 
-                    src={displayData.image} 
-                    alt={displayData.name} 
+                  <img
+                    src={displayData.image}
+                    alt={displayData.name}
                     className="w-16 h-16 rounded-full object-cover border-2 border-white"
                   />
                 ) : (
@@ -239,22 +278,24 @@ const GrowTagViewModal = ({ growTag, onClose, onEdit }) => {
               <div>
                 <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
                   {displayData.name}
-                  <span className={`text-sm font-medium px-3 py-1 rounded-full ${
-                    displayData.status === "Active" 
-                      ? "bg-emerald-100 text-emerald-700 border border-emerald-200" 
-                      : "bg-gray-100 text-gray-700 border border-gray-200"
-                  }`}>
+                  <span
+                    className={`text-sm font-medium px-3 py-1 rounded-full ${
+                      displayData.status === "Active"
+                        ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
+                        : "bg-gray-100 text-gray-700 border border-gray-200"
+                    }`}
+                  >
                     {displayData.status}
                   </span>
                 </h2>
                 <p className="text-sm text-gray-500 mt-1 flex items-center gap-2">
                   <Tag size={14} className="text-teal-500" />
-                  Grow ID: {displayData.grow_id || '-'}
+                  Grow ID: {displayData.grow_id || "-"}
                 </p>
               </div>
             </div>
-            <button 
-              onClick={onClose} 
+            <button
+              onClick={onClose}
               className="p-2 hover:bg-gray-200 rounded-full transition-colors"
             >
               <X size={20} className="text-gray-500" />
@@ -264,21 +305,21 @@ const GrowTagViewModal = ({ growTag, onClose, onEdit }) => {
           {/* Tabs */}
           <div className="flex gap-2 mt-4 border-b border-gray-200">
             <button
-              onClick={() => setActiveTab('info')}
+              onClick={() => setActiveTab("info")}
               className={`px-4 py-2 text-sm font-medium transition-colors relative ${
-                activeTab === 'info'
-                  ? 'text-teal-600 border-b-2 border-teal-600'
-                  : 'text-gray-500 hover:text-gray-700'
+                activeTab === "info"
+                  ? "text-teal-600 border-b-2 border-teal-600"
+                  : "text-gray-500 hover:text-gray-700"
               }`}
             >
               Personal Information
             </button>
             <button
-              onClick={() => setActiveTab('complaints')}
+              onClick={() => setActiveTab("complaints")}
               className={`px-4 py-2 text-sm font-medium transition-colors relative ${
-                activeTab === 'complaints'
-                  ? 'text-teal-600 border-b-2 border-teal-600'
-                  : 'text-gray-500 hover:text-gray-700'
+                activeTab === "complaints"
+                  ? "text-teal-600 border-b-2 border-teal-600"
+                  : "text-gray-500 hover:text-gray-700"
               }`}
             >
               Assigned Complaints ({displayData.assigned_complaints_count || 0})
@@ -291,12 +332,14 @@ const GrowTagViewModal = ({ growTag, onClose, onEdit }) => {
           {loading ? (
             <div className="flex justify-center items-center h-64">
               <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-teal-600"></div>
-              <span className="ml-3 text-gray-600 font-medium">Loading details...</span>
+              <span className="ml-3 text-gray-600 font-medium">
+                Loading details...
+              </span>
             </div>
           ) : (
             <>
               {/* Personal Information Tab */}
-              {activeTab === 'info' && (
+              {activeTab === "info" && (
                 <div className="space-y-6">
                   {/* Contact Information */}
                   <div>
@@ -305,9 +348,21 @@ const GrowTagViewModal = ({ growTag, onClose, onEdit }) => {
                       Contact Details
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <InfoCard icon={Phone} label="Phone Number" value={displayData.phone} />
-                      <InfoCard icon={Mail} label="Email Address" value={displayData.email} />
-                      <InfoCard icon={CreditCard} label="Aadhar Number" value={displayData.adhar} />
+                      <InfoCard
+                        icon={Phone}
+                        label="Phone Number"
+                        value={displayData.phone}
+                      />
+                      <InfoCard
+                        icon={Mail}
+                        label="Email Address"
+                        value={displayData.email}
+                      />
+                      <InfoCard
+                        icon={CreditCard}
+                        label="Aadhar Number"
+                        value={formatAadhar(displayData.adhar)}
+                      />
                     </div>
                   </div>
 
@@ -318,10 +373,27 @@ const GrowTagViewModal = ({ growTag, onClose, onEdit }) => {
                       Address Details
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <InfoCard icon={Home} label="Full Address" value={displayData.address} colSpan={2} />
-                      <InfoCard icon={MapPin} label="Area" value={displayData.area} />
-                      <InfoCard icon={MapPin} label="State" value={displayData.state} />
-                      <InfoCard icon={MapPin} label="Pincode" value={displayData.pincode} />
+                      <InfoCard
+                        icon={Home}
+                        label="Full Address"
+                        value={displayData.address}
+                        colSpan={2}
+                      />
+                      <InfoCard
+                        icon={MapPin}
+                        label="Area"
+                        value={displayData.area}
+                      />
+                      <InfoCard
+                        icon={MapPin}
+                        label="State"
+                        value={displayData.state}
+                      />
+                      <InfoCard
+                        icon={MapPin}
+                        label="Pincode"
+                        value={displayData.pincode}
+                      />
                     </div>
                   </div>
 
@@ -332,20 +404,30 @@ const GrowTagViewModal = ({ growTag, onClose, onEdit }) => {
                       Additional Details
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <InfoCard icon={Tag} label="Assigned Shop" value={displayData.assigned_shop || 'Not Assigned'} />
+                      <InfoCard
+                        icon={Tag}
+                        label="Assigned Shop"
+                        value={displayData.assigned_shop || "Not Assigned"}
+                      />
                       <div className="bg-gray-50 rounded-lg p-4 border border-gray-100">
                         <div className="flex items-start gap-3">
                           <div className="p-2 bg-white rounded-lg shadow-sm">
                             <Calendar size={18} className="text-teal-600" />
                           </div>
                           <div className="flex-1">
-                            <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Created On</p>
+                            <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Created On
+                            </p>
                             <p className="text-sm font-semibold text-gray-800 mt-1">
-                              {displayData.created_on ? new Date(displayData.created_on).toLocaleDateString('en-IN', {
-                                day: 'numeric',
-                                month: 'long',
-                                year: 'numeric'
-                              }) : '-'}
+                              {displayData.created_on
+                                ? new Date(
+                                    displayData.created_on,
+                                  ).toLocaleDateString("en-IN", {
+                                    day: "numeric",
+                                    month: "long",
+                                    year: "numeric",
+                                  })
+                                : "-"}
                             </p>
                           </div>
                         </div>
@@ -356,9 +438,14 @@ const GrowTagViewModal = ({ growTag, onClose, onEdit }) => {
                             <UserCircle size={18} className="text-teal-600" />
                           </div>
                           <div className="flex-1">
-                            <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Created By</p>
+                            <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Created By
+                            </p>
                             <p className="text-sm font-semibold text-gray-800 mt-1">
-                              {displayData.created_by?.username || displayData.created_by?.email || displayData.created_by || '—'}
+                              {displayData.created_by?.username ||
+                                displayData.created_by?.email ||
+                                displayData.created_by ||
+                                "—"}
                             </p>
                           </div>
                         </div>
@@ -369,59 +456,86 @@ const GrowTagViewModal = ({ growTag, onClose, onEdit }) => {
               )}
 
               {/* Complaints Tab */}
-              {activeTab === 'complaints' && (
+              {activeTab === "complaints" && (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
                       <FileText size={20} className="text-teal-600" />
-                      Assigned Complaints ({displayData.assigned_complaints_count || 0})
+                      Assigned Complaints (
+                      {displayData.assigned_complaints_count || 0})
                     </h3>
                   </div>
 
-                  {displayData.assigned_complaints && displayData.assigned_complaints.length > 0 ? (
+                  {displayData.assigned_complaints &&
+                  displayData.assigned_complaints.length > 0 ? (
                     <div className="space-y-3">
                       {displayData.assigned_complaints.map((complaint) => (
-                        <div key={complaint.id} className="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md transition-shadow">
+                        <div
+                          key={complaint.id}
+                          className="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md transition-shadow"
+                        >
                           <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
                             <div className="flex items-center gap-2">
                               <span className="text-xs font-mono bg-gray-100 text-gray-600 px-2 py-1 rounded border border-gray-200">
                                 {complaint.complaint_id || `#${complaint.id}`}
                               </span>
-                              <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${getStatusClasses(complaint.status)}`}>
-                                {complaint.status || 'Unknown'}
+                              <span
+                                className={`px-2.5 py-1 rounded-full text-xs font-semibold ${getStatusClasses(complaint.status)}`}
+                              >
+                                {complaint.status || "Unknown"}
                               </span>
-                              <span className={`px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1 ${
-                                complaint.confirm_status === "CONFIRMED" 
-                                  ? "bg-emerald-100 text-emerald-700 border border-emerald-200" 
-                                  : "bg-gray-100 text-gray-700 border border-gray-200"
-                              }`}>
+                              <span
+                                className={`px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1 ${
+                                  complaint.confirm_status === "CONFIRMED"
+                                    ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
+                                    : "bg-gray-100 text-gray-700 border border-gray-200"
+                                }`}
+                              >
                                 {complaint.confirm_status === "CONFIRMED" ? (
-                                  <><CheckCircle size={12} /> Confirmed</>
+                                  <>
+                                    <CheckCircle size={12} /> Confirmed
+                                  </>
                                 ) : (
-                                  <><XCircle size={12} /> Not Confirmed</>
+                                  <>
+                                    <XCircle size={12} /> Not Confirmed
+                                  </>
                                 )}
                               </span>
                             </div>
                           </div>
-                          
-                          <h4 className="font-medium text-gray-800 mb-3">{complaint.title || 'No title'}</h4>
-                          
+
+                          <h4 className="font-medium text-gray-800 mb-3">
+                            {complaint.title || "No title"}
+                          </h4>
+
                           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
                             <div>
                               <p className="text-xs text-gray-500">Area</p>
-                              <p className="font-medium text-gray-700">{complaint.area || '-'}</p>
+                              <p className="font-medium text-gray-700">
+                                {complaint.area || "-"}
+                              </p>
                             </div>
                             <div>
                               <p className="text-xs text-gray-500">Pincode</p>
-                              <p className="font-medium text-gray-700">{complaint.pincode || '-'}</p>
+                              <p className="font-medium text-gray-700">
+                                {complaint.pincode || "-"}
+                              </p>
                             </div>
                             <div>
-                              <p className="text-xs text-gray-500">Assigned To</p>
-                              <p className="font-medium text-gray-700">{complaint.assign_to || '-'}</p>
+                              <p className="text-xs text-gray-500">
+                                Assigned To
+                              </p>
+                              <p className="font-medium text-gray-700">
+                                {complaint.assign_to || "-"}
+                              </p>
                             </div>
                             <div>
-                              <p className="text-xs text-gray-500">Created On</p>
-                              <p className="font-medium text-gray-700">{complaint.created_on || '-'}</p>
+                              <p className="text-xs text-gray-500">
+                                Created On
+                              </p>
+                              <p className="font-medium text-gray-700">
+                                {complaint.created_on || "-"}
+                              </p>
                             </div>
                           </div>
                         </div>
@@ -429,9 +543,16 @@ const GrowTagViewModal = ({ growTag, onClose, onEdit }) => {
                     </div>
                   ) : (
                     <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
-                      <FileText size={48} className="mx-auto text-gray-300 mb-3" />
-                      <p className="text-gray-500 font-medium">No assigned complaints</p>
-                      <p className="text-sm text-gray-400 mt-1">This grow tag has no complaints assigned yet.</p>
+                      <FileText
+                        size={48}
+                        className="mx-auto text-gray-300 mb-3"
+                      />
+                      <p className="text-gray-500 font-medium">
+                        No assigned complaints
+                      </p>
+                      <p className="text-sm text-gray-400 mt-1">
+                        This grow tag has no complaints assigned yet.
+                      </p>
                     </div>
                   )}
                 </div>
@@ -469,7 +590,7 @@ const GrowTagViewModal = ({ growTag, onClose, onEdit }) => {
 // ----------------------------------------------------
 export default function GrowTags() {
   const navigate = useNavigate();
-  
+
   const [isEdit, setIsEdit] = useState(false);
   const [editId, setEditId] = useState(null);
   const [showFormModal, setShowFormModal] = useState(false);
@@ -479,12 +600,16 @@ export default function GrowTags() {
   const [showPassword, setShowPassword] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  const [originalGrowTagInfo, setOriginalGrowTagInfo] = useState({ name: "", grow_id: "" });
+
+  const [originalGrowTagInfo, setOriginalGrowTagInfo] = useState({
+    name: "",
+    grow_id: "",
+  });
   const [areas, setAreas] = useState([]);
   const [loadingAreas, setLoadingAreas] = useState(false);
   const [errors, setErrors] = useState({});
   const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [pincodeError, setPincodeError] = useState("");
 
   // Filter states - exactly like complaints page
   const [filterType, setFilterType] = useState("all");
@@ -511,44 +636,57 @@ export default function GrowTags() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  // Email validation function
+  const validateEmail = (email) => {
+    const emailRegex = /^\S+@\S+\.\S+$/;
+    return emailRegex.test(email);
+  };
+
   // Function to generate next GT ID
   const generateNextGrowId = (existingGrowTags) => {
     if (!existingGrowTags || existingGrowTags.length === 0) return "GT01";
 
     const gtNumbers = existingGrowTags
-      .map(tag => {
+      .map((tag) => {
         const match = tag.grow_id?.match(/^GT(\d+)$/i);
         return match ? parseInt(match[1], 10) : 0;
       })
-      .filter(num => num > 0);
+      .filter((num) => num > 0);
 
     if (gtNumbers.length === 0) return "GT01";
 
     const maxNumber = Math.max(...gtNumbers);
-    return `GT${(maxNumber + 1).toString().padStart(2, '0')}`;
+    return `GT${(maxNumber + 1).toString().padStart(2, "0")}`;
   };
 
   // Auto-fill grow_id when modal opens
   useEffect(() => {
     if (showFormModal && !isEdit) {
       const nextGrowId = generateNextGrowId(users);
-      setForm(prev => ({ ...prev, grow_id: nextGrowId }));
+      setForm((prev) => ({ ...prev, grow_id: nextGrowId }));
     }
   }, [showFormModal, isEdit, users]);
 
   // Get unique creators for filter dropdown
   const creators = useMemo(() => {
     const creatorMap = new Map();
-    users.forEach(user => {
+    users.forEach((user) => {
       if (user.created_by) {
-        const creatorValue = user.created_by.username || user.created_by.email || user.created_by;
-        const creatorLabel = user.created_by.username || user.created_by.email || user.created_by;
+        const creatorValue =
+          user.created_by.username || user.created_by.email || user.created_by;
+        const creatorLabel =
+          user.created_by.username || user.created_by.email || user.created_by;
         if (creatorValue && !creatorMap.has(creatorValue)) {
-          creatorMap.set(creatorValue, { value: creatorValue, label: creatorLabel });
+          creatorMap.set(creatorValue, {
+            value: creatorValue,
+            label: creatorLabel,
+          });
         }
       }
     });
-    return Array.from(creatorMap.values()).sort((a, b) => a.label.localeCompare(b.label));
+    return Array.from(creatorMap.values()).sort((a, b) =>
+      a.label.localeCompare(b.label),
+    );
   }, [users]);
 
   const extractErrorMessage = (err) => {
@@ -569,7 +707,7 @@ export default function GrowTags() {
   const loadGrowtags = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await axiosInstance.get('/api/growtags/');
+      const response = await axiosInstance.get("/api/growtags/");
 
       if (response.data) {
         if (Array.isArray(response.data)) {
@@ -608,13 +746,13 @@ export default function GrowTags() {
 
   // Filter handlers
   const handleFilterChange = (key, value) => {
-    if (key === 'createdBy') setFilterCreatedBy(value);
-    if (key === 'status') setFilterStatus(value);
+    if (key === "createdBy") setFilterCreatedBy(value);
+    if (key === "status") setFilterStatus(value);
   };
 
   const handleRemoveFilter = (key) => {
-    if (key === 'createdBy') setFilterCreatedBy('');
-    if (key === 'status') setFilterStatus('');
+    if (key === "createdBy") setFilterCreatedBy("");
+    if (key === "status") setFilterStatus("");
   };
 
   const handleClearAllFilters = () => {
@@ -632,12 +770,10 @@ export default function GrowTags() {
 
     return users.filter((user) => {
       // Search filter
-      const searchableText = [
-        user.grow_id,
-        user.name,
-        user.phone,
-        user.email
-      ].filter(Boolean).join(" ").toLowerCase();
+      const searchableText = [user.grow_id, user.name, user.phone, user.email]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
       const matchesSearch = searchableText.includes(lowerCaseQuery);
 
       // Filter by type
@@ -647,7 +783,10 @@ export default function GrowTags() {
       } else if (filterType === "status" && filterStatus) {
         matchesFilter = user.status === filterStatus;
       } else if (filterType === "created_by" && filterCreatedBy) {
-        const creator = user.created_by?.username || user.created_by?.email || user.created_by;
+        const creator =
+          user.created_by?.username ||
+          user.created_by?.email ||
+          user.created_by;
         matchesFilter = creator === filterCreatedBy;
       }
 
@@ -657,36 +796,119 @@ export default function GrowTags() {
 
   const handleSearchChange = (e) => setSearchQuery(e.target.value);
 
+  // Enhanced handleChange with live validation
   const handleChange = (e) => {
     const { name, value } = e.target;
 
+    // Name validation - only letters and spaces
     if (name === "name" && !/^[A-Za-z\s]*$/.test(value)) return;
 
-    setForm(prev => ({ ...prev, [name]: value }));
-    setErrors(prev => ({ ...prev, [name]: "" }));
+    // Aadhar validation - only digits and max 12 digits
+    if (name === "adhar") {
+      // Allow only digits
+      if (value && !/^\d*$/.test(value)) return;
+      
+      // Limit to 12 digits
+      if (value.length > 12) return;
+    }
 
-    if (name === "pincode" && value.length === 6) fetchAreas(value);
+    // Phone validation - only digits and max 10 digits
+    if (name === "phone") {
+      if (value && !/^\d*$/.test(value)) return;
+      if (value.length > 10) return;
+    }
+
+    // Pincode validation - only digits and max 6 digits
+    if (name === "pincode") {
+      // Allow only digits
+      if (value && !/^\d*$/.test(value)) return;
+      
+      // Limit to 6 digits
+      if (value.length > 6) return;
+    }
+
+    setForm((prev) => ({ ...prev, [name]: value }));
+    
+    // Clear errors for the field being edited
+    setErrors((prev) => ({ ...prev, [name]: "" }));
+
+    // Password length validation
+    if (name === "password") {
+      if (value && value.length < 6) {
+        setErrors((prev) => ({ ...prev, password: "Password must be at least 6 characters" }));
+      } else {
+        setErrors((prev) => ({ ...prev, password: "" }));
+      }
+    }
+
+    if (name === "pincode") {
+      if (!value) {
+        setAreas([]);
+        setForm((prev) => ({ ...prev, area: "", state: "" }));
+        setPincodeError("Pincode is required");
+        return;
+      }
+
+      if (value.length === 6) {
+        setPincodeError("");
+        fetchAreas(value);
+      } else {
+        setAreas([]);
+        setForm((prev) => ({ ...prev, area: "", state: "" }));
+        if (value.length > 0) {
+          setPincodeError("Pincode must be exactly 6 digits");
+        }
+      }
+    }
+  };
+
+  // Handle email validation on blur (after user finishes typing)
+  const handleEmailBlur = () => {
+    if (form.email && !validateEmail(form.email)) {
+      setErrors((prev) => ({ ...prev, email: "Enter a valid email address" }));
+    } else {
+      setErrors((prev) => ({ ...prev, email: "" }));
+    }
   };
 
   const handlePhoto = (e) => {
     const file = e.target.files?.[0] || null;
-    setForm(prev => ({ ...prev, image: file }));
+    setForm((prev) => ({ ...prev, image: file }));
     if (file) setPreview(URL.createObjectURL(file));
   };
 
+  // Updated fetchAreas function using Fetch API
   const fetchAreas = async (pincode) => {
     try {
       setLoadingAreas(true);
-      const res = await axiosInstance.get(`https://api.postalpincode.in/pincode/${pincode}`);
-      const postOffice = res.data?.[0];
-      const list = postOffice?.PostOffice || [];
+      setPincodeError("");
 
-      setAreas(list);
-      if (list.length > 0) {
-        setForm(prev => ({ ...prev, state: list[0].State || "" }));
+      // Using fetch API instead of axiosInstance
+      const response = await fetch(
+        `https://api.postalpincode.in/pincode/${pincode}`,
+      );
+      const data = await response.json();
+
+      if (data[0]?.Status !== "Success") {
+        setAreas([]);
+        setForm((prev) => ({ ...prev, area: "", state: "" }));
+        setPincodeError("Invalid pincode. Please check and try again.");
+        return;
       }
-    } catch {
-      toast.error("Failed to fetch areas");
+
+      const postOffices = data[0].PostOffice || [];
+      setAreas(postOffices);
+
+      if (postOffices.length > 0) {
+        setForm((prev) => ({ ...prev, state: postOffices[0].State || "" }));
+      }
+
+      setPincodeError("");
+    } catch (error) {
+      console.error("Pincode API Error:", error);
+      setAreas([]);
+      setForm((prev) => ({ ...prev, area: "", state: "" }));
+      setPincodeError("Network connection lost. Please check your internet.");
     } finally {
       setLoadingAreas(false);
     }
@@ -694,8 +916,8 @@ export default function GrowTags() {
 
   const handleAreaSelect = (e) => {
     const areaName = e.target.value;
-    setForm(prev => ({ ...prev, area: areaName }));
-    if (errors.area) setErrors(prev => ({ ...prev, area: "" }));
+    setForm((prev) => ({ ...prev, area: areaName }));
+    if (errors.area) setErrors((prev) => ({ ...prev, area: "" }));
   };
 
   const closeFormModal = () => {
@@ -723,9 +945,11 @@ export default function GrowTags() {
     setEditId(null);
     setAreas([]);
     setErrors({});
+    setPincodeError("");
     setOriginalGrowTagInfo({ name: "", grow_id: "" });
   };
 
+  // Enhanced validation function
   const validateForm = () => {
     let newErrors = {};
 
@@ -735,37 +959,43 @@ export default function GrowTags() {
     } else if (!/^[A-Za-z\s]+$/.test(form.name)) {
       newErrors.name = "Name must contain only letters";
     }
-    
+
     if (!isEdit && !form.password.trim()) {
       newErrors.password = "Password is required";
-    } else if (isEdit && form.password.trim() && form.password.trim().length < 6) {
+    } else if (
+      form.password.trim() &&
+      form.password.trim().length < 6
+    ) {
       newErrors.password = "Password must be at least 6 characters";
     }
 
     if (!form.phone.trim()) {
       newErrors.phone = "Phone is required";
-    } else if (!/^[0-9]{10}$/.test(form.phone)) {
-      newErrors.phone = "Phone must be 10 digits";
+    } else if (!/^\d{10}$/.test(form.phone)) {
+      newErrors.phone = "Phone must be exactly 10 digits";
     }
 
     if (!form.email.trim()) {
       newErrors.email = "Email is required";
-    } else if (!/^\S+@\S+\.\S+$/.test(form.email)) {
-      newErrors.email = "Enter valid email";
+    } else if (!validateEmail(form.email)) {
+      newErrors.email = "Enter a valid email address";
     }
 
     if (!form.pincode.trim()) {
       newErrors.pincode = "Pincode is required";
-    } else if (!/^[0-9]{6}$/.test(form.pincode)) {
-      newErrors.pincode = "Pincode must be 6 digits";
+    } else if (!/^\d{6}$/.test(form.pincode)) {
+      newErrors.pincode = "Pincode must be exactly 6 digits";
     }
 
     if (!form.area.trim()) newErrors.area = "Area is required";
+    
+    // Enhanced Aadhar validation
     if (!form.adhar.trim()) {
       newErrors.adhar = "Aadhar is required";
-    } else if (!/^[0-9]{12}$/.test(form.adhar)) {
-      newErrors.adhar = "Aadhar must be 12 digits";
+    } else if (!/^\d{12}$/.test(form.adhar)) {
+      newErrors.adhar = "Aadhar must be exactly 12 digits";
     }
+    
     if (!form.address.trim()) newErrors.address = "Address is required";
 
     setErrors(newErrors);
@@ -779,7 +1009,9 @@ export default function GrowTags() {
       return;
     }
 
-    const toastId = toast.loading(isEdit ? "Updating grow tag..." : "Creating grow tag...");
+    const toastId = toast.loading(
+      isEdit ? "Updating grow tag..." : "Creating grow tag...",
+    );
     setIsSubmitting(true);
 
     try {
@@ -802,7 +1034,7 @@ export default function GrowTags() {
         });
         toast.success(`Grow Tag updated successfully!`, { id: toastId });
       } else {
-        await axiosInstance.post('/api/growtags/', formData, {
+        await axiosInstance.post("/api/growtags/", formData, {
           headers: { "Content-Type": "multipart/form-data" },
         });
         toast.success(`Grow Tag created successfully!`, { id: toastId });
@@ -815,7 +1047,9 @@ export default function GrowTags() {
       if (err.response?.status === 401) {
         toast.error("Session expired. Please login again.", { id: toastId });
       } else if (err.response?.status === 403) {
-        toast.error("You don't have permission to perform this action", { id: toastId });
+        toast.error("You don't have permission to perform this action", {
+          id: toastId,
+        });
       } else {
         const msg = extractErrorMessage(err);
         toast.error(msg || "Failed to save grow tag", { id: toastId });
@@ -827,7 +1061,10 @@ export default function GrowTags() {
 
   const handleEdit = (user) => {
     setShowFormModal(true);
-    setOriginalGrowTagInfo({ name: user.name || "", grow_id: user.grow_id || "" });
+    setOriginalGrowTagInfo({
+      name: user.name || "",
+      grow_id: user.grow_id || "",
+    });
     setForm({
       grow_id: user.grow_id || "",
       name: user.name || "",
@@ -865,10 +1102,17 @@ export default function GrowTags() {
     toast(
       (t) => (
         <div className="flex flex-col gap-3">
-          <p className="text-sm font-semibold text-gray-800">Delete grow tag?</p>
+          <p className="text-sm font-semibold text-gray-800">
+            Delete grow tag?
+          </p>
           <p className="text-xs text-gray-500">This action cannot be undone.</p>
           <div className="flex justify-end gap-2">
-            <button onClick={() => toast.dismiss(t.id)} className="px-3 py-1.5 bg-gray-200 rounded-md text-sm">Cancel</button>
+            <button
+              onClick={() => toast.dismiss(t.id)}
+              className="px-3 py-1.5 bg-gray-200 rounded-md text-sm"
+            >
+              Cancel
+            </button>
             <button
               onClick={async () => {
                 toast.dismiss(t.id);
@@ -877,12 +1121,16 @@ export default function GrowTags() {
                   await axiosInstance.delete(`/api/growtags/${id}/`);
                   toast.success(`Grow Tag deleted successfully`, { id: dt });
                   await loadGrowtags();
-                  setSelectedIds(prev => prev.filter(x => x !== id));
+                  setSelectedIds((prev) => prev.filter((x) => x !== id));
                 } catch (err) {
                   if (err.response?.status === 401) {
-                    toast.error("Session expired. Please login again.", { id: dt });
+                    toast.error("Session expired. Please login again.", {
+                      id: dt,
+                    });
                   } else if (err.response?.status === 403) {
-                    toast.error("You don't have permission to delete", { id: dt });
+                    toast.error("You don't have permission to delete", {
+                      id: dt,
+                    });
                   } else {
                     toast.error("Failed to delete grow tag", { id: dt });
                   }
@@ -895,16 +1143,22 @@ export default function GrowTags() {
           </div>
         </div>
       ),
-      { duration: Infinity }
+      { duration: Infinity },
     );
   };
 
   const toggleSelect = (id) => {
-    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
   };
 
   const toggleSelectAll = () => {
-    setSelectedIds(selectedIds.length === filteredUsers.length ? [] : filteredUsers.map(u => u.id));
+    setSelectedIds(
+      selectedIds.length === filteredUsers.length
+        ? []
+        : filteredUsers.map((u) => u.id),
+    );
   };
 
   const handleBulkDelete = () => {
@@ -917,15 +1171,24 @@ export default function GrowTags() {
     toast(
       (t) => (
         <div className="flex flex-col gap-3">
-          <p className="text-sm font-semibold text-gray-800">Delete {selectedIds.length} selected grow tags?</p>
+          <p className="text-sm font-semibold text-gray-800">
+            Delete {selectedIds.length} selected grow tags?
+          </p>
           <p className="text-xs text-gray-500">This action cannot be undone.</p>
           <div className="flex justify-end gap-2">
-            <button onClick={() => toast.dismiss(t.id)} className="px-3 py-1.5 bg-gray-200 rounded-md text-sm">Cancel</button>
+            <button
+              onClick={() => toast.dismiss(t.id)}
+              className="px-3 py-1.5 bg-gray-200 rounded-md text-sm"
+            >
+              Cancel
+            </button>
             <button
               onClick={async () => {
                 toast.dismiss(t.id);
-                const dt = toast.loading(`Deleting ${selectedIds.length} grow tags...`);
-                
+                const dt = toast.loading(
+                  `Deleting ${selectedIds.length} grow tags...`,
+                );
+
                 try {
                   const results = await Promise.all(
                     selectedIds.map(async (id) => {
@@ -933,27 +1196,47 @@ export default function GrowTags() {
                         await axiosInstance.delete(`/api/growtags/${id}/`);
                         return { id, ok: true };
                       } catch (error) {
-                        return { id, ok: false, status: error.response?.status };
+                        return {
+                          id,
+                          ok: false,
+                          status: error.response?.status,
+                        };
                       }
-                    })
+                    }),
                   );
 
-                  const deleted = results.filter(r => r.ok).map(r => r.id);
-                  const forbidden = results.filter(r => r.status === 403).map(r => r.id);
-                  const unauthorized = results.filter(r => r.status === 401).map(r => r.id);
+                  const deleted = results.filter((r) => r.ok).map((r) => r.id);
+                  const forbidden = results
+                    .filter((r) => r.status === 403)
+                    .map((r) => r.id);
+                  const unauthorized = results
+                    .filter((r) => r.status === 401)
+                    .map((r) => r.id);
 
                   if (deleted.length > 0) {
-                    setUsers(prev => prev.filter(u => !deleted.includes(u.id)));
-                    setSelectedIds(prev => prev.filter(id => !deleted.includes(id)));
+                    setUsers((prev) =>
+                      prev.filter((u) => !deleted.includes(u.id)),
+                    );
+                    setSelectedIds((prev) =>
+                      prev.filter((id) => !deleted.includes(id)),
+                    );
                   }
 
                   if (deleted.length === selectedIds.length) {
-                    toast.success(`${deleted.length} grow tag${deleted.length > 1 ? "s" : ""} deleted`, { id: dt });
+                    toast.success(
+                      `${deleted.length} grow tag${deleted.length > 1 ? "s" : ""} deleted`,
+                      { id: dt },
+                    );
                   } else {
                     toast.dismiss(dt);
-                    if (deleted.length > 0) toast.success(`${deleted.length} deleted successfully`);
-                    if (forbidden.length > 0) toast.error(`${forbidden.length} could not be deleted (no permission)`);
-                    if (unauthorized.length > 0) toast.error(`Session expired. Please login again.`);
+                    if (deleted.length > 0)
+                      toast.success(`${deleted.length} deleted successfully`);
+                    if (forbidden.length > 0)
+                      toast.error(
+                        `${forbidden.length} could not be deleted (no permission)`,
+                      );
+                    if (unauthorized.length > 0)
+                      toast.error(`Session expired. Please login again.`);
                   }
                 } catch {
                   toast.error("Bulk delete failed", { id: dt });
@@ -966,7 +1249,7 @@ export default function GrowTags() {
           </div>
         </div>
       ),
-      { duration: Infinity }
+      { duration: Infinity },
     );
   };
 
@@ -979,17 +1262,17 @@ export default function GrowTags() {
     <div className="p-6 max-w-7xl mx-auto">
       {/* View Modal */}
       {showViewModal && viewData && (
-        <GrowTagViewModal 
-          growTag={viewData} 
-          onClose={closeViewModal} 
-          onEdit={handleEdit} 
+        <GrowTagViewModal
+          growTag={viewData}
+          onClose={closeViewModal}
+          onEdit={handleEdit}
         />
       )}
 
       {/* Header */}
       <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-4 gap-4">
         <h1 className="text-2xl font-bold text-gray-800">Grow Tags</h1>
-        
+
         {/* Search Input */}
         <div className="relative w-full max-w-sm">
           <input
@@ -1006,7 +1289,8 @@ export default function GrowTags() {
 
         {/* Results count */}
         <div className="text-sm text-gray-600 bg-gray-50 px-4 py-2 rounded-lg border border-gray-200">
-          {filteredUsers.length} grow tag{filteredUsers.length !== 1 ? "s" : ""} found
+          {filteredUsers.length} grow tag{filteredUsers.length !== 1 ? "s" : ""}{" "}
+          found
         </div>
 
         {/* Action Buttons */}
@@ -1018,7 +1302,10 @@ export default function GrowTags() {
             Assign Grow Tags
           </button>
           <button
-            onClick={() => { resetForm(); setShowFormModal(true); }}
+            onClick={() => {
+              resetForm();
+              setShowFormModal(true);
+            }}
             className="bg-blue-600 text-white px-6 py-2 rounded-lg shadow hover:bg-blue-700 whitespace-nowrap"
           >
             + Add Grow Tag
@@ -1035,11 +1322,11 @@ export default function GrowTags() {
               <label className="text-sm">Filter By</label>
               <select
                 value={filterType}
-                onChange={(e) => { 
-                  setFilterType(e.target.value); 
-                  setFilterId(""); 
-                  setFilterStatus(""); 
-                  setFilterCreatedBy(""); 
+                onChange={(e) => {
+                  setFilterType(e.target.value);
+                  setFilterId("");
+                  setFilterStatus("");
+                  setFilterCreatedBy("");
                 }}
                 className="border px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200"
               >
@@ -1053,25 +1340,32 @@ export default function GrowTags() {
             {filterType === "id" && (
               <div className="flex items-center gap-2">
                 <label className="text-sm font-medium text-gray-600">ID:</label>
-                <input 
-                  type="number" 
-                  value={filterId} 
-                  onChange={(e) => setFilterId(e.target.value)} 
-                  placeholder="Enter ID" 
-                  className="border px-3 py-2 rounded-lg w-32 focus:outline-none focus:ring-2 focus:ring-blue-200" 
+                <input
+                  type="number"
+                  value={filterId}
+                  onChange={(e) => setFilterId(e.target.value)}
+                  placeholder="Enter ID"
+                  className="border px-3 py-2 rounded-lg w-32 focus:outline-none focus:ring-2 focus:ring-blue-200"
                 />
                 {filterId && (
-                  <button onClick={() => setFilterId("")} className="text-red-500 hover:text-red-700">Clear</button>
+                  <button
+                    onClick={() => setFilterId("")}
+                    className="text-red-500 hover:text-red-700"
+                  >
+                    Clear
+                  </button>
                 )}
               </div>
             )}
 
             {filterType === "status" && (
               <div className="flex items-center gap-2">
-                <label className="text-sm font-medium text-gray-600">Status:</label>
-                <select 
-                  value={filterStatus} 
-                  onChange={(e) => setFilterStatus(e.target.value)} 
+                <label className="text-sm font-medium text-gray-600">
+                  Status:
+                </label>
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
                   className="border px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200"
                 >
                   <option value="">All Status</option>
@@ -1079,26 +1373,40 @@ export default function GrowTags() {
                   <option value="Inactive">Inactive</option>
                 </select>
                 {filterStatus && (
-                  <button onClick={() => setFilterStatus("")} className="text-red-500 hover:text-red-700">Clear</button>
+                  <button
+                    onClick={() => setFilterStatus("")}
+                    className="text-red-500 hover:text-red-700"
+                  >
+                    Clear
+                  </button>
                 )}
               </div>
             )}
 
             {filterType === "created_by" && (
               <div className="flex items-center gap-2">
-                <label className="text-sm font-medium text-gray-600">Created By:</label>
-                <select 
-                  value={filterCreatedBy} 
-                  onChange={(e) => setFilterCreatedBy(e.target.value)} 
+                <label className="text-sm font-medium text-gray-600">
+                  Created By:
+                </label>
+                <select
+                  value={filterCreatedBy}
+                  onChange={(e) => setFilterCreatedBy(e.target.value)}
                   className="border px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200"
                 >
                   <option value="">All Creators</option>
                   {creators.map((creator) => (
-                    <option key={creator.value} value={creator.value}>{creator.label}</option>
+                    <option key={creator.value} value={creator.value}>
+                      {creator.label}
+                    </option>
                   ))}
                 </select>
                 {filterCreatedBy && (
-                  <button onClick={() => setFilterCreatedBy("")} className="text-red-500 hover:text-red-700">Clear</button>
+                  <button
+                    onClick={() => setFilterCreatedBy("")}
+                    className="text-red-500 hover:text-red-700"
+                  >
+                    Clear
+                  </button>
                 )}
               </div>
             )}
@@ -1144,7 +1452,9 @@ export default function GrowTags() {
       {!loading && (
         <div className="hidden md:block bg-white shadow-lg rounded-2xl border border-gray-200 overflow-x-auto">
           <div className="p-4 bg-gray-50 border-b flex items-center justify-between">
-            <h2 className="font-semibold text-gray-700">Grow Tags List ({filteredUsers.length} Found)</h2>
+            <h2 className="font-semibold text-gray-700">
+              Grow Tags List ({filteredUsers.length} Found)
+            </h2>
           </div>
 
           <div className="overflow-x-auto">
@@ -1152,57 +1462,104 @@ export default function GrowTags() {
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-3 py-4 text-center w-12">
-                    <input 
-                      type="checkbox" 
-                      checked={filteredUsers.length > 0 && selectedIds.length === filteredUsers.length} 
-                      onChange={toggleSelectAll} 
-                      className="accent-blue-600 w-4 h-4" 
+                    <input
+                      type="checkbox"
+                      checked={
+                        filteredUsers.length > 0 &&
+                        selectedIds.length === filteredUsers.length
+                      }
+                      onChange={toggleSelectAll}
+                      className="accent-blue-600 w-4 h-4"
                     />
                   </th>
-                  <th className="px-3 py-4 text-center font-semibold text-gray-600 w-20">Photo</th>
-                  <th className="px-4 py-4 text-left font-semibold text-gray-700">Grow ID</th>
-                  <th className="px-4 py-4 text-left font-semibold text-gray-700">Name</th>
-                  <th className="px-4 py-4 text-left font-semibold text-gray-700">Phone</th>
-                  <th className="px-4 py-4 text-left font-semibold text-gray-700">Email</th>
-                  <th className="px-4 py-4 text-left font-semibold text-gray-700">Created By</th>
-                  <th className="px-3 py-4 text-center font-semibold text-gray-700 w-20">Status</th>
-                  <th className="px-4 py-4 text-center font-semibold text-gray-700 w-56">Actions</th>
+                  <th className="px-3 py-4 text-center font-semibold text-gray-600 w-20">
+                    Photo
+                  </th>
+                  <th className="px-4 py-4 text-left font-semibold text-gray-700">
+                    Grow ID
+                  </th>
+                  <th className="px-4 py-4 text-left font-semibold text-gray-700">
+                    Name
+                  </th>
+                  <th className="px-4 py-4 text-left font-semibold text-gray-700">
+                    Phone
+                  </th>
+                  <th className="px-4 py-4 text-left font-semibold text-gray-700">
+                    Email
+                  </th>
+                  <th className="px-4 py-4 text-left font-semibold text-gray-700">
+                    Created By
+                  </th>
+                  <th className="px-3 py-4 text-center font-semibold text-gray-700 w-20">
+                    Status
+                  </th>
+                  <th className="px-4 py-4 text-center font-semibold text-gray-700 w-56">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {filteredUsers.map((u) => (
-                  <tr key={u.id} className="border-b last:border-0 hover:bg-gray-50 transition">
+                  <tr
+                    key={u.id}
+                    className="border-b last:border-0 hover:bg-gray-50 transition"
+                  >
                     <td className="px-3 py-4 text-center align-middle">
-                      <input 
-                        type="checkbox" 
-                        checked={selectedIds.includes(u.id)} 
-                        onChange={() => toggleSelect(u.id)} 
-                        className="accent-blue-600 w-4 h-4" 
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(u.id)}
+                        onChange={() => toggleSelect(u.id)}
+                        className="accent-blue-600 w-4 h-4"
                       />
                     </td>
                     <td className="px-3 py-4 text-center align-middle">
                       {u.image ? (
-                        <img src={u.image} alt="avatar" className="w-8 h-8 rounded-full mx-auto" />
+                        <img
+                          src={u.image}
+                          alt="avatar"
+                          className="w-8 h-8 rounded-full mx-auto"
+                        />
                       ) : (
-                        <div className="w-8 h-8 rounded-full bg-gray-200 mx-auto flex items-center justify-center text-xs">—</div>
+                        <div className="w-8 h-8 rounded-full bg-gray-200 mx-auto flex items-center justify-center text-xs">
+                          —
+                        </div>
                       )}
                     </td>
-                    <td className="px-4 py-4 font-medium text-gray-800 align-middle">{u.grow_id}</td>
-                    <td className="px-4 py-4 text-gray-600 align-middle">{u.name}</td>
-                    <td className="px-4 py-4 text-gray-700 text-xs align-middle">{u.phone}</td>
-                    <td className="px-4 py-4 text-gray-600 text-xs align-middle truncate max-w-[150px]" title={u.email}>{u.email || "-"}</td>
+                    <td className="px-4 py-4 font-medium text-gray-800 align-middle">
+                      {u.grow_id}
+                    </td>
+                    <td className="px-4 py-4 text-gray-600 align-middle">
+                      {u.name}
+                    </td>
+                    <td className="px-4 py-4 text-gray-700 text-xs align-middle">
+                      {u.phone}
+                    </td>
+                    <td
+                      className="px-4 py-4 text-gray-600 text-xs align-middle truncate max-w-[150px]"
+                      title={u.email}
+                    >
+                      {u.email || "-"}
+                    </td>
                     <td className="px-4 py-4 align-middle">
                       {u.created_by ? (
                         <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs">
                           <UserCircle size={12} />
-                          {u.created_by.username || u.created_by.email || u.created_by}
+                          {u.created_by.username ||
+                            u.created_by.email ||
+                            u.created_by}
                         </span>
-                      ) : "—"}
+                      ) : (
+                        "—"
+                      )}
                     </td>
                     <td className="px-3 py-4 text-center align-middle">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        u.status === "Active" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                      }`}>
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          u.status === "Active"
+                            ? "bg-green-100 text-green-800"
+                            : "bg-red-100 text-red-800"
+                        }`}
+                      >
                         {u.status}
                       </span>
                     </td>
@@ -1237,7 +1594,9 @@ export default function GrowTags() {
                   <tr>
                     <td colSpan={9} className="py-12 text-center text-gray-500">
                       <Tag size={48} className="mx-auto text-gray-300 mb-3" />
-                      <p className="text-lg font-medium text-gray-600 mb-1">No grow tags found</p>
+                      <p className="text-lg font-medium text-gray-600 mb-1">
+                        No grow tags found
+                      </p>
                       <p className="text-sm text-gray-400">
                         {searchQuery || filterType !== "all"
                           ? "Try adjusting your search or filter criteria"
@@ -1257,22 +1616,35 @@ export default function GrowTags() {
         <div className="md:hidden space-y-4">
           {filteredUsers.length > 0 ? (
             filteredUsers.map((u) => (
-              <div key={u.id} className="bg-white rounded-xl border shadow p-5 space-y-3">
+              <div
+                key={u.id}
+                className="bg-white rounded-xl border shadow p-5 space-y-3"
+              >
                 <div className="flex justify-between items-start">
                   <div className="flex items-center gap-3">
                     {u.image ? (
-                      <img src={u.image} className="w-12 h-12 rounded-full" alt="avatar" />
+                      <img
+                        src={u.image}
+                        className="w-12 h-12 rounded-full"
+                        alt="avatar"
+                      />
                     ) : (
-                      <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center">—</div>
+                      <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center">
+                        —
+                      </div>
                     )}
                     <div>
                       <p className="font-bold">{u.name}</p>
                       <p className="text-xs text-gray-500">{u.grow_id}</p>
                     </div>
                   </div>
-                  <span className={`text-xs px-2 py-1 rounded-full ${
-                    u.status === "Active" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-                  }`}>
+                  <span
+                    className={`text-xs px-2 py-1 rounded-full ${
+                      u.status === "Active"
+                        ? "bg-green-100 text-green-700"
+                        : "bg-red-100 text-red-700"
+                    }`}
+                  >
                     {u.status}
                   </span>
                 </div>
@@ -1283,7 +1655,10 @@ export default function GrowTags() {
                   {u.created_by && (
                     <p className="flex items-center gap-1 text-xs text-gray-500">
                       <UserCircle size={12} />
-                      Created by: {u.created_by.username || u.created_by.email || u.created_by}
+                      Created by:{" "}
+                      {u.created_by.username ||
+                        u.created_by.email ||
+                        u.created_by}
                     </p>
                   )}
                 </div>
@@ -1316,7 +1691,9 @@ export default function GrowTags() {
           ) : (
             <div className="bg-white rounded-xl shadow border p-8 text-center">
               <Tag size={48} className="text-gray-300 mx-auto mb-3" />
-              <p className="text-lg font-medium text-gray-600 mb-1">No grow tags found</p>
+              <p className="text-lg font-medium text-gray-600 mb-1">
+                No grow tags found
+              </p>
               <p className="text-sm text-gray-400 mb-4">
                 {searchQuery || filterType !== "all"
                   ? "Try adjusting your search or filter criteria"
@@ -1324,7 +1701,10 @@ export default function GrowTags() {
               </p>
               {!searchQuery && filterType === "all" && (
                 <button
-                  onClick={() => { resetForm(); setShowFormModal(true); }}
+                  onClick={() => {
+                    resetForm();
+                    setShowFormModal(true);
+                  }}
                   className="bg-blue-600 text-white px-6 py-2.5 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
                 >
                   + Add Your First Grow Tag
@@ -1344,7 +1724,10 @@ export default function GrowTags() {
               <h2 className="text-xl font-bold text-gray-800">
                 {isEdit ? "Edit Grow Tag" : "Add Grow Tag"}
               </h2>
-              <button onClick={closeFormModal} className="text-gray-400 hover:text-gray-600">
+              <button
+                onClick={closeFormModal}
+                className="text-gray-400 hover:text-gray-600"
+              >
                 <X size={24} />
               </button>
             </div>
@@ -1357,17 +1740,36 @@ export default function GrowTags() {
                   <div className="relative group">
                     <div className="w-20 h-20 rounded-full bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-200 overflow-hidden flex items-center justify-center">
                       {preview ? (
-                        <img src={preview} alt="preview" className="w-full h-full object-cover" />
+                        <img
+                          src={preview}
+                          alt="preview"
+                          className="w-full h-full object-cover"
+                        />
                       ) : (
-                        <svg className="w-8 h-8 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        <svg
+                          className="w-8 h-8 text-green-400"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                          />
                         </svg>
                       )}
                     </div>
                   </div>
                   <label className="cursor-pointer bg-gradient-to-r from-green-600 to-green-500 text-white text-xs font-semibold px-5 py-2 mt-3 rounded-full">
                     Choose Photo
-                    <input type="file" accept="image/*" onChange={handlePhoto} className="hidden" />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handlePhoto}
+                      className="hidden"
+                    />
                   </label>
                 </div>
 
@@ -1377,7 +1779,11 @@ export default function GrowTags() {
                   <div className="flex flex-col space-y-2">
                     <label className="text-sm font-semibold text-gray-700">
                       Grow ID <span className="text-red-500">*</span>
-                      {!isEdit && <span className="text-xs text-gray-500 ml-2">(Auto-generated, editable)</span>}
+                      {!isEdit && (
+                        <span className="text-xs text-gray-500 ml-2">
+                          (Auto-generated, editable)
+                        </span>
+                      )}
                     </label>
                     <input
                       type="text"
@@ -1387,12 +1793,18 @@ export default function GrowTags() {
                       className={`px-4 py-2.5 border rounded-lg ${errors.grow_id ? "border-red-500" : "border-gray-300"}`}
                       placeholder="Enter Grow ID"
                     />
-                    {errors.grow_id && <span className="text-red-500 text-xs">{errors.grow_id}</span>}
+                    {errors.grow_id && (
+                      <span className="text-red-500 text-xs">
+                        {errors.grow_id}
+                      </span>
+                    )}
                   </div>
 
                   {/* Name */}
                   <div className="flex flex-col space-y-2">
-                    <label className="text-sm font-semibold text-gray-700">Name <span className="text-red-500">*</span></label>
+                    <label className="text-sm font-semibold text-gray-700">
+                      Name <span className="text-red-500">*</span>
+                    </label>
                     <input
                       type="text"
                       name="name"
@@ -1401,14 +1813,23 @@ export default function GrowTags() {
                       className={`px-4 py-2.5 border rounded-lg ${errors.name ? "border-red-500" : "border-gray-300"}`}
                       placeholder="Enter full name"
                     />
-                    {errors.name && <span className="text-red-500 text-xs">{errors.name}</span>}
+                    {errors.name && (
+                      <span className="text-red-500 text-xs">
+                        {errors.name}
+                      </span>
+                    )}
                   </div>
 
                   {/* Password */}
                   <div className="flex flex-col space-y-2">
                     <label className="text-sm font-semibold text-gray-700">
-                      Password {!isEdit && <span className="text-red-500">*</span>}
-                      {isEdit && <span className="text-gray-400 text-xs ml-1">(Leave empty to keep current)</span>}
+                      Password{" "}
+                      {!isEdit && <span className="text-red-500">*</span>}
+                      {isEdit && (
+                        <span className="text-gray-400 text-xs ml-1">
+                          (Leave empty to keep current)
+                        </span>
+                      )}
                     </label>
                     <div className="relative">
                       <input
@@ -1417,22 +1838,39 @@ export default function GrowTags() {
                         value={form.password}
                         onChange={handleChange}
                         className={`px-4 py-2.5 pr-12 border rounded-lg w-full ${errors.password ? "border-red-500" : "border-gray-300"}`}
-                        placeholder={isEdit ? "Leave empty to keep current" : "Enter password"}
+                        placeholder={
+                          isEdit
+                            ? "Leave empty to keep current"
+                            : "Enter password (min 6 chars)"
+                        }
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
                       >
-                        {showPassword ? <Eye size={20} /> : <EyeOff size={20} />}
+                        {showPassword ? (
+                          <Eye size={20} />
+                        ) : (
+                          <EyeOff size={20} />
+                        )}
                       </button>
                     </div>
-                    {errors.password && <span className="text-red-500 text-xs">{errors.password}</span>}
+                    {errors.password && (
+                      <span className="text-red-500 text-xs">
+                        {errors.password}
+                      </span>
+                    )}
+                    <span className="text-xs text-gray-500">
+                      {form.password.length}/6+ characters
+                    </span>
                   </div>
 
                   {/* Phone */}
                   <div className="flex flex-col space-y-2">
-                    <label className="text-sm font-semibold text-gray-700">Phone <span className="text-red-500">*</span></label>
+                    <label className="text-sm font-semibold text-gray-700">
+                      Phone <span className="text-red-500">*</span>
+                    </label>
                     <input
                       type="text"
                       name="phone"
@@ -1440,41 +1878,68 @@ export default function GrowTags() {
                       onChange={handleChange}
                       className={`px-4 py-2.5 border rounded-lg ${errors.phone ? "border-red-500" : "border-gray-300"}`}
                       placeholder="10-digit mobile number"
+                      maxLength={10}
                     />
-                    {errors.phone && <span className="text-red-500 text-xs">{errors.phone}</span>}
+                    {errors.phone && (
+                      <span className="text-red-500 text-xs">
+                        {errors.phone}
+                      </span>
+                    )}
                   </div>
 
                   {/* Email */}
                   <div className="flex flex-col space-y-2">
-                    <label className="text-sm font-semibold text-gray-700">Email <span className="text-red-500">*</span></label>
+                    <label className="text-sm font-semibold text-gray-700">
+                      Email <span className="text-red-500">*</span>
+                    </label>
                     <input
                       type="email"
                       name="email"
                       value={form.email}
                       onChange={handleChange}
+                      onBlur={handleEmailBlur}
                       className={`px-4 py-2.5 border rounded-lg ${errors.email ? "border-red-500" : "border-gray-300"}`}
                       placeholder="user@example.com"
                     />
-                    {errors.email && <span className="text-red-500 text-xs">{errors.email}</span>}
+                    {errors.email && (
+                      <span className="text-red-500 text-xs">
+                        {errors.email}
+                      </span>
+                    )}
                   </div>
 
                   {/* Pincode */}
                   <div className="flex flex-col space-y-2">
-                    <label className="text-sm font-semibold text-gray-700">Pincode <span className="text-red-500">*</span></label>
+                    <label className="text-sm font-semibold text-gray-700">
+                      Pincode <span className="text-red-500">*</span>
+                    </label>
                     <input
                       type="text"
                       name="pincode"
                       value={form.pincode}
                       onChange={handleChange}
-                      className={`px-4 py-2.5 border rounded-lg ${errors.pincode ? "border-red-500" : "border-gray-300"}`}
+                      className={`px-4 py-2.5 border rounded-lg ${pincodeError || errors.pincode ? "border-red-500" : "border-gray-300"}`}
                       placeholder="6-digit postal code"
+                      maxLength={6}
                     />
-                    {errors.pincode && <span className="text-red-500 text-xs">{errors.pincode}</span>}
+                    {loadingAreas && (
+                      <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-500"></div>
+                        Fetching location...
+                      </div>
+                    )}
+                    {(pincodeError || errors.pincode) && (
+                      <span className="text-red-500 text-xs">
+                        {pincodeError || errors.pincode}
+                      </span>
+                    )}
                   </div>
 
                   {/* Area */}
                   <div className="flex flex-col space-y-2">
-                    <label className="text-sm font-semibold text-gray-700">Area <span className="text-red-500">*</span></label>
+                    <label className="text-sm font-semibold text-gray-700">
+                      Area <span className="text-red-500">*</span>
+                    </label>
                     <select
                       name="area"
                       value={form.area}
@@ -1484,15 +1949,23 @@ export default function GrowTags() {
                       <option value="">Select Area</option>
                       {loadingAreas && <option>Loading areas...</option>}
                       {areas.map((a, index) => (
-                        <option key={index} value={a.Name}>{a.Name}</option>
+                        <option key={index} value={a.Name}>
+                          {a.Name}
+                        </option>
                       ))}
                     </select>
-                    {errors.area && <span className="text-red-500 text-xs">{errors.area}</span>}
+                    {errors.area && (
+                      <span className="text-red-500 text-xs">
+                        {errors.area}
+                      </span>
+                    )}
                   </div>
 
                   {/* State */}
                   <div className="flex flex-col space-y-2">
-                    <label className="text-sm font-semibold text-gray-700">State</label>
+                    <label className="text-sm font-semibold text-gray-700">
+                      State
+                    </label>
                     <input
                       type="text"
                       name="state"
@@ -1505,7 +1978,9 @@ export default function GrowTags() {
 
                   {/* Aadhar */}
                   <div className="flex flex-col space-y-2">
-                    <label className="text-sm font-semibold text-gray-700">Aadhar <span className="text-red-500">*</span></label>
+                    <label className="text-sm font-semibold text-gray-700">
+                      Aadhar <span className="text-red-500">*</span>
+                    </label>
                     <input
                       type="text"
                       name="adhar"
@@ -1513,14 +1988,21 @@ export default function GrowTags() {
                       onChange={handleChange}
                       className={`px-4 py-2.5 border rounded-lg ${errors.adhar ? "border-red-500" : "border-gray-300"}`}
                       placeholder="12-digit Aadhar number"
+                      maxLength={12}
                     />
-                    {errors.adhar && <span className="text-red-500 text-xs">{errors.adhar}</span>}
+                    {errors.adhar && (
+                      <span className="text-red-500 text-xs">
+                        {errors.adhar}
+                      </span>
+                    )}
                   </div>
                 </div>
 
                 {/* Address */}
                 <div className="flex flex-col space-y-2">
-                  <label className="text-sm font-semibold text-gray-700">Address <span className="text-red-500">*</span></label>
+                  <label className="text-sm font-semibold text-gray-700">
+                    Address <span className="text-red-500">*</span>
+                  </label>
                   <textarea
                     name="address"
                     value={form.address}
@@ -1529,12 +2011,23 @@ export default function GrowTags() {
                     rows="3"
                     placeholder="House no, Street, Locality"
                   />
-                  {errors.address && <span className="text-red-500 text-xs">{errors.address}</span>}
+                  <div className="flex justify-between items-center">
+                    {errors.address && (
+                      <span className="text-red-500 text-xs">
+                        {errors.address}
+                      </span>
+                    )}
+                    <span className={`text-xs ${form.address.length > 200 ? 'text-red-500' : 'text-gray-500'}`}>
+                      {form.address.length}/200 characters
+                    </span>
+                  </div>
                 </div>
 
                 {/* Status */}
                 <div className="flex flex-col space-y-2">
-                  <label className="text-sm font-semibold text-gray-700">Status</label>
+                  <label className="text-sm font-semibold text-gray-700">
+                    Status
+                  </label>
                   <select
                     name="status"
                     value={form.status}
@@ -1552,7 +2045,8 @@ export default function GrowTags() {
                     * Required fields must be filled
                   </p>
                   <p className="text-xs text-blue-600 mt-1">
-                    Complete all mandatory fields to {isEdit ? "update" : "create"} the Grow Tag
+                    Complete all mandatory fields to{" "}
+                    {isEdit ? "update" : "create"} the Grow Tag
                   </p>
                 </div>
               </form>
@@ -1561,9 +2055,9 @@ export default function GrowTags() {
             {/* Fixed Footer */}
             <div className="flex-shrink-0 border-t border-gray-200 px-6 py-4 bg-gray-50 rounded-b-2xl">
               <div className="flex flex-col-reverse sm:flex-row gap-3 sm:justify-end">
-                <button 
-                  type="button" 
-                  onClick={closeFormModal} 
+                <button
+                  type="button"
+                  onClick={closeFormModal}
                   className="px-6 py-2.5 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
                   disabled={isSubmitting}
                 >
@@ -1573,15 +2067,17 @@ export default function GrowTags() {
                   type="submit"
                   onClick={handleSubmit}
                   disabled={isSubmitting}
-                  className={`px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center gap-2 ${isSubmitting ? 'opacity-70 cursor-not-allowed' : ''}`}
+                  className={`px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center gap-2 ${isSubmitting ? "opacity-70 cursor-not-allowed" : ""}`}
                 >
                   {isSubmitting ? (
                     <>
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                       {isEdit ? "Updating..." : "Creating..."}
                     </>
+                  ) : isEdit ? (
+                    "Update Grow Tag"
                   ) : (
-                    isEdit ? "Update Grow Tag" : "Create Grow Tag"
+                    "Create Grow Tag"
                   )}
                 </button>
               </div>

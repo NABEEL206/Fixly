@@ -47,6 +47,10 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
   // Track if we've loaded prefilled data
   const [prefillLoaded, setPrefillLoaded] = useState(false);
 
+  // Character count for issue
+  const [issueCharCount, setIssueCharCount] = useState(0);
+  const MAX_ISSUE_CHARS = 500; // Adjust as needed
+
   // ----------------------------------------------------------------
   // 🟢 VALIDATION UTILITY FUNCTIONS
   // ----------------------------------------------------------------
@@ -80,6 +84,15 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
     return true;
   };
 
+  const validateName = (name) => {
+    const re = /^[a-zA-Z\s\.\-]{2,50}$/;
+    return re.test(name);
+  };
+
+  const validatePhoneModel = (model) => {
+    return model.length >= 2 && model.length <= 100;
+  };
+
   // ----------------------------------------------------------------
   // RESET FORM STATES
   // ----------------------------------------------------------------
@@ -88,6 +101,7 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
     setMobile("");
     setModel("");
     setIssue("");
+    setIssueCharCount(0);
     setPassword("");
     setEmail("");
     setAddressLine("");
@@ -129,6 +143,7 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
       setEmail(data.email || "");
       setModel(data.phone_model || "");
       setIssue(data.issue_details || "");
+      setIssueCharCount((data.issue_details || "").length);
       setAddressLine(data.address || "");
       setPincode(data.pincode || "");
       setArea(data.area || "");
@@ -232,21 +247,24 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
 
   // 🔥 HANDLE PINCODE
   const handlePincode = async (value) => {
-    setPincode(value);
-    validatePincode(value);
+    // Only allow digits and limit to 6
+    const cleanedValue = value.replace(/\D/g, '').slice(0, 6);
+    setPincode(cleanedValue);
+    
+    if (cleanedValue.length === 6) {
+      validatePincode(cleanedValue);
 
-    setState("");
-    setFranchises([]);
-    setOtherShops([]);
-    setAvailableTags([]);
-    setSelectedShopId("");
-    setSelectedGrowTagId("");
-    setAssignedType("");
+      setState("");
+      setFranchises([]);
+      setOtherShops([]);
+      setAvailableTags([]);
+      setSelectedShopId("");
+      setSelectedGrowTagId("");
+      setAssignedType("");
 
-    if (value.length === 6) {
       try {
         const res = await fetch(
-          `https://api.postalpincode.in/pincode/${value}`
+          `https://api.postalpincode.in/pincode/${cleanedValue}`
         );
         const data = await res.json();
 
@@ -263,7 +281,7 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
           // If there's only one area, auto-select it
           if (list.length === 1) {
             setArea(list[0]);
-            fetchNearestOptions(value, list[0]);
+            fetchNearestOptions(cleanedValue, list[0]);
           }
         } else {
           setAreas([]);
@@ -280,6 +298,35 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
     } else {
       setAreas([]);
       setArea("");
+    }
+  };
+
+  // 🔥 HANDLE MOBILE
+  const handleMobileChange = (value) => {
+    // Only allow digits and limit to 10
+    const cleanedValue = value.replace(/\D/g, '').slice(0, 10);
+    setMobile(cleanedValue);
+    if (cleanedValue.length === 10) {
+      validateMobile(cleanedValue);
+    } else {
+      setMobileError("");
+    }
+  };
+
+  // 🔥 HANDLE NAME
+  const handleNameChange = (value) => {
+    // Only allow letters, spaces, dots, and hyphens
+    const filteredValue = value.replace(/[^a-zA-Z\s\.\-]/g, '');
+    // Prevent multiple consecutive spaces
+    const cleanValue = filteredValue.replace(/\s+/g, ' ').trimStart();
+    setName(cleanValue);
+  };
+
+  // 🔥 HANDLE ISSUE with character count
+  const handleIssueChange = (value) => {
+    if (value.length <= MAX_ISSUE_CHARS) {
+      setIssue(value);
+      setIssueCharCount(value.length);
     }
   };
 
@@ -302,16 +349,32 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
     const errors = {};
 
     if (!name.trim()) errors.name = "Customer name is required";
+    else if (!validateName(name)) errors.name = "Name must be 2-50 characters (letters and spaces only)";
+    
     if (!mobile.trim()) errors.mobile = "Mobile number is required";
+    else if (!/^\d{10}$/.test(mobile)) errors.mobile = "Mobile number must be exactly 10 digits";
+    
     if (!email.trim()) errors.email = "Email is required";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = "Enter a valid email address";
+    
     if (!password.trim()) errors.password = "Password is required";
+    
     if (!model.trim()) errors.model = "Phone model is required";
+    else if (model.length < 2 || model.length > 100) errors.model = "Phone model must be 2-100 characters";
+    
     if (!issue.trim()) errors.issue = "Issue details are required";
+    else if (issue.length < 5) errors.issue = "Issue details must be at least 5 characters";
+    
     if (!addressLine.trim()) errors.addressLine = "Address is required";
+    else if (addressLine.length < 10) errors.addressLine = "Address must be at least 10 characters";
+    
     if (!pincode.trim()) errors.pincode = "Pincode is required";
+    else if (!/^\d{6}$/.test(pincode)) errors.pincode = "Pincode must be exactly 6 digits";
+    
     if (!area.trim()) errors.area = "Area is required";
-    if (!assignedType.trim())
-      errors.assignedType = "Assignment type is required";
+    else if (area.length < 3) errors.area = "Area must be at least 3 characters";
+    
+    if (!assignedType.trim()) errors.assignedType = "Assignment type is required";
 
     // Check assignment specific validations
     if (assignedType === "franchise" && !selectedShopId) {
@@ -342,6 +405,7 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
       email,
       model,
       issue,
+      issueLength: issue.length,
       password,
       addressLine,
       pincode,
@@ -357,11 +421,11 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
     const isFormValid = validateRequiredFields();
     if (!isFormValid) {
       console.log("Form validation failed:", fieldErrors);
-      toast.error("Please fill all required fields");
+      toast.error("Please fix all validation errors");
       return;
     }
 
-    // Validate email, mobile, pincode
+    // Final validation checks
     const isEmailValid = validateEmail(email);
     const isMobileValid = validateMobile(mobile);
     const isPincodeValid = validatePincode(pincode);
@@ -425,9 +489,7 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
       
       console.log("✅ Complaint registered successfully:", response.data);
 
-      toast.success("Complaint registered successfully!", {
-        id: loadingToastId,
-      });
+      toast.dismiss(loadingToastId);
 
       if (onSuccess) onSuccess(response.data);
       onClose();
@@ -546,15 +608,24 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
                   placeholder="Enter customer name"
                   value={name}
                   onChange={(e) => {
-                    setName(e.target.value);
+                    handleNameChange(e.target.value);
                     setFieldErrors((prev) => ({ ...prev, name: "" }));
                   }}
+                  onBlur={() => {
+                    if (name && !validateName(name)) {
+                      setFieldErrors(prev => ({ ...prev, name: "Name must be 2-50 characters (letters and spaces only)" }));
+                    }
+                  }}
+                  maxLength={50}
                   className={`w-full p-2 border rounded-lg ${
                     fieldErrors.name ? "border-red-500" : "border-gray-300"
                   }`}
                 />
                 {fieldErrors.name && (
                   <p className="text-red-500 text-xs mt-1">{fieldErrors.name}</p>
+                )}
+                {name && !fieldErrors.name && (
+                  <p className="text-gray-400 text-xs mt-1 text-right">{name.length}/50</p>
                 )}
               </div>
 
@@ -564,11 +635,11 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
                   Mobile Number <span className="text-red-500">*</span>
                 </label>
                 <input
-                  type="number"
+                  type="text"
                   value={mobile}
                   onChange={(e) => {
-                    setMobile(e.target.value);
-                    validateMobile(e.target.value);
+                    handleMobileChange(e.target.value);
+                    setFieldErrors((prev) => ({ ...prev, mobile: "" }));
                   }}
                   onBlur={(e) => validateMobile(e.target.value)}
                   className={`w-full p-2 border rounded-lg ${
@@ -576,8 +647,11 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
                   }`}
                   placeholder="Enter 10 digit mobile number"
                 />
-                {mobileError && (
-                  <p className="text-red-500 text-xs mt-1">{mobileError}</p>
+                {(mobileError || fieldErrors.mobile) && (
+                  <p className="text-red-500 text-xs mt-1">{mobileError || fieldErrors.mobile}</p>
+                )}
+                {mobile && !mobileError && (
+                  <p className="text-gray-400 text-xs mt-1 text-right">{mobile.length}/10</p>
                 )}
               </div>
 
@@ -592,6 +666,7 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
                   onChange={(e) => {
                     setEmail(e.target.value);
                     validateEmail(e.target.value);
+                    setFieldErrors((prev) => ({ ...prev, email: "" }));
                   }}
                   onBlur={(e) => validateEmail(e.target.value)}
                   className={`w-full p-2 border rounded-lg ${
@@ -599,8 +674,8 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
                   }`}
                   placeholder="customer@example.com"
                 />
-                {emailError && (
-                  <p className="text-red-500 text-xs mt-1">{emailError}</p>
+                {(emailError || fieldErrors.email) && (
+                  <p className="text-red-500 text-xs mt-1">{emailError || fieldErrors.email}</p>
                 )}
               </div>
 
@@ -613,8 +688,12 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
                   <input
                     type={showPassword ? "text" : "password"}
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      setFieldErrors((prev) => ({ ...prev, password: "" }));
+                    }}
                     placeholder="Enter password"
+                    minLength={6}
                     className={`w-full p-2 border rounded-lg ${
                       fieldErrors.password ? "border-red-500" : "border-gray-300"
                     }`}
@@ -640,13 +719,20 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
                 <input
                   placeholder="e.g., iPhone 13, Samsung S23"
                   value={model}
-                  onChange={(e) => setModel(e.target.value)}
+                  onChange={(e) => {
+                    setModel(e.target.value);
+                    setFieldErrors((prev) => ({ ...prev, model: "" }));
+                  }}
+                  maxLength={100}
                   className={`w-full p-2 border rounded-lg ${
                     fieldErrors.model ? "border-red-500" : "border-gray-300"
                   }`}
                 />
                 {fieldErrors.model && (
                   <p className="text-red-500 text-xs mt-1">{fieldErrors.model}</p>
+                )}
+                {model && !fieldErrors.model && (
+                  <p className="text-gray-400 text-xs mt-1 text-right">{model.length}/100</p>
                 )}
               </div>
 
@@ -673,15 +759,22 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
                 </label>
                 <textarea
                   value={addressLine}
-                  onChange={(e) => setAddressLine(e.target.value)}
+                  onChange={(e) => {
+                    setAddressLine(e.target.value);
+                    setFieldErrors((prev) => ({ ...prev, addressLine: "" }));
+                  }}
                   placeholder="House no, street, landmark"
                   rows="2"
+                  maxLength={200}
                   className={`w-full p-2 border rounded-lg ${
                     fieldErrors.addressLine ? "border-red-500" : "border-gray-300"
                   }`}
                 />
                 {fieldErrors.addressLine && (
                   <p className="text-red-500 text-xs mt-1">{fieldErrors.addressLine}</p>
+                )}
+                {addressLine && !fieldErrors.addressLine && (
+                  <p className="text-gray-400 text-xs mt-1 text-right">{addressLine.length}/200</p>
                 )}
               </div>
 
@@ -707,7 +800,7 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
                       Pincode <span className="text-red-500">*</span>
                     </label>
                     <input
-                      type="number"
+                      type="text"
                       value={pincode}
                       onChange={(e) => handlePincode(e.target.value)}
                       onBlur={(e) => validatePincode(e.target.value)}
@@ -716,8 +809,8 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
                       }`}
                       placeholder="Enter 6 digit pincode"
                     />
-                    {pincodeError && (
-                      <p className="text-red-500 text-xs mt-1">{pincodeError}</p>
+                    {(pincodeError || fieldErrors.pincode) && (
+                      <p className="text-red-500 text-xs mt-1">{pincodeError || fieldErrors.pincode}</p>
                     )}
                   </div>
 
@@ -760,22 +853,38 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
               </div>
             </div>
 
-            {/* Issue Details */}
+            {/* Issue Details with Live Counter */}
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">
                 Issue Details <span className="text-red-500">*</span>
               </label>
-              <textarea
-                value={issue}
-                onChange={(e) => setIssue(e.target.value)}
-                placeholder="Describe the issue in detail"
-                rows="3"
-                className={`w-full p-2 border rounded-lg ${
-                  fieldErrors.issue ? "border-red-500" : "border-gray-300"
-                }`}
-              />
+              <div className="relative">
+                <textarea
+                  value={issue}
+                  onChange={(e) => {
+                    handleIssueChange(e.target.value);
+                    setFieldErrors((prev) => ({ ...prev, issue: "" }));
+                  }}
+                  placeholder="Describe the issue in detail"
+                  rows="3"
+                  maxLength={MAX_ISSUE_CHARS}
+                  className={`w-full p-2 pr-16 border rounded-lg ${
+                    fieldErrors.issue ? "border-red-500" : "border-gray-300"
+                  }`}
+                />
+                {/* Character Counter */}
+                <div className="absolute bottom-2 right-3 text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600">
+                  <span className="font-bold">{issueCharCount}</span>
+                  <span className="opacity-75">/{MAX_ISSUE_CHARS}</span>
+                </div>
+              </div>
               {fieldErrors.issue && (
                 <p className="text-red-500 text-xs mt-1">{fieldErrors.issue}</p>
+              )}
+              {issue && issue.length < 5 && !fieldErrors.issue && (
+                <p className="text-orange-500 text-xs mt-1">
+                  {5 - issue.length} more characters needed (minimum 5)
+                </p>
               )}
             </div>
 
