@@ -1,15 +1,15 @@
 // src/pages/complaints/Complaints.jsx
 import React, { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { 
-  Eye, 
-  Edit, 
-  Trash2, 
+import {
+  Eye,
+  Edit,
+  Trash2,
   FileText,
   EyeOff,
   CheckCircle,
   XCircle,
-  UserCheck
+  UserCheck,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import axiosInstance from "@/API/axiosInstance";
@@ -59,7 +59,8 @@ export default function Complaints() {
   // Customer search states
   const [showCustomerSearch, setShowCustomerSearch] = useState(false);
   const [existingCustomers, setExistingCustomers] = useState([]);
-  const [selectedExistingCustomer, setSelectedExistingCustomer] = useState(null);
+  const [selectedExistingCustomer, setSelectedExistingCustomer] =
+    useState(null);
   const [isCheckingCustomer, setIsCheckingCustomer] = useState(false);
   const [isNewCustomer, setIsNewCustomer] = useState(true);
 
@@ -107,20 +108,39 @@ export default function Complaints() {
 
   const uniqueCreatedBy = React.useMemo(() => {
     const set = new Set();
-    complaints.forEach((c) => { if (c.created_by) set.add(c.created_by); });
+    complaints.forEach((c) => {
+      if (c.created_by) set.add(c.created_by);
+    });
     return Array.from(set).sort();
   }, [complaints]);
 
   const resetFormStates = useCallback(() => {
-    setName(""); setMobile(""); setModel(""); setIssue("");
-    setIssueCharCount(0); setAddressCharCount(0);
-    setPincode(""); setArea(""); setAreas([]); setState("");
-    setPassword(""); setEmail(""); setAddressLine("");
-    setSelectedShopId(""); setSelectedGrowTagId(""); setAssignedType("");
-    setFranchises([]); setOtherShops([]); setAvailableTags([]);
+    setName("");
+    setMobile("");
+    setModel("");
+    setIssue("");
+    setIssueCharCount(0);
+    setAddressCharCount(0);
+    setPincode("");
+    setArea("");
+    setAreas([]);
+    setState("");
+    setPassword("");
+    setEmail("");
+    setAddressLine("");
+    setSelectedShopId("");
+    setSelectedGrowTagId("");
+    setAssignedType("");
+    setFranchises([]);
+    setOtherShops([]);
+    setAvailableTags([]);
     setStatus("Assigned");
-    setEmailError(""); setMobileError(""); setPincodeError(""); setPincodeMessage("");
-    setFieldErrors({}); setAssignError(false);
+    setEmailError("");
+    setMobileError("");
+    setPincodeError("");
+    setPincodeMessage("");
+    setFieldErrors({});
+    setAssignError(false);
     setSelectedExistingCustomer(null);
     setShowCustomerSearch(false);
     setExistingCustomers([]);
@@ -130,21 +150,45 @@ export default function Complaints() {
 
   // Validation functions with real-time filtering
   const validateEmail = (value) => {
-    if (!value.trim()) { setEmailError("Email is required"); return false; }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) { setEmailError("Enter a valid email address"); return false; }
-    setEmailError(""); return true;
+    if (!value.trim()) {
+      setEmailError("Email is required");
+      return false;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+      setEmailError("Enter a valid email address");
+      return false;
+    }
+    setEmailError("");
+    return true;
   };
 
   const validateMobile = (value) => {
-    if (!value.trim()) { setMobileError("Mobile number is required"); return false; }
-    if (!/^\d{10}$/.test(value)) { setMobileError("Mobile number must be exactly 10 digits"); return false; }
-    setMobileError(""); return true;
+    if (!value.trim()) {
+      setMobileError("Mobile number is required");
+      return false;
+    }
+    if (!/^\d{10}$/.test(value)) {
+      setMobileError("Mobile number must be exactly 10 digits");
+      return false;
+    }
+    setMobileError("");
+    return true;
   };
 
   const validatePincode = (value) => {
-    if (!value.trim()) { setPincodeError("Pincode is required"); setPincodeMessage("Pincode is required"); return false; }
-    if (!/^\d{6}$/.test(value)) { setPincodeError("Pincode must be exactly 6 digits"); setPincodeMessage("Pincode must be exactly 6 digits"); return false; }
-    setPincodeError(""); setPincodeMessage(""); return true;
+    if (!value.trim()) {
+      setPincodeError("Pincode is required");
+      setPincodeMessage("Pincode is required");
+      return false;
+    }
+    if (!/^\d{6}$/.test(value)) {
+      setPincodeError("Pincode must be exactly 6 digits");
+      setPincodeMessage("Pincode must be exactly 6 digits");
+      return false;
+    }
+    setPincodeError("");
+    setPincodeMessage("");
+    return true;
   };
 
   const validateName = (value) => {
@@ -158,40 +202,54 @@ export default function Complaints() {
   const validateRequiredFields = () => {
     const errors = {};
     if (!name.trim()) errors.name = "Customer name is required";
-    else if (name.length < 2) errors.name = "Name must be at least 2 characters";
-    else if (name.length > 50) errors.name = "Name must be less than 50 characters";
-    
+    else if (name.length < 2)
+      errors.name = "Name must be at least 2 characters";
+    else if (name.length > 50)
+      errors.name = "Name must be less than 50 characters";
+
     if (!mobile.trim()) errors.mobile = "Mobile number is required";
-    else if (!/^\d{10}$/.test(mobile)) errors.mobile = "Mobile number must be exactly 10 digits";
-    
+    else if (!/^\d{10}$/.test(mobile))
+      errors.mobile = "Mobile number must be exactly 10 digits";
+
     if (!email.trim()) errors.email = "Email is required";
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = "Enter a valid email address";
-    
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+      errors.email = "Enter a valid email address";
+
     // Only require password for new customers (not during edit)
-    if (!isEdit && isNewCustomer && !password.trim()) errors.password = "Password is required for new customer";
-    
+    if (!isEdit && isNewCustomer && !password.trim())
+      errors.password = "Password is required for new customer";
+
     if (!model.trim()) errors.model = "Phone model is required";
-    else if (model.length < 2) errors.model = "Phone model must be at least 2 characters";
-    
+    else if (model.length < 2)
+      errors.model = "Phone model must be at least 2 characters";
+
     if (!issue.trim()) errors.issue = "Issue details are required";
-    else if (issue.length < 5) errors.issue = "Issue details must be at least 5 characters";
-    
+    else if (issue.length < 5)
+      errors.issue = "Issue details must be at least 5 characters";
+
     if (!addressLine.trim()) errors.addressLine = "Address is required";
-    else if (addressLine.length < 10) errors.addressLine = "Address must be at least 10 characters";
-    
+    else if (addressLine.length < 10)
+      errors.addressLine = "Address must be at least 10 characters";
+
     if (!state.trim()) errors.state = "State is required";
     if (!pincode.trim()) errors.pincode = "Pincode is required";
-    else if (!/^\d{6}$/.test(pincode)) errors.pincode = "Pincode must be exactly 6 digits";
-    
+    else if (!/^\d{6}$/.test(pincode))
+      errors.pincode = "Pincode must be exactly 6 digits";
+
     if (!area.trim()) errors.area = "Area is required";
-    else if (area.length < 3) errors.area = "Area must be at least 3 characters";
-    
-    if (!assignedType.trim()) errors.assignedType = "Assignment type is required";
-    if ((assignedType === "franchise" || assignedType === "other_shops") && !selectedShopId)
+    else if (area.length < 3)
+      errors.area = "Area must be at least 3 characters";
+
+    if (!assignedType.trim())
+      errors.assignedType = "Assignment type is required";
+    if (
+      (assignedType === "franchise" || assignedType === "other_shops") &&
+      !selectedShopId
+    )
       errors.assignment = "Please select a shop";
     if (assignedType === "growtag" && !selectedGrowTagId)
       errors.assignment = "Please select a grow tag";
-    
+
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -204,7 +262,9 @@ export default function Complaints() {
       if (Array.isArray(data)) setComplaints(data);
       else if (data?.results) setComplaints(data.results);
       else setComplaints([]);
-    } catch {
+    } catch (error) {
+      if (!error.response) return; // network handled globally
+
       toast.error("Failed to load complaints.");
       setComplaints([]);
     } finally {
@@ -225,52 +285,59 @@ export default function Complaints() {
     }
   }, []);
 
-  useEffect(() => { 
-    fetchComplaints(); 
+  useEffect(() => {
+    fetchComplaints();
     fetchCustomers();
   }, [fetchComplaints, fetchCustomers]);
 
   // Check for existing customer by email
-  const checkExistingCustomer = useCallback(async (emailValue) => {
-    if (!emailValue || !validateEmail(emailValue)) {
-      setExistingCustomers([]);
-      setShowCustomerSearch(false);
-      return;
-    }
+  const checkExistingCustomer = useCallback(
+    async (emailValue) => {
+      if (!emailValue || !validateEmail(emailValue)) {
+        setExistingCustomers([]);
+        setShowCustomerSearch(false);
+        return;
+      }
 
-    setIsCheckingCustomer(true);
-    try {
-      // Search in already fetched customers first
-      const matchedCustomers = customers.filter(c => 
-        c.email?.toLowerCase() === emailValue.toLowerCase()
-      );
-
-      if (matchedCustomers.length > 0) {
-        setExistingCustomers(matchedCustomers);
-        setShowCustomerSearch(true);
-      } else {
-        // If not found in local cache, try API search
-        const response = await axiosInstance.get(`${CUSTOMER_API}?email=${encodeURIComponent(emailValue)}`);
-        const data = response.data;
-        const foundCustomers = Array.isArray(data) ? data : data.results || [];
-        const exactMatches = foundCustomers.filter(c => 
-          c.email?.toLowerCase() === emailValue.toLowerCase()
+      setIsCheckingCustomer(true);
+      try {
+        // Search in already fetched customers first
+        const matchedCustomers = customers.filter(
+          (c) => c.email?.toLowerCase() === emailValue.toLowerCase(),
         );
-        
-        if (exactMatches.length > 0) {
-          setExistingCustomers(exactMatches);
+
+        if (matchedCustomers.length > 0) {
+          setExistingCustomers(matchedCustomers);
           setShowCustomerSearch(true);
         } else {
-          setExistingCustomers([]);
-          setShowCustomerSearch(false);
+          // If not found in local cache, try API search
+          const response = await axiosInstance.get(
+            `${CUSTOMER_API}?email=${encodeURIComponent(emailValue)}`,
+          );
+          const data = response.data;
+          const foundCustomers = Array.isArray(data)
+            ? data
+            : data.results || [];
+          const exactMatches = foundCustomers.filter(
+            (c) => c.email?.toLowerCase() === emailValue.toLowerCase(),
+          );
+
+          if (exactMatches.length > 0) {
+            setExistingCustomers(exactMatches);
+            setShowCustomerSearch(true);
+          } else {
+            setExistingCustomers([]);
+            setShowCustomerSearch(false);
+          }
         }
+      } catch (error) {
+        console.error("Error checking customer:", error);
+      } finally {
+        setIsCheckingCustomer(false);
       }
-    } catch (error) {
-      console.error("Error checking customer:", error);
-    } finally {
-      setIsCheckingCustomer(false);
-    }
-  }, [customers]);
+    },
+    [customers],
+  );
 
   // Check customer when email changes
   useEffect(() => {
@@ -295,7 +362,7 @@ export default function Complaints() {
     setState(customer.state || "");
     setPincode(customer.pincode || "");
     setIsNewCustomer(false);
-    
+
     // If pincode is present, fetch areas
     if (customer.pincode && /^\d{6}$/.test(customer.pincode)) {
       handlePincode(customer.pincode, true).then(() => {
@@ -307,7 +374,7 @@ export default function Complaints() {
         }
       });
     }
-    
+
     setShowCustomerSearch(false);
     setExistingCustomers([]);
     toast.success(`Customer "${customer.customer_name}" selected`);
@@ -322,64 +389,90 @@ export default function Complaints() {
   };
 
   // Fetch nearest options
-  const fetchNearestOptions = useCallback(async (pcode, selectedArea, complaint = null) => {
-    if (!/^\d{6}$/.test(pcode) || !selectedArea) return;
+  const fetchNearestOptions = useCallback(
+    async (pcode, selectedArea, complaint = null) => {
+      if (!/^\d{6}$/.test(pcode) || !selectedArea) return;
 
-    setFranchises([]); setOtherShops([]); setAvailableTags([]);
-    setIsFetchingNearest(true);
+      setFranchises([]);
+      setOtherShops([]);
+      setAvailableTags([]);
+      setIsFetchingNearest(true);
 
-    try {
-      const response = await axiosInstance.get(NEAREST_OPTIONS_API, {
-        params: {
-          pincode: pcode,
-          area: selectedArea
+      try {
+        const response = await axiosInstance.get(NEAREST_OPTIONS_API, {
+          params: {
+            pincode: pcode,
+            area: selectedArea,
+          },
+        });
+
+        const data = response.data;
+        const fetchedFranchises = Array.isArray(data.franchise_shops)
+          ? data.franchise_shops
+          : [];
+        const fetchedOtherShops = Array.isArray(data.other_shops)
+          ? data.other_shops
+          : [];
+        const fetchedTags = Array.isArray(data.growtags) ? data.growtags : [];
+
+        setFranchises(fetchedFranchises);
+        setOtherShops(fetchedOtherShops);
+        setAvailableTags(fetchedTags);
+
+        // Prefill assignment selection when editing
+        if (complaint) {
+          const assignType = complaint.assign_to;
+          const assignedShopId = complaint.assigned_shop?.toString();
+          const assignedGrowtagId = complaint.assigned_Growtags?.toString();
+
+          if (assignType === "franchise") {
+            setAssignedType("franchise");
+            if (
+              assignedShopId &&
+              fetchedFranchises.some((f) => f.id.toString() === assignedShopId)
+            )
+              setSelectedShopId(assignedShopId);
+          } else if (assignType === "othershop") {
+            setAssignedType("other_shops");
+            if (
+              assignedShopId &&
+              fetchedOtherShops.some((s) => s.id.toString() === assignedShopId)
+            )
+              setSelectedShopId(assignedShopId);
+          } else if (assignType === "growtag") {
+            setAssignedType("growtag");
+            if (
+              assignedGrowtagId &&
+              fetchedTags.some((g) => g.id.toString() === assignedGrowtagId)
+            )
+              setSelectedGrowTagId(assignedGrowtagId);
+          }
         }
-      });
-      
-      const data = response.data;
-      const fetchedFranchises = Array.isArray(data.franchise_shops) ? data.franchise_shops : [];
-      const fetchedOtherShops = Array.isArray(data.other_shops) ? data.other_shops : [];
-      const fetchedTags = Array.isArray(data.growtags) ? data.growtags : [];
+      } catch (error) {
+        if (!error.response) return;
 
-      setFranchises(fetchedFranchises);
-      setOtherShops(fetchedOtherShops);
-      setAvailableTags(fetchedTags);
-
-      // Prefill assignment selection when editing
-      if (complaint) {
-        const assignType = complaint.assign_to;
-        const assignedShopId = complaint.assigned_shop?.toString();
-        const assignedGrowtagId = complaint.assigned_Growtags?.toString();
-
-        if (assignType === "franchise") {
-          setAssignedType("franchise");
-          if (assignedShopId && fetchedFranchises.some((f) => f.id.toString() === assignedShopId))
-            setSelectedShopId(assignedShopId);
-        } else if (assignType === "othershop") {
-          setAssignedType("other_shops");
-          if (assignedShopId && fetchedOtherShops.some((s) => s.id.toString() === assignedShopId))
-            setSelectedShopId(assignedShopId);
-        } else if (assignType === "growtag") {
-          setAssignedType("growtag");
-          if (assignedGrowtagId && fetchedTags.some((g) => g.id.toString() === assignedGrowtagId))
-            setSelectedGrowTagId(assignedGrowtagId);
-        }
+        toast.error("Failed to load nearest assignment options");
+      } finally {
+        setIsFetchingNearest(false);
       }
-    } catch {
-      toast.error("Failed to load nearest assignment options");
-    } finally {
-      setIsFetchingNearest(false);
-    }
-  }, []);
+    },
+    [],
+  );
 
   const handlePincode = async (value, skipNearest = false) => {
     // Only allow digits and limit to 6
-    const cleanedValue = value.replace(/\D/g, '').slice(0, 6);
+    const cleanedValue = value.replace(/\D/g, "").slice(0, 6);
     setPincode(cleanedValue);
-    setPincodeError(""); setPincodeMessage("");
-    setAreas([]); setArea(""); setState("");
+    setPincodeError("");
+    setPincodeMessage("");
+    setAreas([]);
+    setArea("");
+    setState("");
 
-    if (!cleanedValue) { setPincodeMessage("Pincode is required"); return; }
+    if (!cleanedValue) {
+      setPincodeMessage("Pincode is required");
+      return;
+    }
     if (!/^\d{6}$/.test(cleanedValue)) {
       setPincodeError("Pincode must be exactly 6 digits");
       setPincodeMessage("Pincode must be exactly 6 digits");
@@ -388,7 +481,9 @@ export default function Complaints() {
 
     setIsPincodeLoading(true);
     try {
-      const res = await fetch(`https://api.postalpincode.in/pincode/${cleanedValue}`);
+      const res = await fetch(
+        `https://api.postalpincode.in/pincode/${cleanedValue}`,
+      );
       if (!res.ok) throw new Error();
       const data = await res.json();
       if (data[0]?.Status !== "Success") {
@@ -414,12 +509,14 @@ export default function Complaints() {
 
   const handleAssignTypeChange = (value) => {
     setAssignedType(value);
-    setSelectedShopId(""); setSelectedGrowTagId(""); setAssignError(false);
+    setSelectedShopId("");
+    setSelectedGrowTagId("");
+    setAssignError(false);
   };
 
   // Handle mobile input with real-time filtering
   const handleMobileChange = (value) => {
-    const cleanedValue = value.replace(/\D/g, '').slice(0, 10);
+    const cleanedValue = value.replace(/\D/g, "").slice(0, 10);
     setMobile(cleanedValue);
     if (cleanedValue.length === 10) {
       validateMobile(cleanedValue);
@@ -430,8 +527,8 @@ export default function Complaints() {
 
   // Handle name input with real-time filtering (letters, spaces, dots, hyphens)
   const handleNameChange = (value) => {
-    const filteredValue = value.replace(/[^a-zA-Z\s\.\-]/g, '');
-    const cleanValue = filteredValue.replace(/\s+/g, ' ').trimStart();
+    const filteredValue = value.replace(/[^a-zA-Z\s\.\-]/g, "");
+    const cleanValue = filteredValue.replace(/\s+/g, " ").trimStart();
     setName(cleanValue);
   };
 
@@ -469,7 +566,7 @@ export default function Complaints() {
     setPincode(editComplaint.pincode || "");
     setState(editComplaint.state || "");
     setIsNewCustomer(false);
-    
+
     // Set the selected customer
     if (editComplaint.customer) {
       setSelectedExistingCustomer(editComplaint.customer);
@@ -478,18 +575,26 @@ export default function Complaints() {
     const restoreLocation = async () => {
       if (!editComplaint.pincode) return;
       try {
-        const res = await fetch(`https://api.postalpincode.in/pincode/${editComplaint.pincode}`);
+        const res = await fetch(
+          `https://api.postalpincode.in/pincode/${editComplaint.pincode}`,
+        );
         const data = await res.json();
         if (data[0]?.Status === "Success") {
           const postOffices = data[0].PostOffice || [];
           setAreas(postOffices.map((p) => p.Name));
           setState(data[0].PostOffice[0]?.State || editComplaint.state || "");
         }
-      } catch { /* use state from complaint */ }
+      } catch {
+        /* use state from complaint */
+      }
 
       if (editComplaint.area) {
         setArea(editComplaint.area);
-        fetchNearestOptions(editComplaint.pincode, editComplaint.area, editComplaint);
+        fetchNearestOptions(
+          editComplaint.pincode,
+          editComplaint.area,
+          editComplaint,
+        );
       }
     };
 
@@ -502,22 +607,31 @@ export default function Complaints() {
     const invalidAssign =
       !assignedType ||
       (assignedType === "growtag" && !selectedGrowTagId) ||
-      ((assignedType === "franchise" || assignedType === "other_shops") && !selectedShopId);
+      ((assignedType === "franchise" || assignedType === "other_shops") &&
+        !selectedShopId);
 
     setAssignError(invalidAssign);
     const isRequiredValid = validateRequiredFields();
 
     if (invalidAssign || !isRequiredValid) {
-      toast.error(invalidAssign ? "Please assign the complaint" : "Please fill all required fields");
+      toast.error(
+        invalidAssign
+          ? "Please assign the complaint"
+          : "Please fill all required fields",
+      );
       return;
     }
-    if (!validateEmail(email) || !validateMobile(mobile) || !validatePincode(pincode)) {
+    if (
+      !validateEmail(email) ||
+      !validateMobile(mobile) ||
+      !validatePincode(pincode)
+    ) {
       toast.error("Please correct the highlighted form errors.");
       return;
     }
-    if (!area) { 
-      toast.error("Please select an Area after entering the Pincode."); 
-      return; 
+    if (!area) {
+      toast.error("Please select an Area after entering the Pincode.");
+      return;
     }
 
     // Map frontend assignedType to API value
@@ -526,34 +640,34 @@ export default function Complaints() {
     let assignedID = "";
 
     if (assignedType === "franchise") {
-      assignedID = selectedShopId; 
-      fkFieldName = "assigned_shop"; 
+      assignedID = selectedShopId;
+      fkFieldName = "assigned_shop";
       assignTypeAPI = "franchise";
     } else if (assignedType === "other_shops") {
-      assignedID = selectedShopId; 
-      fkFieldName = "assigned_shop"; 
+      assignedID = selectedShopId;
+      fkFieldName = "assigned_shop";
       assignTypeAPI = "othershop";
     } else if (assignedType === "growtag") {
-      assignedID = selectedGrowTagId; 
-      fkFieldName = "assigned_Growtags"; 
+      assignedID = selectedGrowTagId;
+      fkFieldName = "assigned_Growtags";
       assignTypeAPI = "growtag";
     }
 
     // Prepare complaint data
     const complaintData = {
-      customer_name: name, 
-      customer_phone: mobile, 
+      customer_name: name,
+      customer_phone: mobile,
       phone_model: model,
-      issue_details: issue, 
-      email, 
+      issue_details: issue,
+      email,
       address: addressLine,
-      state, 
-      pincode, 
-      area, 
-      status, 
+      state,
+      pincode,
+      area,
+      status,
       assign_to: assignTypeAPI,
     };
-    
+
     // Handle customer and password based on context
     if (!isEdit) {
       // New complaint
@@ -571,8 +685,9 @@ export default function Complaints() {
       }
       // Never include password during edit
     }
-    
-    if (fkFieldName && assignedID) complaintData[fkFieldName] = parseInt(assignedID, 10);
+
+    if (fkFieldName && assignedID)
+      complaintData[fkFieldName] = parseInt(assignedID, 10);
 
     console.log("Submitting complaint data:", complaintData);
 
@@ -580,7 +695,9 @@ export default function Complaints() {
     const url = isEdit ? `${COMPLAINT_API}${editComplaint.id}/` : COMPLAINT_API;
 
     setIsSubmitting(true);
-    const toastId = toast.loading(isEdit ? "Updating complaint..." : "Registering complaint...");
+    const toastId = toast.loading(
+      isEdit ? "Updating complaint..." : "Registering complaint...",
+    );
 
     try {
       let response;
@@ -589,77 +706,79 @@ export default function Complaints() {
       } else {
         response = await axiosInstance.post(url, complaintData);
       }
-      
+
       const savedComplaint = response.data;
       console.log("Success response:", savedComplaint);
 
       if (isEdit) {
-        setComplaints(prev => 
-          prev.map(c => c.id === savedComplaint.id ? savedComplaint : c)
+        setComplaints((prev) =>
+          prev.map((c) => (c.id === savedComplaint.id ? savedComplaint : c)),
         );
         toast.success("Complaint updated successfully!", { id: toastId });
       } else {
-        setComplaints(prev => [savedComplaint, ...prev]);
+        setComplaints((prev) => [savedComplaint, ...prev]);
         toast.success("Complaint registered successfully!", { id: toastId });
-        
+
         // Refresh customers list to include new customer if created
         fetchCustomers();
       }
 
-      setOpenForm(false); 
-      setIsEdit(false); 
-      setEditComplaint(null); 
+      setOpenForm(false);
+      setIsEdit(false);
+      setEditComplaint(null);
       resetFormStates();
-      
     } catch (error) {
       console.error("Error submitting complaint:", error);
       console.error("Error response data:", error.response?.data);
       console.error("Error status:", error.response?.status);
-      
+
       if (error.response?.status === 400) {
         // Handle validation errors
         const validationErrors = error.response.data;
         let errorMessage = "Validation failed: ";
-        
-        if (typeof validationErrors === 'object') {
+
+        if (typeof validationErrors === "object") {
           const errorMessages = [];
-          Object.keys(validationErrors).forEach(key => {
-            const messages = Array.isArray(validationErrors[key]) 
-              ? validationErrors[key].join(', ') 
+          Object.keys(validationErrors).forEach((key) => {
+            const messages = Array.isArray(validationErrors[key])
+              ? validationErrors[key].join(", ")
               : validationErrors[key];
             errorMessages.push(`${key}: ${messages}`);
           });
-          errorMessage = errorMessages.join(' | ');
-          
+          errorMessage = errorMessages.join(" | ");
+
           // Set field-specific errors
-          setFieldErrors(prev => ({
+          setFieldErrors((prev) => ({
             ...prev,
             ...Object.keys(validationErrors).reduce((acc, key) => {
               const fieldMap = {
-                'customer_name': 'name',
-                'customer_phone': 'mobile',
-                'phone_model': 'model',
-                'issue_details': 'issue',
-                'address': 'addressLine',
+                customer_name: "name",
+                customer_phone: "mobile",
+                phone_model: "model",
+                issue_details: "issue",
+                address: "addressLine",
               };
               const formField = fieldMap[key] || key;
-              acc[formField] = Array.isArray(validationErrors[key]) 
-                ? validationErrors[key][0] 
+              acc[formField] = Array.isArray(validationErrors[key])
+                ? validationErrors[key][0]
                 : validationErrors[key];
               return acc;
-            }, {})
+            }, {}),
           }));
         } else {
           errorMessage = error.response.data.message || "Validation failed";
         }
-        
+
         toast.error(errorMessage, { id: toastId });
       } else if (error.response?.status === 403) {
         toast.error("You don't have permission to do this.", { id: toastId });
       } else if (error.response?.status === 404) {
         toast.error("Resource not found.", { id: toastId });
       } else {
-        toast.error(`${isEdit ? "Update" : "Register"} failed. Please try again.`, { id: toastId });
+        toast.error(
+          `${isEdit ? "Update" : "Register"} failed. Please try again.`,
+          { id: toastId },
+        );
       }
     } finally {
       setIsSubmitting(false);
@@ -668,62 +787,89 @@ export default function Complaints() {
 
   const handleStatusUpdate = async (complaintId, newStatus) => {
     const original = complaints;
-    setComplaints((prev) => prev.map((c) => c.id === complaintId ? { ...c, status: newStatus } : c));
+    setComplaints((prev) =>
+      prev.map((c) => (c.id === complaintId ? { ...c, status: newStatus } : c)),
+    );
     const t = toast.loading(`Updating status to ${newStatus}...`);
     try {
-      await axiosInstance.patch(`${COMPLAINT_API}${complaintId}/`, { status: newStatus });
+      await axiosInstance.patch(`${COMPLAINT_API}${complaintId}/`, {
+        status: newStatus,
+      });
       toast.success(`Status updated to: ${newStatus}`, { id: t });
-    } catch {
+    } catch (error) {
       setComplaints(original);
+
+      if (!error.response) {
+        toast.dismiss(t);
+        return;
+      }
+
       toast.error("Failed to update status.", { id: t });
     }
   };
 
   const handleOrderConfirmation = async (complaintId) => {
     const original = complaints;
-    const complaint = complaints.find(c => c.id === complaintId);
-    const newStatus = complaint?.confirm_status === "CONFIRMED" ? "NOT CONFIRMED" : "CONFIRMED";
-    
-    setComplaints((prev) => 
-      prev.map((c) => 
-        c.id === complaintId 
-          ? { 
-              ...c, 
+    const complaint = complaints.find((c) => c.id === complaintId);
+    const newStatus =
+      complaint?.confirm_status === "CONFIRMED" ? "NOT CONFIRMED" : "CONFIRMED";
+
+    setComplaints((prev) =>
+      prev.map((c) =>
+        c.id === complaintId
+          ? {
+              ...c,
               confirm_status: newStatus,
-              confirmed_at: newStatus === "CONFIRMED" ? new Date().toISOString() : null,
-              confirmed_by: newStatus === "CONFIRMED" ? "admin" : null
-            } 
-          : c
-      )
+              confirmed_at:
+                newStatus === "CONFIRMED" ? new Date().toISOString() : null,
+              confirmed_by: newStatus === "CONFIRMED" ? "admin" : null,
+            }
+          : c,
+      ),
     );
-    
-    const t = toast.loading(newStatus === "CONFIRMED" ? "Confirming order..." : "Unconfirming order...");
-    
+
+    const t = toast.loading(
+      newStatus === "CONFIRMED"
+        ? "Confirming order..."
+        : "Unconfirming order...",
+    );
+
     try {
-      const response = await axiosInstance.patch(`${COMPLAINT_API}${complaintId}/confirm/`, { 
-        confirm_status: newStatus
-      });
-      
+      const response = await axiosInstance.patch(
+        `${COMPLAINT_API}${complaintId}/confirm/`,
+        {
+          confirm_status: newStatus,
+        },
+      );
+
       const data = response.data;
-      
-      setComplaints((prev) => 
-        prev.map((c) => 
-          c.id === complaintId 
-            ? { 
-                ...c, 
+
+      setComplaints((prev) =>
+        prev.map((c) =>
+          c.id === complaintId
+            ? {
+                ...c,
                 confirm_status: data.confirm_status,
                 confirmed_at: data.confirmed_at,
-                confirmed_by: data.confirmed_by
-              } 
-            : c
-        )
+                confirmed_by: data.confirmed_by,
+              }
+            : c,
+        ),
       );
-      
+
       toast.success(data.message || "Order confirmation updated", { id: t });
     } catch (err) {
       console.error("Order confirmation error:", err);
       setComplaints(original);
-      toast.error(err.response?.data?.message || err.message || "Failed to update order confirmation.", { id: t });
+      if (!err.response) {
+        toast.dismiss(t);
+        return;
+      }
+
+      toast.error(
+        err.response?.data?.message || "Failed to update order confirmation.",
+        { id: t },
+      );
     }
   };
 
@@ -732,10 +878,17 @@ export default function Complaints() {
     toast(
       (t) => (
         <div className="flex flex-col gap-3">
-          <p className="text-sm font-semibold text-gray-800">Delete complaint #{id}?</p>
+          <p className="text-sm font-semibold text-gray-800">
+            Delete complaint #{id}?
+          </p>
           <p className="text-xs text-gray-500">This action cannot be undone.</p>
           <div className="flex justify-end gap-2">
-            <button onClick={() => toast.dismiss(t.id)} className="px-3 py-1.5 bg-gray-200 rounded-md text-sm">Cancel</button>
+            <button
+              onClick={() => toast.dismiss(t.id)}
+              className="px-3 py-1.5 bg-gray-200 rounded-md text-sm"
+            >
+              Cancel
+            </button>
             <button
               onClick={async () => {
                 toast.dismiss(t.id);
@@ -744,35 +897,56 @@ export default function Complaints() {
                   await axiosInstance.delete(`${COMPLAINT_API}${id}/`);
                   setComplaints((prev) => prev.filter((c) => c.id !== id));
                   toast.success(`Complaint #${id} deleted`, { id: dt });
-                } catch {
+                } catch (error) {
+                  if (!error.response) {
+                    toast.dismiss(dt);
+                    return;
+                  }
+
                   toast.error("Failed to delete complaint", { id: dt });
                 }
               }}
               className="px-3 py-1.5 bg-red-600 text-white rounded-md text-sm"
-            >Delete</button>
+            >
+              Delete
+            </button>
           </div>
         </div>
       ),
-      { duration: Infinity }
+      { duration: Infinity },
     );
   };
 
   const toggleSelect = (id) =>
-    setSelectedIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
 
   const toggleSelectAll = () =>
-    setSelectedIds(selectedIds.length === filtered.length ? [] : filtered.map((c) => c.id));
+    setSelectedIds(
+      selectedIds.length === filtered.length ? [] : filtered.map((c) => c.id),
+    );
 
   const handleBulkDelete = () => {
-    if (!selectedIds.length) { toast.error("Please select at least one complaint"); return; }
+    if (!selectedIds.length) {
+      toast.error("Please select at least one complaint");
+      return;
+    }
     toast.dismiss();
     toast(
       (t) => (
         <div className="flex flex-col gap-3">
-          <p className="text-sm font-semibold text-gray-800">Delete {selectedIds.length} selected complaints?</p>
+          <p className="text-sm font-semibold text-gray-800">
+            Delete {selectedIds.length} selected complaints?
+          </p>
           <p className="text-xs text-gray-500">This action cannot be undone.</p>
           <div className="flex justify-end gap-2">
-            <button onClick={() => toast.dismiss(t.id)} className="px-3 py-1.5 bg-gray-200 rounded-md text-sm">Cancel</button>
+            <button
+              onClick={() => toast.dismiss(t.id)}
+              className="px-3 py-1.5 bg-gray-200 rounded-md text-sm"
+            >
+              Cancel
+            </button>
             <button
               onClick={async () => {
                 toast.dismiss(t.id);
@@ -782,34 +956,57 @@ export default function Complaints() {
                       await axiosInstance.delete(`${COMPLAINT_API}${id}/`);
                       return { id, ok: true };
                     } catch (error) {
-                      return { id, ok: false, status: error.response?.status || 0 };
+                      if (!error.response) {
+                        return { id, ok: false, status: "NETWORK" };
+                      }
+
+                      return { id, ok: false, status: error.response.status };
                     }
-                  })
+                  }),
                 );
 
                 const deleted = results.filter((r) => r.ok).map((r) => r.id);
-                const forbidden = results.filter((r) => r.status === 403).map((r) => r.id);
-                const notFound = results.filter((r) => r.status === 404).map((r) => r.id);
+                const forbidden = results
+                  .filter((r) => r.status === 403)
+                  .map((r) => r.id);
+                const notFound = results
+                  .filter((r) => r.status === 404)
+                  .map((r) => r.id);
 
                 if (deleted.length > 0) {
-                  setComplaints((prev) => prev.filter((c) => !deleted.includes(c.id)));
-                  setSelectedIds((prev) => prev.filter((id) => !deleted.includes(id)));
+                  setComplaints((prev) =>
+                    prev.filter((c) => !deleted.includes(c.id)),
+                  );
+                  setSelectedIds((prev) =>
+                    prev.filter((id) => !deleted.includes(id)),
+                  );
                 }
 
                 if (deleted.length === selectedIds.length) {
-                  toast.success(`${deleted.length} complaint${deleted.length > 1 ? "s" : ""} deleted`);
+                  toast.success(
+                    `${deleted.length} complaint${deleted.length > 1 ? "s" : ""} deleted`,
+                  );
                 } else {
-                  if (deleted.length > 0) toast.success(`${deleted.length} deleted successfully`);
-                  if (forbidden.length > 0) toast.error(`${forbidden.length} complaint${forbidden.length > 1 ? "s" : ""} could not be deleted (no permission)`);
-                  if (notFound.length > 0) toast.error(`${notFound.length} complaint${notFound.length > 1 ? "s" : ""} not found — already deleted?`);
+                  if (deleted.length > 0)
+                    toast.success(`${deleted.length} deleted successfully`);
+                  if (forbidden.length > 0)
+                    toast.error(
+                      `${forbidden.length} complaint${forbidden.length > 1 ? "s" : ""} could not be deleted (no permission)`,
+                    );
+                  if (notFound.length > 0)
+                    toast.error(
+                      `${notFound.length} complaint${notFound.length > 1 ? "s" : ""} not found — already deleted?`,
+                    );
                 }
               }}
               className="px-3 py-1.5 bg-red-600 text-white rounded-md text-sm"
-            >Delete</button>
+            >
+              Delete
+            </button>
           </div>
         </div>
       ),
-      { duration: Infinity }
+      { duration: Infinity },
     );
   };
 
@@ -821,16 +1018,29 @@ export default function Complaints() {
   };
 
   const handleInvoiceClick = (complaint) =>
-    navigate("/invoice", { state: { complaintData: complaint, complaintId: complaint.id } });
+    navigate("/invoice", {
+      state: { complaintData: complaint, complaintId: complaint.id },
+    });
 
   const filtered = complaints.filter((c) => {
-    const text = [c.customer_name, c.customer_phone, c.phone_model, c.issue_details, c.address]
-      .filter(Boolean).join(" ").toLowerCase();
+    const text = [
+      c.customer_name,
+      c.customer_phone,
+      c.phone_model,
+      c.issue_details,
+      c.address,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
     const matchesSearch = text.includes(search.toLowerCase());
     let matchesFilter = true;
-    if (filterType === "id" && filterId) matchesFilter = String(c.id) === filterId;
-    else if (filterType === "status" && filterStatus) matchesFilter = c.status === filterStatus;
-    else if (filterType === "created_by" && filterCreatedBy) matchesFilter = c.created_by === filterCreatedBy;
+    if (filterType === "id" && filterId)
+      matchesFilter = String(c.id) === filterId;
+    else if (filterType === "status" && filterStatus)
+      matchesFilter = c.status === filterStatus;
+    else if (filterType === "created_by" && filterCreatedBy)
+      matchesFilter = c.created_by === filterCreatedBy;
     return matchesSearch && matchesFilter;
   });
 
@@ -840,7 +1050,12 @@ export default function Complaints() {
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-8">
         <h1 className="text-3xl font-bold text-gray-800">Complaints</h1>
         <button
-          onClick={() => { setOpenForm(true); setIsEdit(false); setEditComplaint(null); resetFormStates(); }}
+          onClick={() => {
+            setOpenForm(true);
+            setIsEdit(false);
+            setEditComplaint(null);
+            resetFormStates();
+          }}
           className="bg-blue-600 text-white px-6 py-2 rounded-xl shadow-md hover:bg-blue-700 transition-all w-full md:w-auto"
           disabled={isSubmitting}
         >
@@ -857,8 +1072,8 @@ export default function Complaints() {
               <h2 className="text-lg font-semibold text-blue-700">
                 {isEdit ? "Edit Complaint" : "Register Complaint"}
               </h2>
-              <button 
-                onClick={() => setOpenForm(false)} 
+              <button
+                onClick={() => setOpenForm(false)}
                 className="text-gray-500 hover:text-red-600 text-xl"
                 disabled={isSubmitting}
               >
@@ -867,7 +1082,10 @@ export default function Complaints() {
             </div>
 
             {/* Modal Body */}
-            <div className="p-5 overflow-y-auto" style={{ maxHeight: "calc(95vh - 120px)" }}>
+            <div
+              className="p-5 overflow-y-auto"
+              style={{ maxHeight: "calc(95vh - 120px)" }}
+            >
               {/* Customer Search Section - Only for new complaints */}
               {!isEdit && (
                 <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
@@ -882,23 +1100,32 @@ export default function Complaints() {
                   <p className="text-xs text-gray-600 mb-2">
                     Enter email address to check if customer already exists
                   </p>
-                  
+
                   {/* Existing customer suggestions */}
                   {showCustomerSearch && existingCustomers.length > 0 && (
                     <div className="mt-2 space-y-1.5">
-                      <p className="text-xs font-semibold text-green-600">Existing customer found:</p>
+                      <p className="text-xs font-semibold text-green-600">
+                        Existing customer found:
+                      </p>
                       {existingCustomers.map((cust) => (
-                        <div 
+                        <div
                           key={cust.id}
                           className="p-2 bg-white rounded-lg border border-green-200"
                         >
                           <div className="flex items-start gap-2">
-                            <UserCheck size={14} className="text-green-500 mt-0.5 flex-shrink-0" />
+                            <UserCheck
+                              size={14}
+                              className="text-green-500 mt-0.5 flex-shrink-0"
+                            />
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-gray-800">{cust.customer_name}</p>
-                              <p className="text-xs text-gray-600">{cust.email} | {cust.customer_phone}</p>
+                              <p className="text-sm font-medium text-gray-800">
+                                {cust.customer_name}
+                              </p>
+                              <p className="text-xs text-gray-600">
+                                {cust.email} | {cust.customer_phone}
+                              </p>
                             </div>
-                            <button 
+                            <button
                               onClick={() => selectExistingCustomer(cust)}
                               className="text-xs bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 font-medium flex-shrink-0"
                             >
@@ -908,7 +1135,7 @@ export default function Complaints() {
                         </div>
                       ))}
                       <div className="mt-2 text-center">
-                        <button 
+                        <button
                           onClick={createNewCustomer}
                           className="text-xs text-blue-600 hover:text-blue-800 font-medium"
                         >
@@ -917,25 +1144,34 @@ export default function Complaints() {
                       </div>
                     </div>
                   )}
-                  
-                  {showCustomerSearch && existingCustomers.length === 0 && !isCheckingCustomer && (
-                    <div className="mt-2 p-2 bg-white rounded-lg border border-gray-200">
-                      <p className="text-xs text-gray-500">
-                        No existing customer found with this email. New customer will be created.
-                      </p>
-                    </div>
-                  )}
+
+                  {showCustomerSearch &&
+                    existingCustomers.length === 0 &&
+                    !isCheckingCustomer && (
+                      <div className="mt-2 p-2 bg-white rounded-lg border border-gray-200">
+                        <p className="text-xs text-gray-500">
+                          No existing customer found with this email. New
+                          customer will be created.
+                        </p>
+                      </div>
+                    )}
 
                   {/* Show when existing customer is selected */}
                   {selectedExistingCustomer && (
                     <div className="mt-2 p-2 bg-green-50 rounded-lg border border-green-200">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-xs font-semibold text-green-700">Using existing customer:</p>
-                          <p className="text-sm text-gray-800">{selectedExistingCustomer.customer_name}</p>
-                          <p className="text-xs text-gray-600">{selectedExistingCustomer.email}</p>
+                          <p className="text-xs font-semibold text-green-700">
+                            Using existing customer:
+                          </p>
+                          <p className="text-sm text-gray-800">
+                            {selectedExistingCustomer.customer_name}
+                          </p>
+                          <p className="text-xs text-gray-600">
+                            {selectedExistingCustomer.email}
+                          </p>
                         </div>
-                        <button 
+                        <button
                           onClick={createNewCustomer}
                           className="text-xs text-blue-600 hover:text-blue-800"
                         >
@@ -954,18 +1190,26 @@ export default function Complaints() {
                   <div>
                     <input
                       value={name}
-                      onChange={(e) => { 
-                        handleNameChange(e.target.value); 
-                        setFieldErrors((p) => ({ ...p, name: "" })); 
+                      onChange={(e) => {
+                        handleNameChange(e.target.value);
+                        setFieldErrors((p) => ({ ...p, name: "" }));
                       }}
                       className={`w-full px-3 py-2 text-sm border rounded-lg ${fieldErrors.name ? "border-red-500" : "border-gray-300"} focus:outline-none focus:ring-1 focus:ring-blue-200`}
                       placeholder="Customer Name *"
-                      disabled={isSubmitting || (selectedExistingCustomer && !isEdit)}
+                      disabled={
+                        isSubmitting || (selectedExistingCustomer && !isEdit)
+                      }
                       maxLength={50}
                     />
-                    {fieldErrors.name && <p className="text-red-500 text-xs mt-0.5">{fieldErrors.name}</p>}
+                    {fieldErrors.name && (
+                      <p className="text-red-500 text-xs mt-0.5">
+                        {fieldErrors.name}
+                      </p>
+                    )}
                     {name && !fieldErrors.name && (
-                      <p className="text-gray-400 text-xs mt-0.5 text-right">{name.length}/50</p>
+                      <p className="text-gray-400 text-xs mt-0.5 text-right">
+                        {name.length}/50
+                      </p>
                     )}
                   </div>
 
@@ -979,11 +1223,19 @@ export default function Complaints() {
                       className={`w-full px-3 py-2 text-sm border rounded-lg ${mobileError ? "border-red-500" : "border-gray-300"} focus:outline-none focus:ring-1 focus:ring-blue-200`}
                       placeholder="Mobile Number * (10 digits)"
                       maxLength={10}
-                      disabled={isSubmitting || (selectedExistingCustomer && !isEdit)}
+                      disabled={
+                        isSubmitting || (selectedExistingCustomer && !isEdit)
+                      }
                     />
-                    {(mobileError || fieldErrors.mobile) && <p className="text-red-500 text-xs mt-0.5">{mobileError || fieldErrors.mobile}</p>}
+                    {(mobileError || fieldErrors.mobile) && (
+                      <p className="text-red-500 text-xs mt-0.5">
+                        {mobileError || fieldErrors.mobile}
+                      </p>
+                    )}
                     {mobile && !mobileError && (
-                      <p className="text-gray-400 text-xs mt-0.5 text-right">{mobile.length}/10</p>
+                      <p className="text-gray-400 text-xs mt-0.5 text-right">
+                        {mobile.length}/10
+                      </p>
                     )}
                   </div>
 
@@ -996,19 +1248,28 @@ export default function Complaints() {
                       onBlur={(e) => validateEmail(e.target.value)}
                       className={`w-full px-3 py-2 text-sm border rounded-lg ${emailError ? "border-red-500" : "border-gray-300"} focus:outline-none focus:ring-1 focus:ring-blue-200`}
                       placeholder="Customer Email *"
-                      disabled={isSubmitting || (selectedExistingCustomer && !isEdit)}
+                      disabled={
+                        isSubmitting || (selectedExistingCustomer && !isEdit)
+                      }
                     />
-                    {(emailError || fieldErrors.email) && <p className="text-red-500 text-xs mt-0.5">{emailError || fieldErrors.email}</p>}
+                    {(emailError || fieldErrors.email) && (
+                      <p className="text-red-500 text-xs mt-0.5">
+                        {emailError || fieldErrors.email}
+                      </p>
+                    )}
                   </div>
 
                   {/* Password - Only show for new customers and hide during edit */}
-                  {(!selectedExistingCustomer && !isEdit) && (
+                  {!selectedExistingCustomer && !isEdit && (
                     <div>
                       <div className="relative">
                         <input
                           type={showPassword ? "text" : "password"}
                           value={password}
-                          onChange={(e) => { setPassword(e.target.value); setFieldErrors((p) => ({ ...p, password: "" })); }}
+                          onChange={(e) => {
+                            setPassword(e.target.value);
+                            setFieldErrors((p) => ({ ...p, password: "" }));
+                          }}
                           className={`w-full px-3 py-2 text-sm border rounded-lg ${fieldErrors.password ? "border-red-500" : "border-gray-300"} focus:outline-none focus:ring-1 focus:ring-blue-200 pr-8`}
                           placeholder="Password *"
                           disabled={isSubmitting}
@@ -1019,10 +1280,18 @@ export default function Complaints() {
                           onClick={() => setShowPassword((prev) => !prev)}
                           className="absolute inset-y-0 right-2 flex items-center text-gray-500 hover:text-gray-700"
                         >
-                          {showPassword ? <Eye size={14} /> : <EyeOff size={14} />}
+                          {showPassword ? (
+                            <Eye size={14} />
+                          ) : (
+                            <EyeOff size={14} />
+                          )}
                         </button>
                       </div>
-                      {fieldErrors.password && <p className="text-red-500 text-xs mt-0.5">{fieldErrors.password}</p>}
+                      {fieldErrors.password && (
+                        <p className="text-red-500 text-xs mt-0.5">
+                          {fieldErrors.password}
+                        </p>
+                      )}
                     </div>
                   )}
 
@@ -1031,7 +1300,8 @@ export default function Complaints() {
                     <div className="md:col-span-1">
                       <div className="bg-gray-50 p-2 rounded-lg border border-gray-200 h-full flex items-center">
                         <p className="text-xs text-gray-600">
-                          <span className="font-medium">🔒 Password:</span> Not editable in complaints
+                          <span className="font-medium">🔒 Password:</span> Not
+                          editable in complaints
                         </p>
                       </div>
                     </div>
@@ -1041,18 +1311,24 @@ export default function Complaints() {
                   <div>
                     <input
                       value={model}
-                      onChange={(e) => { 
-                        setModel(e.target.value); 
-                        setFieldErrors((p) => ({ ...p, model: "" })); 
+                      onChange={(e) => {
+                        setModel(e.target.value);
+                        setFieldErrors((p) => ({ ...p, model: "" }));
                       }}
                       className={`w-full px-3 py-2 text-sm border rounded-lg ${fieldErrors.model ? "border-red-500" : "border-gray-300"} focus:outline-none focus:ring-1 focus:ring-blue-200`}
                       placeholder="Phone Model *"
                       disabled={isSubmitting}
                       maxLength={100}
                     />
-                    {fieldErrors.model && <p className="text-red-500 text-xs mt-0.5">{fieldErrors.model}</p>}
+                    {fieldErrors.model && (
+                      <p className="text-red-500 text-xs mt-0.5">
+                        {fieldErrors.model}
+                      </p>
+                    )}
                     {model && !fieldErrors.model && (
-                      <p className="text-gray-400 text-xs mt-0.5 text-right">{model.length}/100</p>
+                      <p className="text-gray-400 text-xs mt-0.5 text-right">
+                        {model.length}/100
+                      </p>
                     )}
                   </div>
 
@@ -1063,7 +1339,11 @@ export default function Complaints() {
                     className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"
                     disabled={isSubmitting}
                   >
-                    {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+                    {STATUS_OPTIONS.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -1072,15 +1352,17 @@ export default function Complaints() {
                   <div className="relative">
                     <textarea
                       value={addressLine}
-                      onChange={(e) => { 
-                        handleAddressChange(e.target.value); 
-                        setFieldErrors((p) => ({ ...p, addressLine: "" })); 
+                      onChange={(e) => {
+                        handleAddressChange(e.target.value);
+                        setFieldErrors((p) => ({ ...p, addressLine: "" }));
                       }}
                       rows={2}
                       maxLength={MAX_ADDRESS_CHARS}
                       className={`w-full px-3 py-2 text-sm border rounded-lg ${fieldErrors.addressLine ? "border-red-500" : "border-gray-300"} focus:outline-none focus:ring-1 focus:ring-blue-200 pr-16 resize-none`}
                       placeholder="Address Line *"
-                      disabled={isSubmitting || (selectedExistingCustomer && !isEdit)}
+                      disabled={
+                        isSubmitting || (selectedExistingCustomer && !isEdit)
+                      }
                     />
                     {/* Character Counter */}
                     <div className="absolute bottom-2 right-3 text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600">
@@ -1088,12 +1370,19 @@ export default function Complaints() {
                       <span className="opacity-75">/{MAX_ADDRESS_CHARS}</span>
                     </div>
                   </div>
-                  {fieldErrors.addressLine && <p className="text-red-500 text-xs mt-0.5">{fieldErrors.addressLine}</p>}
-                  {addressLine && addressLine.length < 10 && !fieldErrors.addressLine && (
-                    <p className="text-orange-500 text-xs mt-0.5">
-                      {10 - addressLine.length} more characters needed (minimum 10)
+                  {fieldErrors.addressLine && (
+                    <p className="text-red-500 text-xs mt-0.5">
+                      {fieldErrors.addressLine}
                     </p>
                   )}
+                  {addressLine &&
+                    addressLine.length < 10 &&
+                    !fieldErrors.addressLine && (
+                      <p className="text-orange-500 text-xs mt-0.5">
+                        {10 - addressLine.length} more characters needed
+                        (minimum 10)
+                      </p>
+                    )}
                 </div>
 
                 {/* Location Grid - 3 columns */}
@@ -1128,8 +1417,12 @@ export default function Complaints() {
                         </div>
                       )}
                     </div>
-                    {(pincodeMessage || pincodeError || fieldErrors.pincode) && (
-                      <p className="text-red-500 text-xs mt-0.5">{pincodeMessage || pincodeError || fieldErrors.pincode}</p>
+                    {(pincodeMessage ||
+                      pincodeError ||
+                      fieldErrors.pincode) && (
+                      <p className="text-red-500 text-xs mt-0.5">
+                        {pincodeMessage || pincodeError || fieldErrors.pincode}
+                      </p>
                     )}
                   </div>
 
@@ -1138,22 +1431,33 @@ export default function Complaints() {
                     {areas.length > 0 ? (
                       <select
                         value={area}
-                        onChange={(e) => { handleAreaChange(e.target.value); setFieldErrors((p) => ({ ...p, area: "" })); }}
+                        onChange={(e) => {
+                          handleAreaChange(e.target.value);
+                          setFieldErrors((p) => ({ ...p, area: "" }));
+                        }}
                         className={`w-full px-3 py-2 text-sm border rounded-lg bg-white ${fieldErrors.area ? "border-red-500" : "border-gray-300"} focus:outline-none focus:ring-1 focus:ring-blue-200`}
                         disabled={isSubmitting}
                       >
                         <option value="">Select Area *</option>
-                        {areas.map((a, i) => <option key={i} value={a}>{a}</option>)}
+                        {areas.map((a, i) => (
+                          <option key={i} value={a}>
+                            {a}
+                          </option>
+                        ))}
                       </select>
                     ) : (
-                      <input 
-                        value={area} 
-                        disabled 
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-gray-50" 
-                        placeholder="Area (enter pincode first)" 
+                      <input
+                        value={area}
+                        disabled
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-gray-50"
+                        placeholder="Area (enter pincode first)"
                       />
                     )}
-                    {fieldErrors.area && <p className="text-red-500 text-xs mt-0.5">{fieldErrors.area}</p>}
+                    {fieldErrors.area && (
+                      <p className="text-red-500 text-xs mt-0.5">
+                        {fieldErrors.area}
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -1162,9 +1466,9 @@ export default function Complaints() {
                   <div className="relative">
                     <textarea
                       value={issue}
-                      onChange={(e) => { 
-                        handleIssueChange(e.target.value); 
-                        setFieldErrors((p) => ({ ...p, issue: "" })); 
+                      onChange={(e) => {
+                        handleIssueChange(e.target.value);
+                        setFieldErrors((p) => ({ ...p, issue: "" }));
                       }}
                       rows={2}
                       maxLength={MAX_ISSUE_CHARS}
@@ -1178,7 +1482,11 @@ export default function Complaints() {
                       <span className="opacity-75">/{MAX_ISSUE_CHARS}</span>
                     </div>
                   </div>
-                  {fieldErrors.issue && <p className="text-red-500 text-xs mt-0.5">{fieldErrors.issue}</p>}
+                  {fieldErrors.issue && (
+                    <p className="text-red-500 text-xs mt-0.5">
+                      {fieldErrors.issue}
+                    </p>
+                  )}
                   {issue && issue.length < 5 && !fieldErrors.issue && (
                     <p className="text-orange-500 text-xs mt-0.5">
                       {5 - issue.length} more characters needed (minimum 5)
@@ -1187,8 +1495,12 @@ export default function Complaints() {
                 </div>
 
                 {/* ASSIGN SECTION */}
-                <div className={`p-3 border rounded-lg ${assignError ? "border-red-500 bg-red-50" : "border-gray-300 bg-gray-50"}`}>
-                  <label className={`text-sm font-semibold block mb-2 ${assignError ? "text-red-600" : "text-gray-700"}`}>
+                <div
+                  className={`p-3 border rounded-lg ${assignError ? "border-red-500 bg-red-50" : "border-gray-300 bg-gray-50"}`}
+                >
+                  <label
+                    className={`text-sm font-semibold block mb-2 ${assignError ? "text-red-600" : "text-gray-700"}`}
+                  >
                     Assign To: *
                   </label>
 
@@ -1199,29 +1511,49 @@ export default function Complaints() {
                     disabled={isSubmitting}
                   >
                     <option value="">Select Type</option>
-                    <option value="franchise">Franchise ({franchises.length})</option>
-                    <option value="other_shops">Other Shops ({otherShops.length})</option>
-                    <option value="growtag">GrowTags ({availableTags.length})</option>
+                    <option value="franchise">
+                      Franchise ({franchises.length})
+                    </option>
+                    <option value="other_shops">
+                      Other Shops ({otherShops.length})
+                    </option>
+                    <option value="growtag">
+                      GrowTags ({availableTags.length})
+                    </option>
                   </select>
 
                   <div>
                     {isFetchingNearest && (
-                      <p className="text-center text-gray-600 text-xs py-1">Fetching nearest options...</p>
+                      <p className="text-center text-gray-600 text-xs py-1">
+                        Fetching nearest options...
+                      </p>
                     )}
 
-                    {(assignedType === "franchise" || assignedType === "other_shops") && !isFetchingNearest && (
-                      <select
-                        value={selectedShopId}
-                        onChange={(e) => setSelectedShopId(e.target.value)}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"
-                        disabled={isSubmitting}
-                      >
-                        <option value="">Select {assignedType === "franchise" ? "Franchise" : "Other Shop"}</option>
-                        {(assignedType === "franchise" ? franchises : otherShops).map((s) => (
-                          <option key={s.id} value={s.id}>{s.label}</option>
-                        ))}
-                      </select>
-                    )}
+                    {(assignedType === "franchise" ||
+                      assignedType === "other_shops") &&
+                      !isFetchingNearest && (
+                        <select
+                          value={selectedShopId}
+                          onChange={(e) => setSelectedShopId(e.target.value)}
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"
+                          disabled={isSubmitting}
+                        >
+                          <option value="">
+                            Select{" "}
+                            {assignedType === "franchise"
+                              ? "Franchise"
+                              : "Other Shop"}
+                          </option>
+                          {(assignedType === "franchise"
+                            ? franchises
+                            : otherShops
+                          ).map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.label}
+                            </option>
+                          ))}
+                        </select>
+                      )}
 
                     {assignedType === "growtag" && !isFetchingNearest && (
                       <select
@@ -1232,21 +1564,25 @@ export default function Complaints() {
                       >
                         <option value="">Select GrowTag</option>
                         {availableTags.map((t) => (
-                          <option key={t.id} value={t.id}>{t.label}</option>
+                          <option key={t.id} value={t.id}>
+                            {t.label}
+                          </option>
                         ))}
                       </select>
                     )}
 
                     {!isFetchingNearest && assignedType && !area && (
-                      <p className="text-xs text-amber-600 mt-1">Enter pincode and select area to load nearby options</p>
+                      <p className="text-xs text-amber-600 mt-1">
+                        Enter pincode and select area to load nearby options
+                      </p>
                     )}
                   </div>
                 </div>
 
                 {/* Submit Button */}
-                <button 
-                  type="submit" 
-                  className={`w-full bg-green-600 text-white py-2.5 rounded-lg hover:bg-green-700 font-semibold text-sm flex items-center justify-center gap-2 transition-colors ${isSubmitting ? 'opacity-70 cursor-not-allowed' : ''}`}
+                <button
+                  type="submit"
+                  className={`w-full bg-green-600 text-white py-2.5 rounded-lg hover:bg-green-700 font-semibold text-sm flex items-center justify-center gap-2 transition-colors ${isSubmitting ? "opacity-70 cursor-not-allowed" : ""}`}
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? (
@@ -1254,8 +1590,10 @@ export default function Complaints() {
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                       {isEdit ? "Updating..." : "Submitting..."}
                     </>
+                  ) : isEdit ? (
+                    "Update Complaint"
                   ) : (
-                    isEdit ? "Update Complaint" : "Submit Complaint"
+                    "Submit Complaint"
                   )}
                 </button>
               </form>
@@ -1269,52 +1607,83 @@ export default function Complaints() {
         <div className="fixed inset-0 bg-black/30 flex justify-center items-center z-50 p-4">
           <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-gray-200">
             <div className="flex justify-between items-center p-6 border-b">
-              <h2 className="text-2xl font-bold text-blue-700">Complaint Details - ID: {selectedComplaint.id}</h2>
-              <button onClick={() => setViewModalOpen(false)} className="text-gray-500 hover:text-red-600 text-lg">✖</button>
+              <h2 className="text-2xl font-bold text-blue-700">
+                Complaint Details - ID: {selectedComplaint.id}
+              </h2>
+              <button
+                onClick={() => setViewModalOpen(false)}
+                className="text-gray-500 hover:text-red-600 text-lg"
+              >
+                ✖
+              </button>
             </div>
 
             <div className="p-6 max-h-[70vh] overflow-y-auto">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">Customer Information</h3>
+                  <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">
+                    Customer Information
+                  </h3>
                   {[
                     ["Name", selectedComplaint.customer_name],
                     ["Email", selectedComplaint.email],
                     ["Mobile", selectedComplaint.customer_phone],
                   ].map(([label, val]) => (
                     <div key={label}>
-                      <label className="block text-sm font-medium text-gray-600">{label}</label>
+                      <label className="block text-sm font-medium text-gray-600">
+                        {label}
+                      </label>
                       <p className="mt-1 p-2 bg-gray-50 rounded-lg">{val}</p>
                     </div>
                   ))}
                 </div>
 
                 <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">Complaint Details</h3>
+                  <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">
+                    Complaint Details
+                  </h3>
                   <div>
-                    <label className="block text-sm font-medium text-gray-600">Phone Model</label>
-                    <p className="mt-1 p-2 bg-gray-50 rounded-lg">{selectedComplaint.phone_model}</p>
+                    <label className="block text-sm font-medium text-gray-600">
+                      Phone Model
+                    </label>
+                    <p className="mt-1 p-2 bg-gray-50 rounded-lg">
+                      {selectedComplaint.phone_model}
+                    </p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-600">Status</label>
-                    <span className={`mt-1 px-3 py-1 rounded-full text-xs font-semibold inline-block ${getStatusClasses(selectedComplaint.status)}`}>
+                    <label className="block text-sm font-medium text-gray-600">
+                      Status
+                    </label>
+                    <span
+                      className={`mt-1 px-3 py-1 rounded-full text-xs font-semibold inline-block ${getStatusClasses(selectedComplaint.status)}`}
+                    >
                       {selectedComplaint.status}
                     </span>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-600">Order Confirmation</label>
-                    <span className={`mt-1 px-3 py-1 rounded-full text-xs font-semibold inline-block ${selectedComplaint.confirm_status === "CONFIRMED" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
+                    <label className="block text-sm font-medium text-gray-600">
+                      Order Confirmation
+                    </label>
+                    <span
+                      className={`mt-1 px-3 py-1 rounded-full text-xs font-semibold inline-block ${selectedComplaint.confirm_status === "CONFIRMED" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}
+                    >
                       {selectedComplaint.confirm_status || "NOT CONFIRMED"}
                     </span>
                     {selectedComplaint.confirmed_at && (
                       <p className="text-xs text-gray-500 mt-1">
-                        Confirmed at: {new Date(selectedComplaint.confirmed_at).toLocaleString()}
-                        {selectedComplaint.confirmed_by && ` by ${selectedComplaint.confirmed_by}`}
+                        Confirmed at:{" "}
+                        {new Date(
+                          selectedComplaint.confirmed_at,
+                        ).toLocaleString()}
+                        {selectedComplaint.confirmed_by &&
+                          ` by ${selectedComplaint.confirmed_by}`}
                       </p>
                     )}
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-600">Assigned To</label>
+                    <label className="block text-sm font-medium text-gray-600">
+                      Assigned To
+                    </label>
                     <p className="mt-1 p-2 bg-gray-50 rounded-lg">
                       {selectedComplaint.assigned_to_details
                         ? `${selectedComplaint.assigned_to_details.name} (${selectedComplaint.assigned_to_details.type})`
@@ -1324,7 +1693,9 @@ export default function Complaints() {
                 </div>
 
                 <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">Location Information</h3>
+                  <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">
+                    Location Information
+                  </h3>
                   {[
                     ["Address", selectedComplaint.address],
                     ["Area", selectedComplaint.area],
@@ -1332,20 +1703,30 @@ export default function Complaints() {
                     ["Pincode", selectedComplaint.pincode],
                   ].map(([label, val]) => (
                     <div key={label}>
-                      <label className="block text-sm font-medium text-gray-600">{label}</label>
+                      <label className="block text-sm font-medium text-gray-600">
+                        {label}
+                      </label>
                       <p className="mt-1 p-2 bg-gray-50 rounded-lg">{val}</p>
                     </div>
                   ))}
                 </div>
 
                 <div className="space-y-3">
-                  <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">System Information</h3>
+                  <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">
+                    System Information
+                  </h3>
                   <div>
-                    <label className="block text-sm font-medium text-gray-600">Created By</label>
-                    <p className="mt-1 p-2 bg-gray-50 rounded-lg">{selectedComplaint.created_by || "—"}</p>
+                    <label className="block text-sm font-medium text-gray-600">
+                      Created By
+                    </label>
+                    <p className="mt-1 p-2 bg-gray-50 rounded-lg">
+                      {selectedComplaint.created_by || "—"}
+                    </p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-600">Created At</label>
+                    <label className="block text-sm font-medium text-gray-600">
+                      Created At
+                    </label>
                     <p className="mt-1 p-2 bg-gray-50 rounded-lg">
                       {new Date(selectedComplaint.created_at).toLocaleString()}
                     </p>
@@ -1354,18 +1735,34 @@ export default function Complaints() {
               </div>
 
               <div className="mt-6 space-y-4">
-                <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">Issue Details</h3>
-                <p className="p-3 bg-gray-50 rounded-lg min-h-[80px]">{selectedComplaint.issue_details}</p>
+                <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">
+                  Issue Details
+                </h3>
+                <p className="p-3 bg-gray-50 rounded-lg min-h-[80px]">
+                  {selectedComplaint.issue_details}
+                </p>
               </div>
 
               <div className="mt-6 flex justify-end gap-3">
-                <button onClick={() => { handleEdit(selectedComplaint); setViewModalOpen(false); }} className="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600">
+                <button
+                  onClick={() => {
+                    handleEdit(selectedComplaint);
+                    setViewModalOpen(false);
+                  }}
+                  className="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600"
+                >
                   Edit Complaint
                 </button>
-                <button onClick={() => handleInvoiceClick(selectedComplaint)} className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2">
+                <button
+                  onClick={() => handleInvoiceClick(selectedComplaint)}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2"
+                >
                   <FileText size={16} /> Generate Invoice
                 </button>
-                <button onClick={() => setViewModalOpen(false)} className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">
+                <button
+                  onClick={() => setViewModalOpen(false)}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+                >
                   Close
                 </button>
               </div>
@@ -1383,7 +1780,12 @@ export default function Complaints() {
               <label className="text-sm">Filter By</label>
               <select
                 value={filterType}
-                onChange={(e) => { setFilterType(e.target.value); setFilterId(""); setFilterStatus(""); setFilterCreatedBy(""); }}
+                onChange={(e) => {
+                  setFilterType(e.target.value);
+                  setFilterId("");
+                  setFilterStatus("");
+                  setFilterCreatedBy("");
+                }}
                 className="border px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200"
               >
                 <option value="all">All Complaints</option>
@@ -1396,30 +1798,77 @@ export default function Complaints() {
             {filterType === "id" && (
               <div className="flex items-center gap-2">
                 <label className="text-sm font-medium text-gray-600">ID:</label>
-                <input type="number" value={filterId} onChange={(e) => setFilterId(e.target.value)} placeholder="Enter ID" className="border px-3 py-2 rounded-lg w-32 focus:outline-none focus:ring-2 focus:ring-blue-200" />
-                {filterId && <button onClick={() => setFilterId("")} className="text-red-500 hover:text-red-700">Clear</button>}
+                <input
+                  type="number"
+                  value={filterId}
+                  onChange={(e) => setFilterId(e.target.value)}
+                  placeholder="Enter ID"
+                  className="border px-3 py-2 rounded-lg w-32 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                />
+                {filterId && (
+                  <button
+                    onClick={() => setFilterId("")}
+                    className="text-red-500 hover:text-red-700"
+                  >
+                    Clear
+                  </button>
+                )}
               </div>
             )}
 
             {filterType === "status" && (
               <div className="flex items-center gap-2">
-                <label className="text-sm font-medium text-gray-600">Status:</label>
-                <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="border px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200">
+                <label className="text-sm font-medium text-gray-600">
+                  Status:
+                </label>
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="border px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200"
+                >
                   <option value="">All Status</option>
-                  {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+                  {STATUS_OPTIONS.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
                 </select>
-                {filterStatus && <button onClick={() => setFilterStatus("")} className="text-red-500 hover:text-red-700">Clear</button>}
+                {filterStatus && (
+                  <button
+                    onClick={() => setFilterStatus("")}
+                    className="text-red-500 hover:text-red-700"
+                  >
+                    Clear
+                  </button>
+                )}
               </div>
             )}
 
             {filterType === "created_by" && (
               <div className="flex items-center gap-2">
-                <label className="text-sm font-medium text-gray-600">Created By:</label>
-                <select value={filterCreatedBy} onChange={(e) => setFilterCreatedBy(e.target.value)} className="border px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200">
+                <label className="text-sm font-medium text-gray-600">
+                  Created By:
+                </label>
+                <select
+                  value={filterCreatedBy}
+                  onChange={(e) => setFilterCreatedBy(e.target.value)}
+                  className="border px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200"
+                >
                   <option value="">All Creators</option>
-                  {uniqueCreatedBy.map((creator) => <option key={creator} value={creator}>{creator}</option>)}
+                  {uniqueCreatedBy.map((creator) => (
+                    <option key={creator} value={creator}>
+                      {creator}
+                    </option>
+                  ))}
                 </select>
-                {filterCreatedBy && <button onClick={() => setFilterCreatedBy("")} className="text-red-500 hover:text-red-700">Clear</button>}
+                {filterCreatedBy && (
+                  <button
+                    onClick={() => setFilterCreatedBy("")}
+                    className="text-red-500 hover:text-red-700"
+                  >
+                    Clear
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -1429,9 +1878,14 @@ export default function Complaints() {
       {/* TABLE */}
       <div className="mt-6 bg-white border border-gray-200 rounded-2xl shadow-lg overflow-hidden">
         <div className="p-4 bg-gray-50 border-b flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="font-semibold text-gray-700 text-sm sm:text-base">Complaint Records ({filtered.length})</h2>
+          <h2 className="font-semibold text-gray-700 text-sm sm:text-base">
+            Complaint Records ({filtered.length})
+          </h2>
           {selectedIds.length > 0 && (
-            <button onClick={handleBulkDelete} className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 flex items-center gap-2">
+            <button
+              onClick={handleBulkDelete}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 flex items-center gap-2"
+            >
               <Trash2 size={16} /> Delete Selected ({selectedIds.length})
             </button>
           )}
@@ -1450,39 +1904,103 @@ export default function Complaints() {
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="px-3 py-3 text-center w-12">
-                  <input type="checkbox" checked={filtered.length > 0 && selectedIds.length === filtered.length} onChange={toggleSelectAll} className="accent-blue-600" />
+                  <input
+                    type="checkbox"
+                    checked={
+                      filtered.length > 0 &&
+                      selectedIds.length === filtered.length
+                    }
+                    onChange={toggleSelectAll}
+                    className="accent-blue-600"
+                  />
                 </th>
-                <th className="px-3 py-3 text-center font-semibold text-gray-600 w-16">ID</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-700 w-40">Customer</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-700 w-48">Email</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-700 w-28">Mobile</th>
-                <th className="px-3 py-3 text-center font-semibold text-gray-700 w-28">Status</th>
-                <th className="px-3 py-3 text-center font-semibold text-gray-700 w-28">Order</th>
-                <th className="px-4 py-3 text-center font-semibold text-gray-700 w-56">Actions</th>
+                <th className="px-3 py-3 text-center font-semibold text-gray-600 w-16">
+                  ID
+                </th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-700 w-40">
+                  Customer
+                </th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-700 w-48">
+                  Email
+                </th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-700 w-28">
+                  Mobile
+                </th>
+                <th className="px-3 py-3 text-center font-semibold text-gray-700 w-28">
+                  Status
+                </th>
+                <th className="px-3 py-3 text-center font-semibold text-gray-700 w-28">
+                  Order
+                </th>
+                <th className="px-4 py-3 text-center font-semibold text-gray-700 w-56">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody>
               {isFetchingData ? (
-                <tr><td colSpan={8} className="py-12 text-center text-gray-500 font-semibold">Loading complaints...</td></tr>
+                <tr>
+                  <td
+                    colSpan={8}
+                    className="py-12 text-center text-gray-500 font-semibold"
+                  >
+                    Loading complaints...
+                  </td>
+                </tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={8} className="py-12 text-center text-gray-500 font-semibold">No complaints found</td></tr>
+                <tr>
+                  <td
+                    colSpan={8}
+                    className="py-12 text-center text-gray-500 font-semibold"
+                  >
+                    No complaints found
+                  </td>
+                </tr>
               ) : (
                 filtered.map((c) => (
-                  <tr key={c.id} className="border-b last:border-0 hover:bg-gray-50 transition">
+                  <tr
+                    key={c.id}
+                    className="border-b last:border-0 hover:bg-gray-50 transition"
+                  >
                     <td className="px-3 py-4 text-center align-middle">
-                      <input type="checkbox" checked={selectedIds.includes(c.id)} onChange={() => toggleSelect(c.id)} className="accent-blue-600" />
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(c.id)}
+                        onChange={() => toggleSelect(c.id)}
+                        className="accent-blue-600"
+                      />
                     </td>
-                    <td className="px-3 py-4 text-center font-mono text-xs text-gray-600 align-middle">#{c.id}</td>
-                    <td className="px-4 py-4 font-medium text-gray-800 align-middle truncate" title={c.customer_name}>{c.customer_name}</td>
-                    <td className="px-4 py-4 text-gray-600 text-xs align-middle truncate" title={c.email}>{c.email}</td>
-                    <td className="px-4 py-4 text-gray-700 text-xs align-middle">{c.customer_phone}</td>
+                    <td className="px-3 py-4 text-center font-mono text-xs text-gray-600 align-middle">
+                      #{c.id}
+                    </td>
+                    <td
+                      className="px-4 py-4 font-medium text-gray-800 align-middle truncate"
+                      title={c.customer_name}
+                    >
+                      {c.customer_name}
+                    </td>
+                    <td
+                      className="px-4 py-4 text-gray-600 text-xs align-middle truncate"
+                      title={c.email}
+                    >
+                      {c.email}
+                    </td>
+                    <td className="px-4 py-4 text-gray-700 text-xs align-middle">
+                      {c.customer_phone}
+                    </td>
                     <td className="px-3 py-4 text-center align-middle">
                       <select
                         value={c.status}
-                        onChange={(e) => handleStatusUpdate(c.id, e.target.value)}
+                        onChange={(e) =>
+                          handleStatusUpdate(c.id, e.target.value)
+                        }
                         className={`px-2 py-1 text-xs font-semibold rounded-full cursor-pointer focus:outline-none w-28 ${getStatusClasses(c.status)}`}
                       >
-                        {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+                        {STATUS_OPTIONS.map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))}
                       </select>
                     </td>
                     <td className="px-3 py-4 text-center align-middle">
@@ -1493,7 +2011,11 @@ export default function Complaints() {
                             ? "bg-green-50 text-green-700 border-green-300 hover:bg-green-100"
                             : "bg-red-50 text-red-700 border-red-300 hover:bg-red-100"
                         }`}
-                        title={c.confirm_status === "CONFIRMED" ? "Click to unconfirm" : "Click to confirm"}
+                        title={
+                          c.confirm_status === "CONFIRMED"
+                            ? "Click to unconfirm"
+                            : "Click to confirm"
+                        }
                       >
                         {c.confirm_status === "CONFIRMED" ? (
                           <>
@@ -1509,7 +2031,10 @@ export default function Complaints() {
                     <td className="px-4 py-4 align-middle">
                       <div className="flex items-center justify-center gap-2">
                         <button
-                          onClick={() => { setSelectedComplaint(c); setViewModalOpen(true); }}
+                          onClick={() => {
+                            setSelectedComplaint(c);
+                            setViewModalOpen(true);
+                          }}
                           className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
                           title="View Details"
                         >
@@ -1548,26 +2073,37 @@ export default function Complaints() {
         {/* MOBILE VIEW */}
         <div className="md:hidden space-y-4 mt-4 p-4">
           {filtered.map((c) => (
-            <div key={c.id} className="bg-white border rounded-xl shadow p-4 space-y-3">
+            <div
+              key={c.id}
+              className="bg-white border rounded-xl shadow p-4 space-y-3"
+            >
               <div className="flex justify-between items-start">
                 <div>
-                  <span className="text-xs font-mono text-gray-500">ID: {c.id}</span>
-                  <p className="font-semibold text-gray-800">{c.customer_name}</p>
+                  <span className="text-xs font-mono text-gray-500">
+                    ID: {c.id}
+                  </span>
+                  <p className="font-semibold text-gray-800">
+                    {c.customer_name}
+                  </p>
                   <p className="text-xs text-gray-600">{c.customer_phone}</p>
-                  <p className="text-xs text-gray-500 truncate max-w-[200px]">{c.email}</p>
+                  <p className="text-xs text-gray-500 truncate max-w-[200px]">
+                    {c.email}
+                  </p>
                 </div>
-                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusClasses(c.status)}`}>
+                <span
+                  className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusClasses(c.status)}`}
+                >
                   {c.status}
                 </span>
               </div>
-              
+
               <div className="flex items-center justify-between">
                 <span className="text-xs text-gray-500">Order:</span>
                 <button
                   onClick={() => handleOrderConfirmation(c.id)}
                   className={`px-2 py-1 rounded-full text-xs font-semibold flex items-center gap-1 transition-colors ${
-                    c.confirm_status === "CONFIRMED" 
-                      ? "bg-green-100 text-green-800 hover:bg-green-200" 
+                    c.confirm_status === "CONFIRMED"
+                      ? "bg-green-100 text-green-800 hover:bg-green-200"
                       : "bg-red-100 text-red-800 hover:bg-red-200"
                   }`}
                 >
@@ -1585,7 +2121,10 @@ export default function Complaints() {
 
               <div className="grid grid-cols-4 gap-2 pt-2">
                 <button
-                  onClick={() => { setSelectedComplaint(c); setViewModalOpen(true); }}
+                  onClick={() => {
+                    setSelectedComplaint(c);
+                    setViewModalOpen(true);
+                  }}
                   className="flex flex-col items-center justify-center p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
                   title="View"
                 >

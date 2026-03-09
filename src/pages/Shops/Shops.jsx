@@ -432,9 +432,11 @@ const ViewModal = ({ shop, onClose }) => {
       console.error("Error fetching shop details:", error);
       setFetchError(true);
       if (error.response?.status !== 401 && error.response?.status !== 403) {
-        toast.error(
-          "Failed to load additional shop details. Showing basic information.",
-        );
+        if (error.response) {
+          toast.error(
+            "Failed to load additional shop details. Showing basic information.",
+          );
+        }
       }
     } finally {
       setLoading(false);
@@ -1146,7 +1148,12 @@ export default function Shops() {
       setShops(shopsList);
     } catch (error) {
       console.error("Error loading shops:", error);
-      toast.error("Failed to load shops. Please check your connection.");
+
+      // network error already handled globally
+      if (error.response) {
+        toast.error("Failed to load shops");
+      }
+
       setShops([]);
     } finally {
       setIsLoading(false);
@@ -1311,9 +1318,13 @@ export default function Shops() {
           id: toastId,
         });
       } else {
-        toast.error("Failed to create shop. Please try again.", {
-          id: toastId,
-        });
+        if (err.response) {
+          toast.error("Failed to create shop. Please try again.", {
+            id: toastId,
+          });
+        } else {
+          toast.dismiss(toastId);
+        }
       }
     }
   };
@@ -1361,9 +1372,13 @@ export default function Shops() {
           id: toastId,
         });
       } else {
-        toast.error("Failed to update shop. Please try again.", {
-          id: toastId,
-        });
+        if (err.response) {
+          toast.error("Failed to update shop. Please try again.", {
+            id: toastId,
+          });
+        } else {
+          toast.dismiss(toastId);
+        }
       }
     }
   };
@@ -1464,7 +1479,11 @@ export default function Shops() {
                   ) {
                     toast.dismiss(dt);
                   } else {
-                    toast.error("Failed to delete shop", { id: dt });
+                    if (error.response) {
+                      toast.error("Failed to delete shop", { id: dt });
+                    } else {
+                      toast.dismiss(dt);
+                    }
                   }
                 }
               }}
@@ -1551,7 +1570,11 @@ export default function Shops() {
                     error.response?.status !== 401 &&
                     error.response?.status !== 403
                   ) {
-                    toast.error("Bulk delete failed", { id: dt });
+                    if (error.response) {
+                      toast.error("Bulk delete failed", { id: dt });
+                    } else {
+                      toast.dismiss(dt);
+                    }
                   } else {
                     toast.dismiss(dt);
                   }

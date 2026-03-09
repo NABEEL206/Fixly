@@ -1,7 +1,13 @@
 // src/pages/Growtags/AssignGrowTags.jsx
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, ChevronDown, ChevronUp, ArrowLeft, Loader2 } from "lucide-react";
+import {
+  Search,
+  ChevronDown,
+  ChevronUp,
+  ArrowLeft,
+  Loader2,
+} from "lucide-react";
 import toast from "react-hot-toast";
 import axiosInstance from "@/API/axiosInstance";
 
@@ -40,7 +46,7 @@ const GrowTagSelect = ({
   const [isOpen, setIsOpen] = useState(false);
 
   const currentTag = availableGrowTags.find(
-    (g) => String(g.id) === selectedGrowTag
+    (g) => String(g.id) === selectedGrowTag,
   );
 
   const filteredTags = useMemo(() => {
@@ -50,12 +56,12 @@ const GrowTagSelect = ({
       (g) =>
         g.grow_id.toLowerCase().includes(query) ||
         g.name.toLowerCase().includes(query) ||
-        g.pincode?.toString().includes(query)
+        g.pincode?.toString().includes(query),
     );
   }, [availableGrowTags, searchTerm]);
 
   const unassignedTags = filteredTags.filter(
-    (g) => !assigned.some((a) => a.growtag === g.id)
+    (g) => !assigned.some((a) => a.growtag === g.id),
   );
 
   const isAllAssigned =
@@ -159,12 +165,12 @@ const ShopSelectDropdown = ({
       (s) =>
         s.shopname.toLowerCase().includes(query) ||
         s.pincode?.toString().includes(query) ||
-        s.id?.toString().includes(query)
+        s.id?.toString().includes(query),
     );
   }, [shops, searchTerm]);
 
   const franchiseShops = filteredShops.filter(
-    (s) => s.shop_type === "franchise"
+    (s) => s.shop_type === "franchise",
   );
   const otherShops = filteredShops.filter((s) => s.shop_type === "othershop");
 
@@ -331,23 +337,26 @@ export default function AssignGrowTags() {
       setGrowTags(
         growtagsRes.data
           .filter((g) => g.status === "Active" || g.status === "active")
-          .map((g) => ({ ...g, pincode: g.pincode || null }))
+          .map((g) => ({ ...g, pincode: g.pincode || null })),
       );
 
       setShops(
         shopsRes.data
           .filter((s) => s.status === true)
-          .map((s) => ({ ...s, shop_type: s.shop_type?.toLowerCase() }))
+          .map((s) => ({ ...s, shop_type: s.shop_type?.toLowerCase() })),
       );
 
       setAssigned(assignmentsRes.data);
     } catch (err) {
       console.error("Failed to fetch data:", err);
-      
-      if (err.response?.status === 401) {
+
+      // network error already handled globally
+      if (!err.response) return;
+
+      if (err.response.status === 401) {
         toast.error("Session expired. Please login again.");
         navigate("/login");
-      } else if (err.response?.status === 403) {
+      } else if (err.response.status === 403) {
         toast.error("You don't have permission to view this data");
       } else {
         toast.error("Failed to load initial data.");
@@ -407,12 +416,22 @@ export default function AssignGrowTags() {
         setSelectedShopName("");
       }, 250);
     } catch (err) {
-      if (err.response?.status === 401) {
+      // network error already handled globally
+      if (!err.response) {
+        toast.dismiss(t);
+        return;
+      }
+
+      if (err.response.status === 401) {
         toast.error("Session expired. Please login again.", { id: t });
-      } else if (err.response?.status === 403) {
-        toast.error("You don't have permission to perform this action", { id: t });
+      } else if (err.response.status === 403) {
+        toast.error("You don't have permission to perform this action", {
+          id: t,
+        });
       } else {
-        toast.error(`Assignment failed: ${extractErrorMessage(err)}`, { id: t });
+        toast.error(`Assignment failed: ${extractErrorMessage(err)}`, {
+          id: t,
+        });
       }
     }
   };
@@ -426,7 +445,9 @@ export default function AssignGrowTags() {
     toast(
       (t) => (
         <div className="flex flex-col gap-3">
-          <p className="text-sm font-medium">Are you sure you want to unassign this Grow Tag?</p>
+          <p className="text-sm font-medium">
+            Are you sure you want to unassign this Grow Tag?
+          </p>
           <p className="text-xs text-gray-500">This action cannot be undone.</p>
           <div className="flex justify-end gap-2">
             <button
@@ -446,15 +467,17 @@ export default function AssignGrowTags() {
                   toast.success("Grow Tag unassigned successfully ✅");
                   await fetchAllData();
                 } catch (err) {
-                  if (err.response?.status === 401) {
+                  if (!err.response) return;
+
+                  if (err.response.status === 401) {
                     toast.error("Session expired. Please login again.");
-                  } else if (err.response?.status === 403) {
-                    toast.error("You don't have permission to perform this action");
+                  } else if (err.response.status === 403) {
+                    toast.error(
+                      "You don't have permission to perform this action",
+                    );
                   } else {
                     toast.error(`Unassign failed: ${extractErrorMessage(err)}`);
                   }
-                } finally {
-                  isUnassigning.current = false;
                 }
               }}
               className="px-3 py-1.5 bg-red-600 text-white rounded text-sm"
@@ -464,12 +487,12 @@ export default function AssignGrowTags() {
           </div>
         </div>
       ),
-      { 
+      {
         duration: 6000,
         onClose: () => {
           isUnassigning.current = false;
-        }
-      }
+        },
+      },
     );
   };
 
@@ -487,7 +510,9 @@ export default function AssignGrowTags() {
     toast(
       (t) => (
         <div className="flex flex-col gap-3">
-          <p className="text-sm font-medium">Unassign {selectedIds.length} selected Grow Tags?</p>
+          <p className="text-sm font-medium">
+            Unassign {selectedIds.length} selected Grow Tags?
+          </p>
           <p className="text-xs text-gray-500">This action cannot be undone.</p>
           <div className="flex justify-end gap-2">
             <button
@@ -505,23 +530,29 @@ export default function AssignGrowTags() {
                 try {
                   await Promise.all(
                     selectedIds.map((id) =>
-                      axiosInstance.delete(`${ASSIGNMENTS_API_URL}${id}/`)
-                    )
+                      axiosInstance.delete(`${ASSIGNMENTS_API_URL}${id}/`),
+                    ),
                   );
 
-                  toast.success(`${selectedIds.length} Grow Tags unassigned ✅`);
+                  toast.success(
+                    `${selectedIds.length} Grow Tags unassigned ✅`,
+                  );
                   setSelectedIds([]);
                   await fetchAllData();
                 } catch (err) {
-                  if (err.response?.status === 401) {
+                  if (!err.response) return;
+
+                  if (err.response.status === 401) {
                     toast.error("Session expired. Please login again.");
-                  } else if (err.response?.status === 403) {
-                    toast.error("You don't have permission to perform this action");
+                  } else if (err.response.status === 403) {
+                    toast.error(
+                      "You don't have permission to perform this action",
+                    );
                   } else {
-                    toast.error(`Bulk unassign failed: ${extractErrorMessage(err)}`);
+                    toast.error(
+                      `Bulk unassign failed: ${extractErrorMessage(err)}`,
+                    );
                   }
-                } finally {
-                  isBulkUnassigning.current = false;
                 }
               }}
               className="px-3 py-1.5 bg-red-600 text-white rounded text-sm"
@@ -531,12 +562,12 @@ export default function AssignGrowTags() {
           </div>
         </div>
       ),
-      { 
+      {
         duration: 6000,
         onClose: () => {
           isBulkUnassigning.current = false;
-        }
-      }
+        },
+      },
     );
   };
 
@@ -564,13 +595,13 @@ export default function AssignGrowTags() {
           a.growId.toLowerCase().includes(q) ||
           a.growName.toLowerCase().includes(q) ||
           a.shopName.toLowerCase().includes(q) ||
-          a.shopType.toLowerCase().includes(q)
+          a.shopType.toLowerCase().includes(q),
       );
   }, [search, assigned, growtags, shops]);
 
   const toggleCheck = (id) => {
     setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
   };
 
@@ -652,7 +683,9 @@ export default function AssignGrowTags() {
               : "bg-gray-300 text-gray-600 cursor-not-allowed"
           }`}
         >
-          {isBulkUnassigning.current ? "Processing..." : `Unassign Selected (${selectedIds.length})`}
+          {isBulkUnassigning.current
+            ? "Processing..."
+            : `Unassign Selected (${selectedIds.length})`}
         </button>
       </div>
 
@@ -694,7 +727,9 @@ export default function AssignGrowTags() {
                 <td colSpan="8" className="p-8 text-center">
                   <div className="flex flex-col items-center justify-center">
                     <Search size={48} className="text-gray-300 mb-3" />
-                    <p className="text-lg font-medium text-gray-600 mb-1">No assignments found</p>
+                    <p className="text-lg font-medium text-gray-600 mb-1">
+                      No assignments found
+                    </p>
                     <p className="text-sm text-gray-400">
                       {search
                         ? "Try adjusting your search criteria"
@@ -729,11 +764,15 @@ export default function AssignGrowTags() {
                     </span>
                   </td>
                   <td className="p-2 text-gray-700">{a.createdBy || "—"}</td>
-                  <td className="p-2">{new Date(a.assignedAt).toLocaleString()}</td>
+                  <td className="p-2">
+                    {new Date(a.assignedAt).toLocaleString()}
+                  </td>
                   <td className="p-2">
                     <button
                       onClick={() => handleUnassign(a.id)}
-                      disabled={isUnassigning.current || isBulkUnassigning.current}
+                      disabled={
+                        isUnassigning.current || isBulkUnassigning.current
+                      }
                       className={`px-3 py-1 rounded-lg text-sm ${
                         isUnassigning.current || isBulkUnassigning.current
                           ? "bg-gray-400 cursor-not-allowed"
@@ -755,7 +794,9 @@ export default function AssignGrowTags() {
         {filtered.length === 0 ? (
           <div className="bg-white rounded-xl shadow border p-8 text-center">
             <Search size={48} className="text-gray-300 mx-auto mb-3" />
-            <p className="text-lg font-medium text-gray-600 mb-1">No assignments found</p>
+            <p className="text-lg font-medium text-gray-600 mb-1">
+              No assignments found
+            </p>
             <p className="text-sm text-gray-400">
               {search
                 ? "Try adjusting your search criteria"

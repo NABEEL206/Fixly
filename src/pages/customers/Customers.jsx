@@ -24,7 +24,7 @@ import {
   AlertCircle,
   DollarSign,
   Tag,
-  Building
+  Building,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import axiosInstance from "@/API/axiosInstance";
@@ -46,19 +46,14 @@ export default function CustomerTable() {
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [historyModal, setHistoryModal] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  
+
   // View Modal State
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [selectedCustomerForView, setSelectedCustomerForView] = useState(null);
 
   // Check authentication
   const checkAuth = () => {
-    const token = localStorage.getItem("access_token");
-    if (!token) {
-      toast.error("Session expired. Please login again.");
-      return false;
-    }
-    return true;
+    return !!localStorage.getItem("access_token");
   };
 
   // Fetch Customers with better error handling
@@ -78,18 +73,26 @@ export default function CustomerTable() {
       setSelectAll(false);
     } catch (err) {
       console.error("Fetch customers error:", err);
-      
-      if (err.response?.status === 401) {
+
+      // Network error handled globally
+      if (!err.response) {
+        setFetchError("Network error. Please check your connection.");
+        setCustomers([]);
+        return;
+      }
+
+      if (err.response.status === 401) {
         toast.error("Session expired. Please login again.");
-        setCustomers([]);
-      } else if (err.response?.status === 403) {
-        toast.error(err.response.data?.detail || "You don't have permission to view customers");
-        setCustomers([]);
+      } else if (err.response.status === 403) {
+        toast.error(
+          err.response.data?.detail ||
+            "You don't have permission to view customers",
+        );
       } else {
-        setFetchError(`Failed to load customer data: ${err.message}`);
-        setCustomers([]);
         toast.error("Failed to load customers. Please try again.");
       }
+
+      setCustomers([]);
     } finally {
       setLoading(false);
     }
@@ -141,8 +144,14 @@ export default function CustomerTable() {
     toast(
       (t) => (
         <div className="flex flex-col gap-3">
-          <p className="text-sm font-medium">Delete {selectedRows.size} selected customer{selectedRows.size > 1 ? "s" : ""}?</p>
-          <p className="text-xs text-gray-500">This action cannot be undone. All related data will be permanently deleted.</p>
+          <p className="text-sm font-medium">
+            Delete {selectedRows.size} selected customer
+            {selectedRows.size > 1 ? "s" : ""}?
+          </p>
+          <p className="text-xs text-gray-500">
+            This action cannot be undone. All related data will be permanently
+            deleted.
+          </p>
           <div className="flex justify-end gap-2">
             <button
               onClick={() => toast.dismiss(t.id)}
@@ -162,7 +171,7 @@ export default function CustomerTable() {
           </div>
         </div>
       ),
-      { duration: 6000 }
+      { duration: 6000 },
     );
   };
 
@@ -177,7 +186,8 @@ export default function CustomerTable() {
         try {
           await axiosInstance.delete(`${CUSTOMER_API}${id}/`);
           return true;
-        } catch {
+        } catch (error) {
+          if (!error.response) return false;
           return false;
         }
       });
@@ -197,7 +207,8 @@ export default function CustomerTable() {
       } else {
         toast.error("Failed to delete customers");
       }
-    } catch {
+    } catch (error) {
+      if (!error.response) return;
       toast.error("Bulk delete failed");
     }
   };
@@ -207,8 +218,13 @@ export default function CustomerTable() {
     toast(
       (t) => (
         <div className="flex flex-col gap-3">
-          <p className="text-sm font-medium">Delete customer: {customerName}?</p>
-          <p className="text-xs text-gray-500">This will permanently delete the customer and all related data. This action cannot be undone.</p>
+          <p className="text-sm font-medium">
+            Delete customer: {customerName}?
+          </p>
+          <p className="text-xs text-gray-500">
+            This will permanently delete the customer and all related data. This
+            action cannot be undone.
+          </p>
           <div className="flex justify-end gap-2">
             <button
               onClick={() => toast.dismiss(t.id)}
@@ -228,7 +244,7 @@ export default function CustomerTable() {
           </div>
         </div>
       ),
-      { duration: 6000 }
+      { duration: 6000 },
     );
   };
 
@@ -247,7 +263,8 @@ export default function CustomerTable() {
       });
 
       toast.success(`Customer "${customerName}" deleted`);
-    } catch {
+    } catch (error) {
+      if (!error.response) return;
       toast.error("Delete failed");
     }
   };
@@ -262,7 +279,7 @@ export default function CustomerTable() {
   // Get unique created by values for filter dropdown
   const getUniqueCreatedBy = () => {
     const createdBySet = new Set();
-    customers.forEach(cust => {
+    customers.forEach((cust) => {
       if (cust.created_by && cust.created_by.username) {
         createdBySet.add(cust.created_by.username);
       }
@@ -278,13 +295,13 @@ export default function CustomerTable() {
 
   // Filtered customers
   const filtered = customers.filter((item) => {
-    const matchesSearch = 
+    const matchesSearch =
       item.customer_name.toLowerCase().includes(search.toLowerCase()) ||
       item.email.toLowerCase().includes(search.toLowerCase()) ||
       item.customer_phone.includes(search);
 
-    const matchesCreatedBy = 
-      createdByFilter === "" || 
+    const matchesCreatedBy =
+      createdByFilter === "" ||
       (item.created_by && item.created_by.username === createdByFilter);
 
     return matchesSearch && matchesCreatedBy;
@@ -335,21 +352,30 @@ export default function CustomerTable() {
   const getAssignedToWithType = (complaint) => {
     let name = "Unassigned";
     let type = "";
-    
+
     if (complaint.assigned_to_details) {
       name = complaint.assigned_to_details.name;
       type = complaint.assigned_to_details.type || "";
-    } else if (complaint.assign_to === "franchise" && complaint.assigned_shop_details) {
+    } else if (
+      complaint.assign_to === "franchise" &&
+      complaint.assigned_shop_details
+    ) {
       name = complaint.assigned_shop_details.name;
       type = "franchise";
-    } else if (complaint.assign_to === "othershop" && complaint.assigned_shop_details) {
+    } else if (
+      complaint.assign_to === "othershop" &&
+      complaint.assigned_shop_details
+    ) {
       name = complaint.assigned_shop_details.name;
       type = "othershop";
-    } else if (complaint.assign_to === "growtag" && complaint.assigned_Growtags_details) {
+    } else if (
+      complaint.assign_to === "growtag" &&
+      complaint.assigned_Growtags_details
+    ) {
       name = complaint.assigned_Growtags_details.name;
       type = "growtag";
     }
-    
+
     return { name, type };
   };
 
@@ -367,7 +393,7 @@ export default function CustomerTable() {
 
   // Get invoice status color
   const getInvoiceStatusColor = (status) => {
-    switch(status?.toLowerCase()) {
+    switch (status?.toLowerCase()) {
       case "paid":
         return "bg-green-100 text-green-700 border border-green-200";
       case "pending":
@@ -399,8 +425,12 @@ export default function CustomerTable() {
                 <User className="w-6 h-6 text-blue-600" />
               </div>
               <div>
-                <h2 className="text-2xl font-bold text-gray-800">Customer Details</h2>
-                <p className="text-sm text-gray-500">ID: {selectedCustomerForView.id}</p>
+                <h2 className="text-2xl font-bold text-gray-800">
+                  Customer Details
+                </h2>
+                <p className="text-sm text-gray-500">
+                  ID: {selectedCustomerForView.id}
+                </p>
               </div>
             </div>
             <button
@@ -422,27 +452,35 @@ export default function CustomerTable() {
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-1">
-                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Full Name</label>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Full Name
+                    </label>
                     <p className="text-base font-medium text-gray-900 bg-white p-3 rounded-lg border border-gray-200">
                       {selectedCustomerForView.customer_name}
                     </p>
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Phone Number</label>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Phone Number
+                    </label>
                     <p className="text-base font-medium text-gray-900 bg-white p-3 rounded-lg border border-gray-200 flex items-center gap-2">
                       <Phone size={16} className="text-blue-500" />
                       {selectedCustomerForView.customer_phone}
                     </p>
                   </div>
                   <div className="space-y-1 md:col-span-2">
-                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Email Address</label>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Email Address
+                    </label>
                     <p className="text-base font-medium text-gray-900 bg-white p-3 rounded-lg border border-gray-200 flex items-center gap-2">
                       <Mail size={16} className="text-blue-500" />
                       {selectedCustomerForView.email}
                     </p>
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Password</label>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Password
+                    </label>
                     <p className="text-base font-medium text-gray-900 bg-white p-3 rounded-lg border border-gray-200 font-mono">
                       ••••••••
                     </p>
@@ -458,25 +496,33 @@ export default function CustomerTable() {
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-1 md:col-span-2">
-                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Address</label>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Address
+                    </label>
                     <p className="text-base text-gray-900 bg-white p-3 rounded-lg border border-gray-200">
                       {selectedCustomerForView.address || "N/A"}
                     </p>
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Area</label>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Area
+                    </label>
                     <p className="text-base text-gray-900 bg-white p-3 rounded-lg border border-gray-200">
                       {selectedCustomerForView.area || "N/A"}
                     </p>
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Pincode</label>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Pincode
+                    </label>
                     <p className="text-base text-gray-900 bg-white p-3 rounded-lg border border-gray-200">
                       {selectedCustomerForView.pincode || "N/A"}
                     </p>
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">State</label>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      State
+                    </label>
                     <p className="text-base text-gray-900 bg-white p-3 rounded-lg border border-gray-200">
                       {selectedCustomerForView.state || "N/A"}
                     </p>
@@ -492,14 +538,18 @@ export default function CustomerTable() {
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-1">
-                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Created By</label>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Created By
+                    </label>
                     <p className="text-base font-medium text-gray-900 bg-white p-3 rounded-lg border border-gray-200 flex items-center gap-2">
                       <UserCircle size={16} className="text-gray-500" />
                       {selectedCustomerForView.created_by?.username || "System"}
                     </p>
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Created Date</label>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Created Date
+                    </label>
                     <p className="text-base font-medium text-gray-900 bg-white p-3 rounded-lg border border-gray-200 flex items-center gap-2">
                       <Calendar size={16} className="text-gray-400" />
                       {formatDate(selectedCustomerForView.created_at)}
@@ -562,9 +612,16 @@ export default function CustomerTable() {
                 <History className="w-6 h-6 text-teal-600" />
               </div>
               <div>
-                <h2 className="text-2xl font-bold text-gray-800">Complaint History</h2>
-                <p className="text-sm text-gray-500">Customer: {selectedCustomer.customer_name}</p>
-                <p className="text-xs text-gray-400 mt-1">Email: {selectedCustomer.email} | Phone: {selectedCustomer.customer_phone}</p>
+                <h2 className="text-2xl font-bold text-gray-800">
+                  Complaint History
+                </h2>
+                <p className="text-sm text-gray-500">
+                  Customer: {selectedCustomer.customer_name}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Email: {selectedCustomer.email} | Phone:{" "}
+                  {selectedCustomer.customer_phone}
+                </p>
               </div>
             </div>
             <button
@@ -580,8 +637,12 @@ export default function CustomerTable() {
             {history.length === 0 ? (
               <div className="text-center py-16 bg-gray-50 rounded-xl border border-gray-200">
                 <History size={48} className="mx-auto text-gray-400 mb-4" />
-                <h3 className="text-lg font-semibold text-gray-700 mb-2">No Complaint History</h3>
-                <p className="text-gray-500">This customer has no complaint records yet.</p>
+                <h3 className="text-lg font-semibold text-gray-700 mb-2">
+                  No Complaint History
+                </h3>
+                <p className="text-gray-500">
+                  This customer has no complaint records yet.
+                </p>
               </div>
             ) : (
               <div className="space-y-6">
@@ -590,29 +651,55 @@ export default function CustomerTable() {
                   <table className="min-w-full text-sm">
                     <thead className="bg-gray-100 border-b border-gray-200">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">ID</th>
-                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Date</th>
-                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Customer Name</th>
-                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Phone Model</th>
-                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Issue</th>
-                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Status</th>
-                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Assign To Type</th>
-                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Assign To Name</th>
-                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Invoice Status</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                          ID
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                          Date
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                          Customer Name
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                          Phone Model
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                          Issue
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                          Status
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                          Assign To Type
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                          Assign To Name
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                          Invoice Status
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {history.map((h) => {
                         const assigned = getAssignedToWithType(h);
                         const invoiceStatus = getInvoiceStatus(h);
-                        const invoiceStatusColor = getInvoiceStatusColor(invoiceStatus);
-                        
+                        const invoiceStatusColor =
+                          getInvoiceStatusColor(invoiceStatus);
+
                         return (
-                          <tr key={h.id} className="hover:bg-gray-50 transition">
-                            <td className="px-4 py-3 font-mono text-slate-600 text-sm">#{h.id}</td>
+                          <tr
+                            key={h.id}
+                            className="hover:bg-gray-50 transition"
+                          >
+                            <td className="px-4 py-3 font-mono text-slate-600 text-sm">
+                              #{h.id}
+                            </td>
                             <td className="px-4 py-3 text-gray-600">
                               <div className="flex flex-col">
-                                <span>{new Date(h.created_at).toLocaleDateString()}</span>
+                                <span>
+                                  {new Date(h.created_at).toLocaleDateString()}
+                                </span>
                                 <span className="text-xs text-gray-400">
                                   {new Date(h.created_at).toLocaleTimeString()}
                                 </span>
@@ -620,7 +707,8 @@ export default function CustomerTable() {
                             </td>
                             <td className="px-4 py-3">
                               <span className="font-medium text-gray-800">
-                                {h.customer_name || selectedCustomer.customer_name}
+                                {h.customer_name ||
+                                  selectedCustomer.customer_name}
                               </span>
                             </td>
                             <td className="px-4 py-3">
@@ -654,7 +742,9 @@ export default function CustomerTable() {
                               </span>
                             </td>
                             <td className="px-4 py-3">
-                              <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${invoiceStatusColor}`}>
+                              <span
+                                className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${invoiceStatusColor}`}
+                              >
                                 <DollarSign size={12} />
                                 {invoiceStatus}
                               </span>
@@ -685,8 +775,10 @@ export default function CustomerTable() {
 
   // Helper for status styles
   const getStatusStyle = (status) => {
-    if (status === "New") return "bg-yellow-100 text-yellow-800 border border-yellow-200";
-    if (status === "Complaint Registered") return "bg-green-100 text-green-800 border border-green-200";
+    if (status === "New")
+      return "bg-yellow-100 text-yellow-800 border border-yellow-200";
+    if (status === "Complaint Registered")
+      return "bg-green-100 text-green-800 border border-green-200";
     return "bg-gray-100 text-gray-800 border border-gray-200";
   };
 
@@ -711,7 +803,8 @@ export default function CustomerTable() {
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="font-medium text-blue-800">
-              {selectedRows.size} customer{selectedRows.size !== 1 ? "s" : ""} selected
+              {selectedRows.size} customer{selectedRows.size !== 1 ? "s" : ""}{" "}
+              selected
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -837,7 +930,10 @@ export default function CustomerTable() {
           {search && (
             <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs border border-blue-200">
               Search: "{search}"
-              <button onClick={() => setSearch("")} className="hover:text-blue-900">
+              <button
+                onClick={() => setSearch("")}
+                className="hover:text-blue-900"
+              >
                 <X size={12} />
               </button>
             </span>
@@ -845,7 +941,10 @@ export default function CustomerTable() {
           {createdByFilter && (
             <span className="inline-flex items-center gap-1 px-3 py-1 bg-teal-50 text-teal-700 rounded-full text-xs border border-teal-200">
               Created by: {createdByFilter}
-              <button onClick={() => setCreatedByFilter("")} className="hover:text-teal-900">
+              <button
+                onClick={() => setCreatedByFilter("")}
+                className="hover:text-teal-900"
+              >
                 <X size={12} />
               </button>
             </span>
@@ -880,31 +979,52 @@ export default function CustomerTable() {
                   className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
                 />
               </th>
-              <th className="px-4 py-4 text-left font-medium text-xs uppercase tracking-wider">ID</th>
-              <th className="px-4 py-4 text-left font-medium text-xs uppercase tracking-wider">Customer Name</th>
-              <th className="px-4 py-4 text-left font-medium text-xs uppercase tracking-wider">Email</th>
-              <th className="px-4 py-4 text-left font-medium text-xs uppercase tracking-wider">Phone</th>
-              <th className="px-4 py-4 text-center font-medium text-xs uppercase tracking-wider">Actions</th>
+              <th className="px-4 py-4 text-left font-medium text-xs uppercase tracking-wider">
+                ID
+              </th>
+              <th className="px-4 py-4 text-left font-medium text-xs uppercase tracking-wider">
+                Customer Name
+              </th>
+              <th className="px-4 py-4 text-left font-medium text-xs uppercase tracking-wider">
+                Email
+              </th>
+              <th className="px-4 py-4 text-left font-medium text-xs uppercase tracking-wider">
+                Phone
+              </th>
+              <th className="px-4 py-4 text-center font-medium text-xs uppercase tracking-wider">
+                Actions
+              </th>
             </tr>
           </thead>
 
           <tbody className="divide-y divide-gray-100">
             {fetchError ? (
               <tr>
-                <td colSpan="6" className="text-center py-10 text-red-600 bg-red-50 font-medium">
+                <td
+                  colSpan="6"
+                  className="text-center py-10 text-red-600 bg-red-50 font-medium"
+                >
                   {fetchError}
                 </td>
               </tr>
             ) : loading ? (
               <tr>
                 <td colSpan="6" className="text-center py-10 text-slate-600">
-                  <RotateCw className="animate-spin inline-block mr-2" size={18} />
-                  <span className="animate-pulse">Fetching customer data...</span>
+                  <RotateCw
+                    className="animate-spin inline-block mr-2"
+                    size={18}
+                  />
+                  <span className="animate-pulse">
+                    Fetching customer data...
+                  </span>
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan="6" className="text-center py-10 text-gray-500 bg-gray-50">
+                <td
+                  colSpan="6"
+                  className="text-center py-10 text-gray-500 bg-gray-50"
+                >
                   No customers found matching the search criteria.
                 </td>
               </tr>
@@ -924,10 +1044,18 @@ export default function CustomerTable() {
                       className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
                     />
                   </td>
-                  <td className="px-4 py-3 font-mono text-slate-600 text-sm">{cust.id}</td>
-                  <td className="px-4 py-3 font-medium text-gray-800">{cust.customer_name}</td>
-                  <td className="px-4 py-3 text-gray-600 text-xs">{cust.email}</td>
-                  <td className="px-4 py-3 text-gray-600">{cust.customer_phone}</td>
+                  <td className="px-4 py-3 font-mono text-slate-600 text-sm">
+                    {cust.id}
+                  </td>
+                  <td className="px-4 py-3 font-medium text-gray-800">
+                    {cust.customer_name}
+                  </td>
+                  <td className="px-4 py-3 text-gray-600 text-xs">
+                    {cust.email}
+                  </td>
+                  <td className="px-4 py-3 text-gray-600">
+                    {cust.customer_phone}
+                  </td>
 
                   {/* Actions */}
                   <td className="px-4 py-3 text-center">
@@ -954,7 +1082,9 @@ export default function CustomerTable() {
                       </button>
 
                       <button
-                        onClick={() => deleteCustomer(cust.id, cust.customer_name)}
+                        onClick={() =>
+                          deleteCustomer(cust.id, cust.customer_name)
+                        }
                         className="inline-flex items-center text-xs font-medium text-red-700 hover:text-red-900 p-1.5 rounded hover:bg-red-50 transition"
                         title="Delete Customer Record"
                       >
@@ -968,7 +1098,7 @@ export default function CustomerTable() {
           </tbody>
         </table>
       </div>
-      
+
       {/* Mobile Cards */}
       <div className="md:hidden space-y-4">
         {loading ? (
@@ -990,7 +1120,9 @@ export default function CustomerTable() {
             >
               <div className="flex justify-between items-start">
                 <div>
-                  <p className="font-semibold text-gray-800">{cust.customer_name}</p>
+                  <p className="font-semibold text-gray-800">
+                    {cust.customer_name}
+                  </p>
                   <p className="text-xs text-gray-500">ID: {cust.id}</p>
                 </div>
                 <input
@@ -1044,9 +1176,13 @@ export default function CustomerTable() {
           Showing {filtered.length} of {customers.length} total customers
         </div>
         <div className="flex items-center gap-4">
-          <div className={`px-3 py-1 rounded ${
-            selectedRows.size > 0 ? "bg-blue-50 text-blue-700" : "text-gray-400"
-          }`}>
+          <div
+            className={`px-3 py-1 rounded ${
+              selectedRows.size > 0
+                ? "bg-blue-50 text-blue-700"
+                : "text-gray-400"
+            }`}
+          >
             {selectedRows.size} selected
           </div>
         </div>

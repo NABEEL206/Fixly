@@ -194,9 +194,12 @@ const GrowTagViewModal = ({ growTag, onClose, onEdit }) => {
       setGrowTagDetails(response.data);
     } catch (error) {
       console.error("Error fetching grow tag details:", error);
-      if (error.response?.status === 401) {
+
+      if (!error.response) return;
+
+      if (error.response.status === 401) {
         toast.error("Session expired. Please login again.");
-      } else if (error.response?.status === 403) {
+      } else if (error.response.status === 403) {
         toast.error("You don't have permission to view details");
       } else {
         toast.error("Failed to load grow tag details");
@@ -209,7 +212,7 @@ const GrowTagViewModal = ({ growTag, onClose, onEdit }) => {
   // Format Aadhar number for display (with spaces)
   const formatAadhar = (aadhar) => {
     if (!aadhar) return "-";
-    const cleaned = aadhar.replace(/\D/g, '');
+    const cleaned = aadhar.replace(/\D/g, "");
     const match = cleaned.match(/^(\d{4})(\d{4})(\d{4})$/);
     if (match) {
       return `${match[1]} ${match[2]} ${match[3]}`;
@@ -722,10 +725,14 @@ export default function GrowTags() {
       }
     } catch (err) {
       console.error("Failed to load grow tags", err);
-      if (err.response?.status === 401) {
+
+      // network error already handled globally
+      if (!err.response) return;
+
+      if (err.response.status === 401) {
         toast.error("Session expired. Please login again.");
         navigate("/login");
-      } else if (err.response?.status === 403) {
+      } else if (err.response.status === 403) {
         toast.error("You are not authorized");
       } else {
         toast.error("Failed to load grow tags");
@@ -737,7 +744,6 @@ export default function GrowTags() {
 
   useEffect(() => {
     if (!localStorage.getItem("access_token")) {
-      toast.error("Session expired. Please login again.");
       navigate("/login");
       return;
     }
@@ -807,7 +813,7 @@ export default function GrowTags() {
     if (name === "adhar") {
       // Allow only digits
       if (value && !/^\d*$/.test(value)) return;
-      
+
       // Limit to 12 digits
       if (value.length > 12) return;
     }
@@ -822,20 +828,23 @@ export default function GrowTags() {
     if (name === "pincode") {
       // Allow only digits
       if (value && !/^\d*$/.test(value)) return;
-      
+
       // Limit to 6 digits
       if (value.length > 6) return;
     }
 
     setForm((prev) => ({ ...prev, [name]: value }));
-    
+
     // Clear errors for the field being edited
     setErrors((prev) => ({ ...prev, [name]: "" }));
 
     // Password length validation
     if (name === "password") {
       if (value && value.length < 6) {
-        setErrors((prev) => ({ ...prev, password: "Password must be at least 6 characters" }));
+        setErrors((prev) => ({
+          ...prev,
+          password: "Password must be at least 6 characters",
+        }));
       } else {
         setErrors((prev) => ({ ...prev, password: "" }));
       }
@@ -962,10 +971,7 @@ export default function GrowTags() {
 
     if (!isEdit && !form.password.trim()) {
       newErrors.password = "Password is required";
-    } else if (
-      form.password.trim() &&
-      form.password.trim().length < 6
-    ) {
+    } else if (form.password.trim() && form.password.trim().length < 6) {
       newErrors.password = "Password must be at least 6 characters";
     }
 
@@ -988,14 +994,14 @@ export default function GrowTags() {
     }
 
     if (!form.area.trim()) newErrors.area = "Area is required";
-    
+
     // Enhanced Aadhar validation
     if (!form.adhar.trim()) {
       newErrors.adhar = "Aadhar is required";
     } else if (!/^\d{12}$/.test(form.adhar)) {
       newErrors.adhar = "Aadhar must be exactly 12 digits";
     }
-    
+
     if (!form.address.trim()) newErrors.address = "Address is required";
 
     setErrors(newErrors);
@@ -1044,9 +1050,15 @@ export default function GrowTags() {
       setShowFormModal(false);
       await loadGrowtags();
     } catch (err) {
-      if (err.response?.status === 401) {
+      // network error handled globally
+      if (!err.response) {
+        toast.dismiss(toastId);
+        return;
+      }
+
+      if (err.response.status === 401) {
         toast.error("Session expired. Please login again.", { id: toastId });
-      } else if (err.response?.status === 403) {
+      } else if (err.response.status === 403) {
         toast.error("You don't have permission to perform this action", {
           id: toastId,
         });
@@ -1123,11 +1135,16 @@ export default function GrowTags() {
                   await loadGrowtags();
                   setSelectedIds((prev) => prev.filter((x) => x !== id));
                 } catch (err) {
-                  if (err.response?.status === 401) {
+                  if (!err.response) {
+                    toast.dismiss(dt);
+                    return;
+                  }
+
+                  if (err.response.status === 401) {
                     toast.error("Session expired. Please login again.", {
                       id: dt,
                     });
-                  } else if (err.response?.status === 403) {
+                  } else if (err.response.status === 403) {
                     toast.error("You don't have permission to delete", {
                       id: dt,
                     });
@@ -1238,7 +1255,12 @@ export default function GrowTags() {
                     if (unauthorized.length > 0)
                       toast.error(`Session expired. Please login again.`);
                   }
-                } catch {
+                } catch (error) {
+                  if (!error.response) {
+                    toast.dismiss(dt);
+                    return;
+                  }
+
                   toast.error("Bulk delete failed", { id: dt });
                 }
               }}
@@ -2017,7 +2039,9 @@ export default function GrowTags() {
                         {errors.address}
                       </span>
                     )}
-                    <span className={`text-xs ${form.address.length > 200 ? 'text-red-500' : 'text-gray-500'}`}>
+                    <span
+                      className={`text-xs ${form.address.length > 200 ? "text-red-500" : "text-gray-500"}`}
+                    >
                       {form.address.length}/200 characters
                     </span>
                   </div>

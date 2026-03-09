@@ -19,7 +19,7 @@ import {
   Calendar,
   Tag,
   Package,
-  Loader2
+  Loader2,
 } from "lucide-react";
 import ComplaintRegistrationModal from "./ComplaintRegistrationModal";
 import toast from "react-hot-toast";
@@ -67,23 +67,24 @@ const Leads = () => {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
-  
+
   // UI States
   const [selectedLeads, setSelectedLeads] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("All");
-  
+
   // Modal States
   const [showNewLeadModal, setShowNewLeadModal] = useState(false);
   const [showComplaintModal, setShowComplaintModal] = useState(false);
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState(null);
-  
+
   // Lead Modal States
   const [leadModalMode, setLeadModalMode] = useState("create"); // 'create', 'edit', 'view'
   const [editingLeadId, setEditingLeadId] = useState(null);
-  const [selectedLeadForComplaint, setSelectedLeadForComplaint] = useState(null);
-  
+  const [selectedLeadForComplaint, setSelectedLeadForComplaint] =
+    useState(null);
+
   // Form States
   const [newLeadData, setNewLeadData] = useState({
     name: "",
@@ -96,10 +97,10 @@ const Leads = () => {
     area: "",
     issueDetail: "",
   });
-  
+
   const [newLeadErrors, setNewLeadErrors] = useState({});
   const [touchedFields, setTouchedFields] = useState({});
-  
+
   // Location States
   const [areaOptions, setAreaOptions] = useState([]);
   const [loadingArea, setLoadingArea] = useState(false);
@@ -112,7 +113,10 @@ const Leads = () => {
   // ---------- Validation Functions ----------
   const validateField = (field, value) => {
     if (!value?.trim()) {
-      setNewLeadErrors((prev) => ({ ...prev, [field]: "This field is required" }));
+      setNewLeadErrors((prev) => ({
+        ...prev,
+        [field]: "This field is required",
+      }));
       return false;
     }
 
@@ -202,8 +206,14 @@ const Leads = () => {
     let isValid = true;
 
     const requiredFields = [
-      "name", "phone", "email", "phoneModel", 
-      "issueDetail", "address", "pincode", "area"
+      "name",
+      "phone",
+      "email",
+      "phoneModel",
+      "issueDetail",
+      "address",
+      "pincode",
+      "area",
     ];
 
     requiredFields.forEach((field) => {
@@ -290,9 +300,9 @@ const Leads = () => {
     setLoading(true);
     try {
       const response = await axiosInstance.get(LEADS_API_URL);
-      
+
       console.log("Fetched leads data:", response.data);
-      
+
       const mappedLeads = response.data.map((lead) => ({
         id: lead.id,
         leadId: lead.lead_code,
@@ -306,7 +316,10 @@ const Leads = () => {
         state: lead.state || "",
         issueDetail: lead.issue_detail,
         registrationDate: getFormattedDate(lead.created_at),
-        status: lead.status === "COMPLAINT_REGISTERED" ? "Complaint Registered" : "New",
+        status:
+          lead.status === "COMPLAINT_REGISTERED"
+            ? "Complaint Registered"
+            : "New",
         created_by: lead.created_by || null,
         source: lead.source || "MANUAL",
         created_at: lead.created_at,
@@ -316,7 +329,10 @@ const Leads = () => {
       setLeads(mappedLeads);
     } catch (err) {
       console.error("Fetch leads error:", err);
-      
+
+      // Network error handled globally
+      if (!err.response) return;
+
       if (err.response?.status === 401) {
         toast.error("Session expired. Please login again.");
       } else if (err.response?.status === 403) {
@@ -340,19 +356,8 @@ const Leads = () => {
     setLoadingArea(true);
 
     try {
-      if (!navigator.onLine) {
-        toast.error("No internet connection");
-        setNewLeadErrors((prev) => ({
-          ...prev,
-          pincode: "No internet connection. Please check your network.",
-        }));
-        setAreaOptions([]);
-        setNewLeadData((prev) => ({ ...prev, state: "" }));
-        return;
-      }
-
       const response = await fetch(
-        `https://api.postalpincode.in/pincode/${pincode}`
+        `https://api.postalpincode.in/pincode/${pincode}`,
       );
 
       if (!response.ok) throw new Error("Server error");
@@ -388,57 +393,59 @@ const Leads = () => {
       });
     } catch (error) {
       console.error("Pincode fetch failed:", error);
-      toast.error("Network error while fetching location");
+      if (error.message !== "Failed to fetch") {
+        toast.error("Unable to fetch location");
+      }y
       setAreaOptions([]);
       setNewLeadData((prev) => ({ ...prev, state: "" }));
       setNewLeadErrors((prev) => ({
         ...prev,
         pincode: "Unable to fetch location. Please try again later.",
       }));
-    } finally {
+    } finally {   
       setLoadingArea(false);
     }
   };
 
-// ---------- Form Handlers ----------
-const handleNewLeadChange = (field, value) => {
-  // Field-specific real-time processing
-  let processedValue = value;
+  // ---------- Form Handlers ----------
+  const handleNewLeadChange = (field, value) => {
+    // Field-specific real-time processing
+    let processedValue = value;
 
-  switch (field) {
-    case "name":
-      // Only allow letters, spaces, dots, and hyphens for names
-      processedValue = value.replace(/[^a-zA-Z\s\.\-]/g, '');
-      // Prevent multiple consecutive spaces
-      processedValue = processedValue.replace(/\s+/g, ' ').trimStart();
-      break;
-      
-    case "phone":
-      // Only allow digits, max 10
-      processedValue = value.replace(/\D/g, '').slice(0, 10);
-      break;
-    
-    case "pincode":
-      // Only allow digits, max 6
-      processedValue = value.replace(/\D/g, '').slice(0, 6);
-      break;
-    
-    default:
-      break;
-  }
+    switch (field) {
+      case "name":
+        // Only allow letters, spaces, dots, and hyphens for names
+        processedValue = value.replace(/[^a-zA-Z\s\.\-]/g, "");
+        // Prevent multiple consecutive spaces
+        processedValue = processedValue.replace(/\s+/g, " ").trimStart();
+        break;
 
-  setNewLeadData((prev) => ({ ...prev, [field]: processedValue }));
-  
-  // Validate if field is touched
-  if (touchedFields[field]) {
-    validateField(field, processedValue);
-  }
+      case "phone":
+        // Only allow digits, max 10
+        processedValue = value.replace(/\D/g, "").slice(0, 10);
+        break;
 
-  // Handle pincode lookup
-  if (field === "pincode" && processedValue.length === 6) {
-    handlePincodeChange(processedValue);
-  }
-};
+      case "pincode":
+        // Only allow digits, max 6
+        processedValue = value.replace(/\D/g, "").slice(0, 6);
+        break;
+
+      default:
+        break;
+    }
+
+    setNewLeadData((prev) => ({ ...prev, [field]: processedValue }));
+
+    // Validate if field is touched
+    if (touchedFields[field]) {
+      validateField(field, processedValue);
+    }
+
+    // Handle pincode lookup
+    if (field === "pincode" && processedValue.length === 6) {
+      handlePincodeChange(processedValue);
+    }
+  };
 
   const handleFieldBlur = (field) => {
     setTouchedFields((prev) => ({ ...prev, [field]: true }));
@@ -467,8 +474,14 @@ const handleNewLeadChange = (field, value) => {
   // ---------- CRUD Operations ----------
   const handleSaveNewLead = async () => {
     const allFields = [
-      "name", "phone", "email", "phoneModel", 
-      "issueDetail", "address", "pincode", "area"
+      "name",
+      "phone",
+      "email",
+      "phoneModel",
+      "issueDetail",
+      "address",
+      "pincode",
+      "area",
     ];
 
     const newTouched = {};
@@ -481,7 +494,9 @@ const handleNewLeadChange = (field, value) => {
     }
 
     setSubmitLoading(true);
-    const toastId = toast.loading(editingLeadId ? "Updating lead..." : "Creating lead...");
+    const toastId = toast.loading(
+      editingLeadId ? "Updating lead..." : "Creating lead...",
+    );
 
     try {
       const payload = {
@@ -510,15 +525,21 @@ const handleNewLeadChange = (field, value) => {
       resetLeadForm();
     } catch (err) {
       console.error("Save lead error:", err);
-      
+
+      if (!err.response) return;
+
       if (err.response?.status === 401) {
         toast.error("Session expired. Please login again.", { id: toastId });
       } else if (err.response?.status === 403) {
-        toast.error("You don't have permission to perform this action", { id: toastId });
+        toast.error("You don't have permission to perform this action", {
+          id: toastId,
+        });
       } else {
-        const errorMessage = err.response?.data?.detail || 
-                            err.response?.data?.message || 
-                            (editingLeadId ? "Failed to update lead" : "Failed to create lead");
+        const errorMessage =
+          err.response?.data?.detail ||
+          err.response?.data?.message ||
+          (editingLeadId ? "Failed to update lead" : "Failed to create lead");
+
         toast.error(errorMessage, { id: toastId });
       }
     } finally {
@@ -543,18 +564,26 @@ const handleNewLeadChange = (field, value) => {
               onClick={async () => {
                 toast.dismiss(t.id);
                 const toastId = toast.loading("Deleting lead...");
-                
+
                 try {
                   await axiosInstance.delete(`${LEADS_API_URL}${leadId}/`);
-                  toast.success("Lead deleted successfully ✅", { id: toastId });
+                  toast.success("Lead deleted successfully ✅", {
+                    id: toastId,
+                  });
                   await fetchLeads();
                 } catch (error) {
                   console.error("Delete lead error:", error);
-                  
+
+                  if (!error.response) return;
+
                   if (error.response?.status === 401) {
-                    toast.error("Session expired. Please login again.", { id: toastId });
+                    toast.error("Session expired. Please login again.", {
+                      id: toastId,
+                    });
                   } else if (error.response?.status === 403) {
-                    toast.error("You don't have permission to delete leads", { id: toastId });
+                    toast.error("You don't have permission to delete leads", {
+                      id: toastId,
+                    });
                   } else {
                     toast.error("Failed to delete lead ❌", { id: toastId });
                   }
@@ -567,7 +596,7 @@ const handleNewLeadChange = (field, value) => {
           </div>
         </div>
       ),
-      { duration: 6000 }
+      { duration: 6000 },
     );
   };
 
@@ -580,7 +609,9 @@ const handleNewLeadChange = (field, value) => {
     toast(
       (t) => (
         <div className="flex flex-col gap-3">
-          <p className="font-medium">Delete {selectedLeads.length} selected leads?</p>
+          <p className="font-medium">
+            Delete {selectedLeads.length} selected leads?
+          </p>
           <p className="text-xs text-gray-500">This action cannot be undone.</p>
           <div className="flex justify-end gap-2">
             <button
@@ -592,28 +623,42 @@ const handleNewLeadChange = (field, value) => {
             <button
               onClick={async () => {
                 toast.dismiss(t.id);
-                const toastId = toast.loading(`Deleting ${selectedLeads.length} leads...`);
-                
+                const toastId = toast.loading(
+                  `Deleting ${selectedLeads.length} leads...`,
+                );
+
                 try {
                   const results = await Promise.allSettled(
                     selectedLeads.map((id) =>
-                      axiosInstance.delete(`${LEADS_API_URL}${id}/`)
-                    )
+                      axiosInstance.delete(`${LEADS_API_URL}${id}/`),
+                    ),
                   );
-                  
-                  const failed = results.filter(r => r.status === 'rejected').length;
-                  
+
+                  const failed = results.filter(
+                    (r) => r.status === "rejected",
+                  ).length;
+
                   if (failed === 0) {
-                    toast.success("All leads deleted successfully ✅", { id: toastId });
+                    toast.success("All leads deleted successfully ✅", {
+                      id: toastId,
+                    });
                   } else {
-                    toast.success(`${selectedLeads.length - failed} leads deleted, ${failed} failed`, { id: toastId });
+                    toast.success(
+                      `${selectedLeads.length - failed} leads deleted, ${failed} failed`,
+                      { id: toastId },
+                    );
                   }
-                  
+
                   await fetchLeads();
                   setSelectedLeads([]);
                 } catch (err) {
                   console.error("Bulk delete error:", err);
-                  toast.error("Failed to delete some leads ❌", { id: toastId });
+
+                  if (!err.response) return;
+
+                  toast.error("Failed to delete some leads ❌", {
+                    id: toastId,
+                  });
                 }
               }}
               className="px-3 py-1.5 bg-red-600 text-white rounded text-sm"
@@ -623,7 +668,7 @@ const handleNewLeadChange = (field, value) => {
           </div>
         </div>
       ),
-      { duration: 6000 }
+      { duration: 6000 },
     );
   };
 
@@ -637,7 +682,7 @@ const handleNewLeadChange = (field, value) => {
   const handleEditLead = async (lead) => {
     setLeadModalMode("edit");
     setEditingLeadId(lead.id);
-    
+
     setNewLeadData({
       name: lead.name || "",
       phone: lead.phone || "",
@@ -657,7 +702,7 @@ const handleNewLeadChange = (field, value) => {
     if (lead.pincode?.length === 6) {
       try {
         const res = await fetch(
-          `https://api.postalpincode.in/pincode/${lead.pincode}`
+          `https://api.postalpincode.in/pincode/${lead.pincode}`,
         );
         const data = await res.json();
         if (data[0]?.Status === "Success") {
@@ -677,7 +722,9 @@ const handleNewLeadChange = (field, value) => {
 
   const handleViewOrRegisterComplaint = (lead) => {
     if (lead.status === "Complaint Registered") {
-      toast.success(`Complaint already registered for this lead. Complaint ID: ${lead.complaintId || 'N/A'}`);
+      toast.success(
+        `Complaint already registered for this lead. Complaint ID: ${lead.complaintId || "N/A"}`,
+      );
     } else {
       setSelectedLeadForComplaint(lead);
       setShowComplaintModal(true);
@@ -686,19 +733,21 @@ const handleNewLeadChange = (field, value) => {
 
   const handleComplaintRegistrationSuccess = async (responseData) => {
     console.log("Complaint registration success, response:", responseData);
-    
+
     await fetchLeads();
-    
+
     setShowComplaintModal(false);
     setSelectedLeadForComplaint(null);
-    
+
     toast.success("Complaint registered successfully!");
   };
 
   // ---------- Selection Handlers ----------
   const handleSelectLead = (id) => {
     setSelectedLeads((prev) =>
-      prev.includes(id) ? prev.filter((leadId) => leadId !== id) : [...prev, id]
+      prev.includes(id)
+        ? prev.filter((leadId) => leadId !== id)
+        : [...prev, id],
     );
   };
 
@@ -711,16 +760,16 @@ const handleNewLeadChange = (field, value) => {
     const searchLower = searchTerm.toLowerCase();
 
     return leads.filter((lead) => {
-      const matchesSearch = (
+      const matchesSearch =
         (lead.name || "").toLowerCase().includes(searchLower) ||
         (lead.phone || "").includes(searchTerm) ||
         (lead.email || "").toLowerCase().includes(searchLower) ||
         (lead.leadId || "").toLowerCase().includes(searchLower) ||
         (lead.phoneModel || "").toLowerCase().includes(searchLower) ||
-        (lead.issueDetail || "").toLowerCase().includes(searchLower)
-      );
+        (lead.issueDetail || "").toLowerCase().includes(searchLower);
 
-      const matchesStatus = filterStatus === "All" || lead.status === filterStatus;
+      const matchesStatus =
+        filterStatus === "All" || lead.status === filterStatus;
 
       return matchesSearch && matchesStatus;
     });
@@ -728,8 +777,10 @@ const handleNewLeadChange = (field, value) => {
 
   // ---------- Render Helpers ----------
   const getStatusStyle = (status) => {
-    if (status === "New") return "bg-yellow-100 text-yellow-800 border border-yellow-200";
-    if (status === "Complaint Registered") return "bg-green-100 text-green-800 border border-green-200";
+    if (status === "New")
+      return "bg-yellow-100 text-yellow-800 border border-yellow-200";
+    if (status === "Complaint Registered")
+      return "bg-green-100 text-green-800 border border-green-200";
     return "bg-gray-100 text-gray-800 border border-gray-200";
   };
 
@@ -744,7 +795,14 @@ const handleNewLeadChange = (field, value) => {
   };
 
   // Loading Button Component
-  const LoadingButton = ({ loading, children, onClick, className, disabled, type = "button" }) => {
+  const LoadingButton = ({
+    loading,
+    children,
+    onClick,
+    className,
+    disabled,
+    type = "button",
+  }) => {
     return (
       <button
         type={type}
@@ -798,7 +856,10 @@ const handleNewLeadChange = (field, value) => {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full border p-2 pl-10 rounded-lg text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
               />
-              <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <Search
+                size={16}
+                className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+              />
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -810,7 +871,9 @@ const handleNewLeadChange = (field, value) => {
                 className="border p-2 rounded-lg text-sm bg-white"
               >
                 {STATUS_OPTIONS.map((status) => (
-                  <option key={status} value={status}>{status}</option>
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
                 ))}
               </select>
             </div>
@@ -836,17 +899,34 @@ const handleNewLeadChange = (field, value) => {
                     <input
                       type="checkbox"
                       onChange={(e) => handleSelectAll(e.target.checked)}
-                      checked={selectedLeads.length > 0 && selectedLeads.length === filteredLeads.length}
+                      checked={
+                        selectedLeads.length > 0 &&
+                        selectedLeads.length === filteredLeads.length
+                      }
                       className="rounded text-blue-600 focus:ring-blue-500"
                     />
                   </th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Lead ID</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Customer</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Email</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Phone Model</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Issue</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Source</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                    Lead ID
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                    Customer
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                    Email
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                    Phone Model
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                    Issue
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                    Source
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                    Actions
+                  </th>
                 </tr>
               </thead>
 
@@ -855,7 +935,10 @@ const handleNewLeadChange = (field, value) => {
                   <tr>
                     <td colSpan="8" className="text-center py-12">
                       <div className="flex flex-col items-center">
-                        <Loader2 size={40} className="text-blue-600 animate-spin mb-3" />
+                        <Loader2
+                          size={40}
+                          className="text-blue-600 animate-spin mb-3"
+                        />
                         <p className="text-gray-600">Loading leads...</p>
                       </div>
                     </td>
@@ -879,8 +962,12 @@ const handleNewLeadChange = (field, value) => {
 
                       <td className="px-4 py-4 text-center align-middle">
                         <div className="flex flex-col items-center gap-1">
-                          <p className="font-bold text-blue-600 text-sm">{lead.leadId}</p>
-                          <span className={`px-2 py-0.5 text-xs rounded-full ${getStatusStyle(lead.status)}`}>
+                          <p className="font-bold text-blue-600 text-sm">
+                            {lead.leadId}
+                          </p>
+                          <span
+                            className={`px-2 py-0.5 text-xs rounded-full ${getStatusStyle(lead.status)}`}
+                          >
                             {lead.status}
                           </span>
                         </div>
@@ -888,7 +975,9 @@ const handleNewLeadChange = (field, value) => {
 
                       <td className="px-4 py-4 text-center align-middle">
                         <div className="flex flex-col items-center">
-                          <p className="font-bold text-gray-900 text-sm">{lead.name}</p>
+                          <p className="font-bold text-gray-900 text-sm">
+                            {lead.name}
+                          </p>
                           <p className="text-xs text-blue-600 flex items-center gap-1 mt-1">
                             <Phone size={12} /> {lead.phone}
                           </p>
@@ -908,7 +997,10 @@ const handleNewLeadChange = (field, value) => {
                       </td>
 
                       <td className="px-4 py-4 text-center align-middle">
-                        <p className="text-xs text-gray-700 max-w-[200px] truncate" title={lead.issueDetail}>
+                        <p
+                          className="text-xs text-gray-700 max-w-[200px] truncate"
+                          title={lead.issueDetail}
+                        >
                           {lead.issueDetail}
                         </p>
                       </td>
@@ -929,7 +1021,11 @@ const handleNewLeadChange = (field, value) => {
                                 ? "bg-green-50 text-green-600 hover:bg-green-100"
                                 : "bg-red-50 text-red-600 hover:bg-red-100"
                             }`}
-                            title={lead.status === "Complaint Registered" ? "View Complaint" : "Register Complaint"}
+                            title={
+                              lead.status === "Complaint Registered"
+                                ? "View Complaint"
+                                : "Register Complaint"
+                            }
                           >
                             {lead.status === "Complaint Registered" ? (
                               <CheckCircle size={18} />
@@ -970,11 +1066,18 @@ const handleNewLeadChange = (field, value) => {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="8" className="text-center py-10 text-gray-500 italic">
+                    <td
+                      colSpan="8"
+                      className="text-center py-10 text-gray-500 italic"
+                    >
                       <div className="flex flex-col items-center justify-center">
                         <Search size={48} className="text-gray-400 mb-4" />
-                        <h3 className="text-lg font-semibold text-gray-700 mb-2">No Leads Found</h3>
-                        <p className="text-gray-500">Try adjusting your search or filter criteria</p>
+                        <h3 className="text-lg font-semibold text-gray-700 mb-2">
+                          No Leads Found
+                        </h3>
+                        <p className="text-gray-500">
+                          Try adjusting your search or filter criteria
+                        </p>
                       </div>
                     </td>
                   </tr>
@@ -988,19 +1091,31 @@ const handleNewLeadChange = (field, value) => {
         <div className="md:hidden space-y-4">
           {loading ? (
             <div className="text-center py-10 bg-white rounded-xl shadow border">
-              <Loader2 size={40} className="text-blue-600 animate-spin mx-auto mb-3" />
+              <Loader2
+                size={40}
+                className="text-blue-600 animate-spin mx-auto mb-3"
+              />
               <p className="text-gray-600">Loading leads...</p>
             </div>
           ) : filteredLeads.length > 0 ? (
             filteredLeads.map((lead) => (
-              <div key={lead.id} className="bg-white rounded-xl shadow border p-4 space-y-3">
+              <div
+                key={lead.id}
+                className="bg-white rounded-xl shadow border p-4 space-y-3"
+              >
                 <div className="flex justify-between items-start">
                   <div className="space-y-1">
                     <h3 className="font-bold text-gray-900">{lead.name}</h3>
-                    <p className="text-sm text-blue-600 font-semibold">{lead.leadId}</p>
-                    <p className="text-xs text-gray-500">Source: {lead.source}</p>
+                    <p className="text-sm text-blue-600 font-semibold">
+                      {lead.leadId}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      Source: {lead.source}
+                    </p>
                   </div>
-                  <span className={`px-3 py-1 text-xs font-semibold rounded-full ${getStatusStyle(lead.status)}`}>
+                  <span
+                    className={`px-3 py-1 text-xs font-semibold rounded-full ${getStatusStyle(lead.status)}`}
+                  >
                     {lead.status}
                   </span>
                 </div>
@@ -1016,7 +1131,8 @@ const handleNewLeadChange = (field, value) => {
                     <Smartphone size={14} /> {lead.phoneModel}
                   </p>
                   <p className="text-sm text-gray-700">
-                    <span className="font-medium">Issue:</span> {lead.issueDetail}
+                    <span className="font-medium">Issue:</span>{" "}
+                    {lead.issueDetail}
                   </p>
                 </div>
 
@@ -1036,7 +1152,9 @@ const handleNewLeadChange = (field, value) => {
                       <AlertCircle size={20} />
                     )}
                     <span className="text-xs mt-1">
-                      {lead.status === "Complaint Registered" ? "View" : "Register"}
+                      {lead.status === "Complaint Registered"
+                        ? "View"
+                        : "Register"}
                     </span>
                   </button>
 
@@ -1072,8 +1190,12 @@ const handleNewLeadChange = (field, value) => {
           ) : (
             <div className="text-center py-10 bg-white rounded-xl shadow border">
               <Search size={48} className="mx-auto text-gray-400 mb-4" />
-              <h3 className="text-lg font-semibold text-gray-700 mb-2">No Leads Found</h3>
-              <p className="text-gray-500">Try adjusting your search or filter criteria</p>
+              <h3 className="text-lg font-semibold text-gray-700 mb-2">
+                No Leads Found
+              </h3>
+              <p className="text-gray-500">
+                Try adjusting your search or filter criteria
+              </p>
             </div>
           )}
         </div>
@@ -1089,8 +1211,12 @@ const handleNewLeadChange = (field, value) => {
                     <Tag className="w-6 h-6 text-blue-600" />
                   </div>
                   <div>
-                    <h2 className="text-2xl font-bold text-gray-800">Lead Details</h2>
-                    <p className="text-sm text-gray-500">ID: {selectedLead.leadId}</p>
+                    <h2 className="text-2xl font-bold text-gray-800">
+                      Lead Details
+                    </h2>
+                    <p className="text-sm text-gray-500">
+                      ID: {selectedLead.leadId}
+                    </p>
                   </div>
                 </div>
                 <button
@@ -1106,7 +1232,9 @@ const handleNewLeadChange = (field, value) => {
                 <div className="space-y-8">
                   {/* Status Badge */}
                   <div className="flex justify-end">
-                    <span className={`px-4 py-2 rounded-full text-sm font-semibold ${getStatusStyle(selectedLead.status)}`}>
+                    <span
+                      className={`px-4 py-2 rounded-full text-sm font-semibold ${getStatusStyle(selectedLead.status)}`}
+                    >
                       {selectedLead.status}
                     </span>
                   </div>
@@ -1119,20 +1247,26 @@ const handleNewLeadChange = (field, value) => {
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-1">
-                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Full Name</label>
+                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Full Name
+                        </label>
                         <p className="text-base font-medium text-gray-900 bg-white p-3 rounded-lg border border-gray-200">
                           {selectedLead.name}
                         </p>
                       </div>
                       <div className="space-y-1">
-                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Phone Number</label>
+                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Phone Number
+                        </label>
                         <p className="text-base font-medium text-gray-900 bg-white p-3 rounded-lg border border-gray-200 flex items-center gap-2">
                           <Phone size={16} className="text-blue-500" />
                           {selectedLead.phone}
                         </p>
                       </div>
                       <div className="space-y-1 md:col-span-2">
-                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Email Address</label>
+                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Email Address
+                        </label>
                         <p className="text-base font-medium text-gray-900 bg-white p-3 rounded-lg border border-gray-200 flex items-center gap-2">
                           <Mail size={16} className="text-blue-500" />
                           {selectedLead.email}
@@ -1149,13 +1283,17 @@ const handleNewLeadChange = (field, value) => {
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-1">
-                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Phone Model</label>
+                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Phone Model
+                        </label>
                         <p className="text-base font-medium text-gray-900 bg-white p-3 rounded-lg border border-gray-200">
                           {selectedLead.phoneModel}
                         </p>
                       </div>
                       <div className="space-y-1 md:col-span-2">
-                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Issue Details</label>
+                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Issue Details
+                        </label>
                         <p className="text-base text-gray-900 bg-white p-4 rounded-lg border border-gray-200 min-h-[100px] whitespace-pre-wrap">
                           {selectedLead.issueDetail}
                         </p>
@@ -1171,25 +1309,33 @@ const handleNewLeadChange = (field, value) => {
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       <div className="space-y-1">
-                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Address</label>
+                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Address
+                        </label>
                         <p className="text-sm text-gray-900 bg-white p-3 rounded-lg border border-gray-200">
                           {selectedLead.address}
                         </p>
                       </div>
                       <div className="space-y-1">
-                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Area</label>
+                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Area
+                        </label>
                         <p className="text-sm text-gray-900 bg-white p-3 rounded-lg border border-gray-200">
                           {selectedLead.area}
                         </p>
                       </div>
                       <div className="space-y-1">
-                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Pincode</label>
+                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Pincode
+                        </label>
                         <p className="text-sm text-gray-900 bg-white p-3 rounded-lg border border-gray-200">
                           {selectedLead.pincode}
                         </p>
                       </div>
                       <div className="space-y-1">
-                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">State</label>
+                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          State
+                        </label>
                         <p className="text-sm text-gray-900 bg-white p-3 rounded-lg border border-gray-200">
                           {selectedLead.state || "N/A"}
                         </p>
@@ -1205,33 +1351,46 @@ const handleNewLeadChange = (field, value) => {
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-1">
-                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Source</label>
+                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Source
+                        </label>
                         <p className="text-sm font-medium text-gray-900 bg-white p-3 rounded-lg border border-gray-200">
                           {selectedLead.source}
                         </p>
                       </div>
                       <div className="space-y-1">
-                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Created By</label>
+                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Created By
+                        </label>
                         <p className="text-sm font-medium text-gray-900 bg-white p-3 rounded-lg border border-gray-200">
-                          {selectedLead.created_by?.username || selectedLead.created_by?.email || selectedLead.created_by || "System"}
+                          {selectedLead.created_by?.username ||
+                            selectedLead.created_by?.email ||
+                            selectedLead.created_by ||
+                            "System"}
                         </p>
                       </div>
                       <div className="space-y-1">
-                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Created Date</label>
+                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Created Date
+                        </label>
                         <p className="text-sm font-medium text-gray-900 bg-white p-3 rounded-lg border border-gray-200 flex items-center gap-2">
                           <Calendar size={14} className="text-gray-400" />
                           {formatDate(selectedLead.created_at)}
                         </p>
                       </div>
                       <div className="space-y-1">
-                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Registration Date</label>
+                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Registration Date
+                        </label>
                         <p className="text-sm font-medium text-gray-900 bg-white p-3 rounded-lg border border-gray-200">
                           {selectedLead.registrationDate}
                         </p>
                       </div>
                       {selectedLead.complaintId && (
                         <div className="space-y-1 md:col-span-2">
-                          <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Complaint ID</label>
+                          <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Complaint ID
+                          </label>
                           <p className="text-sm font-medium text-blue-600 bg-blue-50 p-3 rounded-lg border border-blue-200">
                             #{selectedLead.complaintId}
                           </p>
@@ -1295,7 +1454,11 @@ const handleNewLeadChange = (field, value) => {
               <div className="flex justify-between items-center p-4 border-b bg-green-50">
                 <h2 className="text-xl font-bold text-green-700 flex items-center gap-2">
                   <PlusCircle size={24} />
-                  {leadModalMode === "view" ? "Lead Details" : editingLeadId ? "Update Lead" : "Create New Lead"}
+                  {leadModalMode === "view"
+                    ? "Lead Details"
+                    : editingLeadId
+                      ? "Update Lead"
+                      : "Create New Lead"}
                 </h2>
                 <button
                   onClick={() => {
@@ -1327,8 +1490,13 @@ const handleNewLeadChange = (field, value) => {
                           <input
                             value={newLeadData.name}
                             disabled={leadModalMode === "view" || submitLoading}
-                            onChange={(e) => handleNewLeadChange("name", e.target.value)}
-                            onBlur={() => leadModalMode !== "view" && handleFieldBlur("name")}
+                            onChange={(e) =>
+                              handleNewLeadChange("name", e.target.value)
+                            }
+                            onBlur={() =>
+                              leadModalMode !== "view" &&
+                              handleFieldBlur("name")
+                            }
                             maxLength={50}
                             className={`w-full border p-2 rounded-lg ${
                               leadModalMode === "view"
@@ -1355,8 +1523,13 @@ const handleNewLeadChange = (field, value) => {
                             type="tel"
                             value={newLeadData.phone}
                             disabled={leadModalMode === "view" || submitLoading}
-                            onChange={(e) => handleNewLeadChange("phone", e.target.value)}
-                            onBlur={() => leadModalMode !== "view" && handleFieldBlur("phone")}
+                            onChange={(e) =>
+                              handleNewLeadChange("phone", e.target.value)
+                            }
+                            onBlur={() =>
+                              leadModalMode !== "view" &&
+                              handleFieldBlur("phone")
+                            }
                             className={`w-full border p-2 rounded-lg ${
                               leadModalMode === "view"
                                 ? "bg-gray-100 cursor-not-allowed"
@@ -1382,8 +1555,13 @@ const handleNewLeadChange = (field, value) => {
                             type="email"
                             value={newLeadData.email}
                             disabled={leadModalMode === "view" || submitLoading}
-                            onChange={(e) => handleNewLeadChange("email", e.target.value)}
-                            onBlur={() => leadModalMode !== "view" && handleFieldBlur("email")}
+                            onChange={(e) =>
+                              handleNewLeadChange("email", e.target.value)
+                            }
+                            onBlur={() =>
+                              leadModalMode !== "view" &&
+                              handleFieldBlur("email")
+                            }
                             maxLength={100}
                             className={`w-full border p-2 rounded-lg ${
                               leadModalMode === "view"
@@ -1418,8 +1596,13 @@ const handleNewLeadChange = (field, value) => {
                           <input
                             value={newLeadData.phoneModel}
                             disabled={leadModalMode === "view" || submitLoading}
-                            onChange={(e) => handleNewLeadChange("phoneModel", e.target.value)}
-                            onBlur={() => leadModalMode !== "view" && handleFieldBlur("phoneModel")}
+                            onChange={(e) =>
+                              handleNewLeadChange("phoneModel", e.target.value)
+                            }
+                            onBlur={() =>
+                              leadModalMode !== "view" &&
+                              handleFieldBlur("phoneModel")
+                            }
                             maxLength={100}
                             className={`w-full border p-2 rounded-lg ${
                               leadModalMode === "view"
@@ -1430,11 +1613,13 @@ const handleNewLeadChange = (field, value) => {
                             }`}
                             placeholder="e.g., iPhone 13, Samsung S23"
                           />
-                          {leadModalMode !== "view" && newLeadErrors.phoneModel && (
-                            <p className="text-red-500 text-xs mt-1">
-                              <AlertTriangle size={12} /> {newLeadErrors.phoneModel}
-                            </p>
-                          )}
+                          {leadModalMode !== "view" &&
+                            newLeadErrors.phoneModel && (
+                              <p className="text-red-500 text-xs mt-1">
+                                <AlertTriangle size={12} />{" "}
+                                {newLeadErrors.phoneModel}
+                              </p>
+                            )}
                         </div>
 
                         {/* Issue Detail Field with Live Counter */}
@@ -1445,7 +1630,9 @@ const handleNewLeadChange = (field, value) => {
                           <div className="relative">
                             <textarea
                               value={newLeadData.issueDetail}
-                              disabled={leadModalMode === "view" || submitLoading}
+                              disabled={
+                                leadModalMode === "view" || submitLoading
+                              }
                               onChange={(e) => {
                                 if (leadModalMode !== "view") {
                                   const value = e.target.value;
@@ -1454,7 +1641,10 @@ const handleNewLeadChange = (field, value) => {
                                   }
                                 }
                               }}
-                              onBlur={() => leadModalMode !== "view" && handleFieldBlur("issueDetail")}
+                              onBlur={() =>
+                                leadModalMode !== "view" &&
+                                handleFieldBlur("issueDetail")
+                              }
                               rows="3"
                               maxLength={200}
                               className={`w-full border p-2 pr-16 rounded-lg ${
@@ -1466,22 +1656,26 @@ const handleNewLeadChange = (field, value) => {
                               }`}
                               placeholder="Describe the issue in detail (5-200 characters)"
                             />
-                            
+
                             {/* Character Counter */}
                             {leadModalMode !== "view" && (
                               <div className="absolute bottom-2 right-3 text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600">
-                                <span className="font-bold">{newLeadData.issueDetail.length}</span>
+                                <span className="font-bold">
+                                  {newLeadData.issueDetail.length}
+                                </span>
                                 <span className="opacity-75">/200</span>
                               </div>
                             )}
                           </div>
-                          
+
                           {/* Validation Message */}
-                          {leadModalMode !== "view" && newLeadErrors.issueDetail && (
-                            <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
-                              <AlertTriangle size={12} /> {newLeadErrors.issueDetail}
-                            </p>
-                          )}
+                          {leadModalMode !== "view" &&
+                            newLeadErrors.issueDetail && (
+                              <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                                <AlertTriangle size={12} />{" "}
+                                {newLeadErrors.issueDetail}
+                              </p>
+                            )}
                         </div>
                       </div>
                     </div>
@@ -1511,7 +1705,10 @@ const handleNewLeadChange = (field, value) => {
                               }
                             }
                           }}
-                          onBlur={() => leadModalMode !== "view" && handleFieldBlur("address")}
+                          onBlur={() =>
+                            leadModalMode !== "view" &&
+                            handleFieldBlur("address")
+                          }
                           maxLength={200}
                           className={`w-full border p-2 pr-16 rounded-lg ${
                             leadModalMode === "view"
@@ -1522,16 +1719,18 @@ const handleNewLeadChange = (field, value) => {
                           }`}
                           placeholder="House no, street, landmark (10-200 characters)"
                         />
-                        
+
                         {/* Character Counter */}
                         {leadModalMode !== "view" && (
                           <div className="absolute bottom-2 right-3 text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600">
-                            <span className="font-bold">{newLeadData.address.length}</span>
+                            <span className="font-bold">
+                              {newLeadData.address.length}
+                            </span>
                             <span className="opacity-75">/200</span>
                           </div>
                         )}
                       </div>
-                      
+
                       {/* Validation Message */}
                       {leadModalMode !== "view" && newLeadErrors.address && (
                         <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
@@ -1563,8 +1762,13 @@ const handleNewLeadChange = (field, value) => {
                           type="text"
                           value={newLeadData.pincode}
                           disabled={leadModalMode === "view" || submitLoading}
-                          onChange={(e) => handleNewLeadChange("pincode", e.target.value)}
-                          onBlur={() => leadModalMode !== "view" && handleFieldBlur("pincode")}
+                          onChange={(e) =>
+                            handleNewLeadChange("pincode", e.target.value)
+                          }
+                          onBlur={() =>
+                            leadModalMode !== "view" &&
+                            handleFieldBlur("pincode")
+                          }
                           className={`w-full border p-2 rounded-lg ${
                             leadModalMode === "view"
                               ? "bg-gray-100 cursor-not-allowed"
@@ -1588,9 +1792,17 @@ const handleNewLeadChange = (field, value) => {
                         </label>
                         <select
                           value={newLeadData.area}
-                          disabled={leadModalMode === "view" || submitLoading || areaOptions.length === 0}
-                          onChange={(e) => handleNewLeadChange("area", e.target.value)}
-                          onBlur={() => leadModalMode !== "view" && handleFieldBlur("area")}
+                          disabled={
+                            leadModalMode === "view" ||
+                            submitLoading ||
+                            areaOptions.length === 0
+                          }
+                          onChange={(e) =>
+                            handleNewLeadChange("area", e.target.value)
+                          }
+                          onBlur={() =>
+                            leadModalMode !== "view" && handleFieldBlur("area")
+                          }
                           className={`w-full border p-2 rounded-lg ${
                             leadModalMode === "view"
                               ? "bg-gray-100 cursor-not-allowed"
@@ -1600,10 +1812,14 @@ const handleNewLeadChange = (field, value) => {
                           }`}
                         >
                           <option value="">
-                            {areaOptions.length === 0 ? "Enter pincode first" : "Select area"}
+                            {areaOptions.length === 0
+                              ? "Enter pincode first"
+                              : "Select area"}
                           </option>
                           {areaOptions.map((a, i) => (
-                            <option key={i} value={a}>{a}</option>
+                            <option key={i} value={a}>
+                              {a}
+                            </option>
                           ))}
                         </select>
                         {leadModalMode !== "view" && newLeadErrors.area && (

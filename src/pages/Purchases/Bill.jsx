@@ -806,7 +806,7 @@ const Bill = () => {
   const [isFetchingDetails, setIsFetchingDetails] = useState(false);
   const [isLoadingItems, setIsLoadingItems] = useState(false);
   const [expandedRows, setExpandedRows] = useState({});
-  
+
   // NEW: State for bulk delete
   const [selectedBills, setSelectedBills] = useState([]);
   const [selectAll, setSelectAll] = useState(false);
@@ -912,7 +912,7 @@ const Bill = () => {
   const handleSelectAll = (checked) => {
     setSelectAll(checked);
     if (checked) {
-      setSelectedBills(filteredBills.map(bill => bill.id));
+      setSelectedBills(filteredBills.map((bill) => bill.id));
     } else {
       setSelectedBills([]);
     }
@@ -921,9 +921,9 @@ const Bill = () => {
   // NEW: Handle single bill selection
   const handleSelectBill = (billId, checked) => {
     if (checked) {
-      setSelectedBills(prev => [...prev, billId]);
+      setSelectedBills((prev) => [...prev, billId]);
     } else {
-      setSelectedBills(prev => prev.filter(id => id !== billId));
+      setSelectedBills((prev) => prev.filter((id) => id !== billId));
       setSelectAll(false);
     }
   };
@@ -939,7 +939,8 @@ const Bill = () => {
       (t) => (
         <div className="flex flex-col gap-3">
           <p className="text-sm font-semibold text-gray-800">
-            Delete {selectedBills.length} selected {selectedBills.length === 1 ? 'bill' : 'bills'}?
+            Delete {selectedBills.length} selected{" "}
+            {selectedBills.length === 1 ? "bill" : "bills"}?
           </p>
           <p className="text-xs text-gray-500">This action cannot be undone.</p>
           <div className="flex justify-end gap-2">
@@ -952,45 +953,61 @@ const Bill = () => {
             <button
               onClick={async () => {
                 toast.dismiss(t.id);
-                const loadingToast = toast.loading(`Deleting ${selectedBills.length} ${selectedBills.length === 1 ? 'bill' : 'bills'}...`);
+                const loadingToast = toast.loading(
+                  `Deleting ${selectedBills.length} ${selectedBills.length === 1 ? "bill" : "bills"}...`,
+                );
 
                 try {
                   // Delete bills sequentially
                   const results = await Promise.allSettled(
-                    selectedBills.map(id => 
-                      axiosInstance.delete(`/api/bills/${id}/`)
-                    )
+                    selectedBills.map((id) =>
+                      axiosInstance.delete(`/api/bills/${id}/`),
+                    ),
                   );
 
-                  const successful = results.filter(r => r.status === 'fulfilled').length;
-                  const failed = results.filter(r => r.status === 'rejected').length;
+                  const successful = results.filter(
+                    (r) => r.status === "fulfilled",
+                  ).length;
+                  const failed = results.filter(
+                    (r) => r.status === "rejected",
+                  ).length;
 
                   // Clear cache for deleted bills
                   setBillDetailsCache((prev) => {
                     const newCache = { ...prev };
-                    selectedBills.forEach(id => delete newCache[id]);
+                    selectedBills.forEach((id) => delete newCache[id]);
                     return newCache;
                   });
 
                   // Remove deleted bills from state
-                  setBills((prev) => prev.filter((bill) => !selectedBills.includes(bill.id)));
-                  
+                  setBills((prev) =>
+                    prev.filter((bill) => !selectedBills.includes(bill.id)),
+                  );
+
                   // Clear selection
                   setSelectedBills([]);
                   setSelectAll(false);
 
                   if (failed === 0) {
-                    toast.success(`Successfully deleted ${successful} ${successful === 1 ? 'bill' : 'bills'}`, {
-                      id: loadingToast,
-                    });
+                    toast.success(
+                      `Successfully deleted ${successful} ${successful === 1 ? "bill" : "bills"}`,
+                      {
+                        id: loadingToast,
+                      },
+                    );
                   } else {
-                    toast.success(`Deleted ${successful} ${successful === 1 ? 'bill' : 'bills'}, ${failed} failed`, {
-                      id: loadingToast,
-                    });
+                    toast.success(
+                      `Deleted ${successful} ${successful === 1 ? "bill" : "bills"}, ${failed} failed`,
+                      {
+                        id: loadingToast,
+                      },
+                    );
                   }
                 } catch (error) {
                   console.error("Bulk delete error:", error);
-                  toast.error("Failed to delete some bills", { id: loadingToast });
+                  toast.error("Failed to delete some bills", {
+                    id: loadingToast,
+                  });
                 }
               }}
               className="px-3 py-1.5 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 transition-colors"
@@ -1022,7 +1039,10 @@ const Bill = () => {
       setVendors(vendorsList);
     } catch (error) {
       console.error("Fetch vendors error:", error);
-      if (error.response?.status !== 401 && error.response?.status !== 403) {
+
+      if (!error.response) return;
+
+      if (error.response.status !== 401 && error.response.status !== 403) {
         toast.error("Failed to load vendors");
       }
     }
@@ -1110,7 +1130,10 @@ const Bill = () => {
       setItems(transformedItems);
     } catch (error) {
       console.error("Fetch items error:", error);
-      if (error.response?.status !== 401 && error.response?.status !== 403) {
+
+      if (!error.response) return;
+
+      if (error.response.status !== 401 && error.response.status !== 403) {
         toast.error("Failed to load items");
       }
     } finally {
@@ -1286,10 +1309,12 @@ const Bill = () => {
       setBills(transformedBills);
     } catch (error) {
       console.error("Fetch bills error:", error);
-      if (error.response?.status === 401 || error.response?.status === 403) {
-        return;
+
+      if (!error.response) return; // network handled globally
+
+      if (error.response.status !== 401 && error.response.status !== 403) {
+        toast.error("Failed to load bills");
       }
-      toast.error("Failed to load bills");
     } finally {
       setIsLoading(false);
     }
@@ -1848,6 +1873,11 @@ const Bill = () => {
     } catch (error) {
       console.error("Record payment error:", error);
 
+      if (!error.response) {
+        toast.dismiss(loadingToast);
+        return;
+      }
+
       if (error.response?.status === 400) {
         const apiErrors = error.response.data;
         const errorMessages = [];
@@ -2015,6 +2045,11 @@ const Bill = () => {
     } catch (error) {
       console.error("Create bill error:", error);
 
+      if (!error.response) {
+        toast.dismiss(loadingToast);
+        return;
+      }
+
       if (error.response?.status === 401 || error.response?.status === 403) {
         toast.dismiss(loadingToast);
         return;
@@ -2148,6 +2183,11 @@ const Bill = () => {
     } catch (error) {
       console.error("Update bill error:", error);
 
+      if (!error.response) {
+        toast.dismiss(loadingToast);
+        return;
+      }
+
       if (error.response?.status === 401 || error.response?.status === 403) {
         toast.dismiss(loadingToast);
         return;
@@ -2206,13 +2246,19 @@ const Bill = () => {
                   });
                   setBills((prev) => prev.filter((bill) => bill.id !== id));
                   // Remove from selected bills if present
-                  setSelectedBills(prev => prev.filter(billId => billId !== id));
+                  setSelectedBills((prev) =>
+                    prev.filter((billId) => billId !== id),
+                  );
                   toast.success("Bill deleted successfully", {
                     id: loadingToast,
                   });
                 } catch (error) {
                   console.error("Delete bill error:", error);
 
+                  if (!error.response) {
+                    toast.dismiss(loadingToast);
+                    return;
+                  }
                   if (
                     error.response?.status === 401 ||
                     error.response?.status === 403
@@ -2639,7 +2685,9 @@ const Bill = () => {
                         <input
                           type="checkbox"
                           checked={selectedBills.includes(bill.id)}
-                          onChange={(e) => handleSelectBill(bill.id, e.target.checked)}
+                          onChange={(e) =>
+                            handleSelectBill(bill.id, e.target.checked)
+                          }
                           className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                         />
                       </td>

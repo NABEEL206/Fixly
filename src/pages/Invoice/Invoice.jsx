@@ -25,7 +25,10 @@ import {
   Save,
   LogIn,
   Eye,
-  FileText
+  FileText,
+  Settings,
+  Printer,
+  Download,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -43,27 +46,699 @@ const gstOptions = [
   { value: "GST_28", label: "28% GST", rate: 28 },
 ];
 
+// Service charge options
+const SERVICE_CHARGE_OPTIONS = [
+  { value: "NONE", label: "No Service Charge" },
+  { value: "AMOUNT", label: "Fixed Amount (₹)" },
+  { value: "PERCENTAGE", label: "Percentage (%)" },
+];
+
 const getStatusBadge = (status) => {
   const base = "px-3 py-1 text-xs rounded-full font-semibold border";
+
   switch (status) {
-    case "PAID":
-      return base + " bg-green-50 text-green-700 border-green-300";
-    case "PARTIALLY_PAID":
-      return base + " bg-yellow-50 text-yellow-700 border-yellow-300";
     case "DRAFT":
       return base + " bg-gray-50 text-gray-700 border-gray-300";
-    case "OVERDUE":
-      return base + " bg-red-50 text-red-700 border-red-300";
+
     case "SENT":
       return base + " bg-blue-50 text-blue-700 border-blue-300";
+
     case "CANCELLED":
-      return base + " bg-gray-200 text-gray-700 border-gray-400";
+      return base + " bg-red-50 text-red-700 border-red-300";
+
     default:
-      return base + " bg-blue-50 text-blue-700 border-blue-300";
+      return base + " bg-gray-50 text-gray-700 border-gray-300";
   }
 };
 
-// Initial state for a new invoice - REMOVED customer_name
+// Helper function to remove leading zeros from a number string
+const removeLeadingZeros = (value) => {
+  if (value === "" || value === null || value === undefined) return "";
+
+  // Convert to string
+  const stringValue = String(value);
+
+  // If it's just "0", keep it
+  if (stringValue === "0") return "0";
+
+  // Remove leading zeros
+  return stringValue.replace(/^0+(?=\d)/, "");
+};
+
+// View Modal Component
+const InvoiceViewModal = ({ invoice, customers, onClose, onEdit, onPDF }) => {
+  // Safe number formatting function
+  const formatNumber = (value) => {
+    if (value === null || value === undefined || isNaN(value)) return "0.00";
+    const num = Number(value);
+    return isNaN(num) ? "0.00" : num.toFixed(2);
+  };
+
+  const getCustomerName = (customerId) => {
+    if (!customerId) return "Unknown Customer";
+    const customer = customers.find((c) => c.id === customerId);
+    return customer?.customer_name || "Unknown Customer";
+  };
+
+  const getCustomerDetails = (customerId) => {
+    if (!customerId) return null;
+    return customers.find((c) => c.id === customerId);
+  };
+
+  const calculateSubtotal = (items) => {
+    if (!items || !Array.isArray(items)) return 0;
+    return items.reduce((sum, item) => {
+      const qty = Number(item?.qty) || 0;
+      const rate = Number(item?.rate) || 0;
+      return sum + qty * rate;
+    }, 0);
+  };
+
+  const calculateServiceChargeTotal = (items) => {
+    if (!items || !Array.isArray(items)) return 0;
+    return items.reduce((sum, item) => {
+      const amount = Number(item?.service_charge_amount) || 0;
+      return sum + amount;
+    }, 0);
+  };
+
+  const calculateTaxableAmount = (items) => {
+    if (!items || !Array.isArray(items)) return 0;
+    return items.reduce((sum, item) => {
+      const amount = Number(item?.taxable_amount) || 0;
+      return sum + amount;
+    }, 0);
+  };
+
+  if (!invoice) return null;
+
+  const customerDetails = getCustomerDetails(invoice.customer);
+
+  // Safe calculations with proper number handling
+  const subtotal = calculateSubtotal(invoice.items || []);
+  const serviceChargeTotal = calculateServiceChargeTotal(invoice.items || []);
+  const taxableAmount = calculateTaxableAmount(invoice.items || []);
+
+  const discountAmount = Number(invoice.discount_amount) || 0;
+  const afterDiscount = taxableAmount - discountAmount;
+
+  const shippingCharge = Number(invoice.shipping_charge) || 0;
+  const adjustment = Number(invoice.adjustment) || 0;
+
+  const afterShippingAndAdjustment =
+    afterDiscount + shippingCharge + adjustment;
+
+  // Calculate GST total safely
+  const totalGST = Object.values(invoice.gst_breakdown || {}).reduce(
+    (sum, tax) => sum + (Number(tax?.tax) || 0),
+    0,
+  );
+
+  const grandTotal = afterShippingAndAdjustment + totalGST;
+
+  return (
+    <div className="fixed inset-0 z-[9999] overflow-y-auto">
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
+        onClick={onClose}
+      />
+
+      {/* Modal Container - Centered */}
+      <div className="fixed inset-0 overflow-y-auto">
+        <div className="flex min-h-full items-center justify-center p-4">
+          {/* Modal Content */}
+          <div className="relative w-full max-w-6xl bg-white rounded-lg shadow-xl overflow-hidden">
+            {/* Header */}
+            <div className="px-6 py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <FileText className="mr-3" size={24} />
+                  <div>
+                    <h3 className="text-lg font-semibold">Invoice Details</h3>
+                    <p className="text-xs text-blue-100 mt-1">
+                      {invoice.invoice_number}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={onClose}
+                  className="p-2 text-white hover:bg-blue-500 rounded-lg transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="px-6 py-4 max-h-[calc(100vh-200px)] overflow-y-auto">
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-2 mb-4">
+                <button
+                  onClick={() => {
+                    onClose();
+                    onEdit();
+                  }}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+                >
+                  <Edit size={16} />
+                  Edit
+                </button>
+                {invoice.pdf_url && (
+                  <button
+                    onClick={() => onPDF(invoice.pdf_url)}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                  >
+                    <Eye size={16} />
+                    View PDF
+                  </button>
+                )}
+              </div>
+
+              {/* Invoice Info - Two Column Layout */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                {/* Left Column - Invoice Information */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h4 className="font-medium text-gray-700 mb-3 pb-2 border-b">
+                    Invoice Information
+                  </h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Invoice Number:</span>
+                      <span className="font-medium">
+                        {invoice.invoice_number}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Invoice Date:</span>
+                      <span>{invoice.invoice_date}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Due Date:</span>
+                      <span>{invoice.due_date || "N/A"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Status:</span>
+                      <span className={getStatusBadge(invoice.status)}>
+                        {invoice.status}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Supply Type:</span>
+                      <span>{invoice.supply_type || "INTRASTATE"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">GST Mode:</span>
+                      <span>
+                        {invoice.gst_mode ||
+                          (invoice.customer_state === "Kerala"
+                            ? "CGST+SGST"
+                            : "IGST")}
+                      </span>
+                    </div>
+                    {invoice.sync_status && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Sync Status:</span>
+                        <span
+                          className={`px-2 py-0.5 rounded text-xs ${
+                            invoice.sync_status === "SYNCED"
+                              ? "bg-green-100 text-green-700"
+                              : "bg-yellow-100 text-yellow-700"
+                          }`}
+                        >
+                          {invoice.sync_status}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Right Column - Customer Information */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h4 className="font-medium text-gray-700 mb-3 pb-2 border-b">
+                    Customer Information
+                  </h4>
+                  <div className="space-y-3 text-sm">
+                    {/* Customer Name */}
+                    <div>
+                      <span className="text-gray-600 block text-xs uppercase tracking-wider mb-1">
+                        Name
+                      </span>
+                      <p className="font-medium text-base">
+                        {getCustomerName(invoice.customer)}
+                      </p>
+                    </div>
+
+                    {/* Contact Information - Two Column */}
+                    <div className="grid grid-cols-2 gap-3 mt-2">
+                      <div>
+                        <span className="text-gray-600 block text-xs uppercase tracking-wider mb-1">
+                          Phone
+                        </span>
+                        <p className="font-medium">
+                          {invoice.customer_phone ||
+                            customerDetails?.customer_phone ||
+                            "N/A"}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-gray-600 block text-xs uppercase tracking-wider mb-1">
+                          Email
+                        </span>
+                        <p className="font-medium break-all">
+                          {invoice.customer_email ||
+                            customerDetails?.email ||
+                            "N/A"}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Address */}
+                    {(invoice.customer_address || customerDetails?.address) && (
+                      <div>
+                        <span className="text-gray-600 block text-xs uppercase tracking-wider mb-1">
+                          Address
+                        </span>
+                        <p className="text-gray-800">
+                          {invoice.customer_address || customerDetails?.address}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Location Information - Three Column */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <span className="text-gray-600 block text-xs uppercase tracking-wider mb-1">
+                          City
+                        </span>
+                        <p>
+                          {invoice.customer_city ||
+                            customerDetails?.area ||
+                            customerDetails?.city ||
+                            "N/A"}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-gray-600 block text-xs uppercase tracking-wider mb-1">
+                          Pincode
+                        </span>
+                        <p>
+                          {invoice.customer_pincode ||
+                            customerDetails?.pincode ||
+                            "N/A"}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-gray-600 block text-xs uppercase tracking-wider mb-1">
+                          State
+                        </span>
+                        <p className="font-medium">
+                          {invoice.customer_state ||
+                            customerDetails?.state ||
+                            "Kerala"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Assignment Info - Only if exists */}
+              {invoice.assign_name && (
+                <div className="mb-6 bg-gray-50 p-4 rounded-lg">
+                  <h4 className="font-medium text-gray-700 mb-3 pb-2 border-b">
+                    Assignment Information
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-600 block text-xs uppercase tracking-wider mb-1">
+                        Assign Type
+                      </span>
+                      <p className="font-medium capitalize flex items-center gap-1">
+                        {invoice.assign_type === "shop" ? "🏪" : "🏷️"}
+                        {invoice.assign_type}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-600 block text-xs uppercase tracking-wider mb-1">
+                        Assigned To
+                      </span>
+                      <p className="font-medium">{invoice.assign_name}</p>
+                    </div>
+                    {invoice.assign_shop_type && (
+                      <div>
+                        <span className="text-gray-600 block text-xs uppercase tracking-wider mb-1">
+                          Shop Type
+                        </span>
+                        <p className="font-medium">
+                          {invoice.assign_shop_type}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Items Table */}
+              <div className="mb-6">
+                <h4 className="font-medium text-gray-700 mb-3 pb-2 border-b">
+                  Items
+                </h4>
+                <div className="overflow-x-auto border rounded-lg">
+                  <table className="w-full">
+                    <thead className="bg-gray-100">
+                      <tr>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-600">
+                          Item
+                        </th>
+                        <th className="px-4 py-2 text-center text-xs font-medium text-gray-600">
+                          Qty
+                        </th>
+                        <th className="px-4 py-2 text-center text-xs font-medium text-gray-600">
+                          Rate (₹)
+                        </th>
+                        <th className="px-4 py-2 text-center text-xs font-medium text-gray-600">
+                          Service
+                        </th>
+                        <th className="px-4 py-2 text-center text-xs font-medium text-gray-600">
+                          GST %
+                        </th>
+                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-600">
+                          Amount (₹)
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {invoice.items?.map((item, index) => {
+                        const itemQty = Number(item?.qty) || 0;
+                        const itemRate = Number(item?.rate) || 0;
+                        const itemServiceAmount =
+                          Number(item?.service_charge_amount) || 0;
+                        const itemAmount =
+                          itemQty * itemRate + itemServiceAmount;
+
+                        return (
+                          <React.Fragment key={index}>
+                            <tr className="hover:bg-gray-50">
+                              <td className="px-4 py-3 text-sm">
+                                <div className="font-medium">
+                                  {item.item_name}
+                                </div>
+                                {(item.description ||
+                                  item.item_description) && (
+                                  <div className="text-xs text-gray-500 mt-1 italic">
+                                    {item.description || item.item_description}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-center">
+                                {itemQty}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-center">
+                                ₹{formatNumber(itemRate)}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-center">
+                                {itemServiceAmount > 0 ? (
+                                  <span className="text-purple-600 font-medium">
+                                    ₹{formatNumber(itemServiceAmount)}
+                                    {item.service_charge_type ===
+                                      "PERCENTAGE" &&
+                                      ` (${Number(item.service_charge_value) || 0}%)`}
+                                  </span>
+                                ) : (
+                                  "-"
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-center">
+                                <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded">
+                                  {item.gst_treatment
+                                    ?.replace("GST_", "")
+                                    .replace("_", ".")}
+                                  %
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-sm text-right font-medium">
+                                ₹{formatNumber(itemAmount)}
+                              </td>
+                            </tr>
+                          </React.Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Summary - Two Column Layout */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                {/* Left Column - Terms & Notes */}
+                <div className="space-y-4">
+                  {invoice.terms_conditions && (
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <h4 className="font-medium text-gray-700 mb-2 pb-2 border-b">
+                        Terms & Conditions
+                      </h4>
+                      <p className="text-sm text-gray-600 whitespace-pre-line">
+                        {invoice.terms_conditions}
+                      </p>
+                    </div>
+                  )}
+
+                  {invoice.notes && (
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <h4 className="font-medium text-gray-700 mb-2 pb-2 border-b">
+                        Notes
+                      </h4>
+                      <p className="text-sm text-gray-600">{invoice.notes}</p>
+                    </div>
+                  )}
+
+                  {/* Additional Info */}
+                  {(invoice.discount_type ||
+                    invoice.service_charge_type !== "NONE") && (
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <h4 className="font-medium text-gray-700 mb-2 pb-2 border-b">
+                        Additional Information
+                      </h4>
+                      <div className="space-y-2 text-sm">
+                        {invoice.discount_type &&
+                          Number(invoice.discount_value) > 0 && (
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">
+                                Discount Type:
+                              </span>
+                              <span className="font-medium">
+                                {invoice.discount_type}
+                              </span>
+                            </div>
+                          )}
+                        {invoice.service_charge_type !== "NONE" &&
+                          Number(invoice.service_charge_value) > 0 && (
+                            <>
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">
+                                  Service Charge Type:
+                                </span>
+                                <span className="font-medium">
+                                  {invoice.service_charge_type}
+                                </span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">
+                                  Service Charge Value:
+                                </span>
+                                <span className="font-medium">
+                                  {invoice.service_charge_type === "PERCENTAGE"
+                                    ? `${Number(invoice.service_charge_value) || 0}%`
+                                    : `₹${formatNumber(invoice.service_charge_value)}`}
+                                </span>
+                              </div>
+                            </>
+                          )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Right Column - Financial Summary */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h4 className="font-medium text-gray-700 mb-3 pb-2 border-b">
+                    Financial Summary
+                  </h4>
+                  <div className="space-y-2 text-sm">
+                    {/* Sub Total */}
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Sub Total:</span>
+                      <span className="font-medium">
+                        ₹{formatNumber(subtotal)}
+                      </span>
+                    </div>
+
+                    {/* Service Charges */}
+                    {serviceChargeTotal > 0 && (
+                      <div className="flex justify-between text-purple-600">
+                        <span>Service Charges:</span>
+                        <span className="font-medium">
+                          + ₹{formatNumber(serviceChargeTotal)}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Taxable Amount */}
+                    <div className="flex justify-between pt-2 border-t border-gray-200">
+                      <span className="text-gray-700 font-medium">
+                        Taxable Amount:
+                      </span>
+                      <span className="font-bold">
+                        ₹{formatNumber(taxableAmount)}
+                      </span>
+                    </div>
+
+                    {/* Discount */}
+                    {discountAmount > 0 && (
+                      <div className="flex justify-between text-red-600">
+                        <span>
+                          Discount{" "}
+                          {invoice.discount_type === "PERCENT"
+                            ? `(${Number(invoice.discount_value) || 0}%)`
+                            : ""}
+                          :
+                        </span>
+                        <span className="font-medium">
+                          - ₹{formatNumber(discountAmount)}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* After Discount */}
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">After Discount:</span>
+                      <span className="font-medium">
+                        ₹{formatNumber(afterDiscount)}
+                      </span>
+                    </div>
+
+                    {/* Shipping Charge */}
+                    {shippingCharge > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Shipping Charge:</span>
+                        <span className="font-medium">
+                          + ₹{formatNumber(shippingCharge)}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Adjustment */}
+                    {adjustment > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Adjustment:</span>
+                        <span className="font-medium">
+                          + ₹{formatNumber(adjustment)}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* After Shipping & Adjustment */}
+                    <div className="flex justify-between pt-2 border-t border-gray-200">
+                      <span className="text-gray-700 font-medium">
+                        After Charges:
+                      </span>
+                      <span className="font-bold">
+                        ₹{formatNumber(afterShippingAndAdjustment)}
+                      </span>
+                    </div>
+
+                    {/* GST Breakdown */}
+                    {Object.keys(invoice.gst_breakdown || {}).length > 0 && (
+                      <>
+                        <div className="flex justify-between items-center pt-2">
+                          <span className="font-medium text-gray-700">
+                            GST Details:
+                          </span>
+                          <span
+                            className={`text-xs px-2 py-1 rounded font-medium ${
+                              invoice.customer_state === "Kerala"
+                                ? "bg-green-100 text-green-700"
+                                : "bg-blue-100 text-blue-700"
+                            }`}
+                          >
+                            {invoice.gst_mode ||
+                              (invoice.customer_state === "Kerala"
+                                ? "CGST+SGST"
+                                : "IGST")}
+                          </span>
+                        </div>
+                        {Object.entries(invoice.gst_breakdown).map(
+                          ([key, tax]) => {
+                            const taxAmount = Number(tax?.tax) || 0;
+                            return (
+                              taxAmount > 0 && (
+                                <div
+                                  key={key}
+                                  className="flex justify-between text-xs pl-4"
+                                >
+                                  <span className="text-gray-600">
+                                    GST {tax.rate}%:
+                                  </span>
+                                  <span className="font-medium">
+                                    + ₹{formatNumber(taxAmount)}
+                                  </span>
+                                </div>
+                              )
+                            );
+                          },
+                        )}
+                        <div className="flex justify-between text-sm font-medium pt-1">
+                          <span className="text-gray-700">Total GST:</span>
+                          <span className="font-bold text-blue-600">
+                            ₹{formatNumber(totalGST)}
+                          </span>
+                        </div>
+                      </>
+                    )}
+
+                    {/* Grand Total */}
+                    <div className="flex justify-between pt-3 border-t-2 border-gray-300 text-base">
+                      <span className="font-bold text-gray-800">
+                        GRAND TOTAL:
+                      </span>
+                      <span className="font-bold text-blue-700 text-lg">
+                        ₹{formatNumber(grandTotal)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Error Info - if any */}
+              {invoice.last_error && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <h4 className="font-medium text-red-700 mb-1 flex items-center gap-1">
+                    <AlertCircle size={14} />
+                    Error Information
+                  </h4>
+                  <p className="text-sm text-red-600">{invoice.last_error}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 bg-gray-50 border-t flex justify-end gap-2">
+              <button
+                onClick={onClose}
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Initial state for invoice form
 const initialInvoiceState = {
   id: null,
   customer: null,
@@ -73,21 +748,30 @@ const initialInvoiceState = {
   customer_state: "Kerala",
   customer_city: "",
   customer_pincode: "",
+
   assign_type: "shop",
   assign_id: null,
   assign_name: "",
-  assign_shop_type: null,
+
   invoice_number: "",
   status: "DRAFT",
   invoice_date: new Date().toISOString().split("T")[0],
   due_date: "",
+
   discount_type: "PERCENT",
   discount_value: 0,
-  terms_conditions: `1. Payment Terms: Payment is due within 15 days of invoice date.
-2. Late Payment: 1.5% monthly interest on overdue amounts.
-3. Delivery: Delivery subject to stock availability.
-4. Warranty: 1-year warranty from invoice date.
-5. Jurisdiction: Disputes subject to Kerala jurisdiction.`,
+  discount_amount: 0,
+
+  shipping_charge: 0,
+  adjustment: 0,
+
+  service_charge_type: "NONE",
+  service_charge_value: 0,
+  service_charge_amount: 0,
+
+  terms_conditions: "",
+  notes: "",
+
   items: [
     {
       item_id: null,
@@ -101,56 +785,12 @@ const initialInvoiceState = {
       gst_treatment: "GST_5",
     },
   ],
+
   sub_total: 0,
   service_charge_total: 0,
   taxable_amount: 0,
   gst_breakdown: {},
   grand_total: 0,
-  supply_type: "INTRASTATE",
-  gst_mode: "CGST+SGST",
-  pdf_url: "",
-};
-
-// Toast Component
-const Toast = ({ message, type, onClose }) => {
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      onClose();
-    }, 5000);
-    return () => clearTimeout(timer);
-  }, [onClose]);
-
-  const bgColor =
-    type === "success"
-      ? "bg-green-100 border-green-300 text-green-800"
-      : type === "error"
-        ? "bg-red-100 border-red-300 text-red-800"
-        : "bg-blue-100 border-blue-300 text-blue-800";
-
-  const icon =
-    type === "success" ? (
-      <CheckCircle size={20} />
-    ) : type === "error" ? (
-      <AlertCircle size={20} />
-    ) : (
-      <Info size={20} />
-    );
-
-  return (
-    <div
-      className={`fixed top-4 right-4 z-50 p-4 rounded-lg border shadow-lg flex items-center gap-3 ${bgColor}`}
-      style={{ animation: "slideIn 0.3s ease-out" }}
-    >
-      {icon}
-      <div className="font-medium">{message}</div>
-      <button
-        onClick={onClose}
-        className="ml-4 text-gray-500 hover:text-gray-700"
-      >
-        <X size={18} />
-      </button>
-    </div>
-  );
 };
 
 const Invoice = () => {
@@ -170,24 +810,60 @@ const Invoice = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfId, setPdfId] = useState(null); // Track which PDF is loading
 
   const [invoiceData, setInvoiceData] = useState(initialInvoiceState);
   const [customerComplaints, setCustomerComplaints] = useState([]);
   const [selectedInvoices, setSelectedInvoices] = useState([]);
 
+  // View modal state
+  const [viewModalOpen, setViewModalOpen] = useState(false);
+  const [selectedInvoiceForView, setSelectedInvoiceForView] = useState(null);
+
   // Validation states
   const [errors, setErrors] = useState({});
-  const [toastMsg, setToastMsg] = useState({
-    show: false,
-    message: "",
-    type: "",
-  });
+
+  useEffect(() => {
+  if (location.state?.quotationData) {
+    const quote = location.state.quotationData;
+
+    setInvoiceData((prev) => ({
+      ...prev,
+
+      customer: quote.customer?.id || quote.customer,
+      invoice_date: new Date().toISOString().split("T")[0],
+      due_date: quote.expiry_date || "",
+
+      discount_type: quote.discount_type,
+      discount_value: quote.discount_value,
+      shipping_charge: quote.shipping_charge,
+      adjustment: quote.adjustment,
+
+      service_charge_type: quote.service_charge_type,
+      service_charge_value: quote.service_charge_value,
+
+      items: quote.items.map((item) => ({
+        item_id: item.item_id,
+        item_name: item.item_name,
+        description: item.description,
+        qty: item.quantity,
+        rate: item.rate,
+        gst_treatment: `GST_${item.gst_rate}`,
+        service_charge_type: "AMOUNT",
+        service_charge_value: 0,
+        service_charge_amount: 0,
+      })),
+    }));
+  }
+}, [location.state]);
+
   // Helper function to get customer name from ID
   const getCustomerName = (customerId) => {
     if (!customerId) return "Unknown Customer";
     const customer = customers.find((c) => c.id === customerId);
     return customer?.customer_name || "Unknown Customer";
   };
+
   // Toggle single invoice checkbox
   const toggleInvoiceSelection = (id) => {
     setSelectedInvoices((prev) =>
@@ -210,7 +886,7 @@ const Invoice = () => {
     setIsAuthenticated(!!token);
 
     if (!token) {
-      showToast("Please log in to view invoices", "info");
+      toast.error("Please log in to view invoices");
     }
   }, []);
 
@@ -233,6 +909,7 @@ const Invoice = () => {
       setCustomers(Array.isArray(data) ? data : data?.results || []);
     } catch (error) {
       console.error("Fetch customers error:", error);
+      toast.error("Failed to load customers");
     }
   };
 
@@ -244,6 +921,7 @@ const Invoice = () => {
       setItems(Array.isArray(data) ? data : data?.results || []);
     } catch (error) {
       console.error("Fetch items error:", error);
+      toast.error("Failed to load items");
     }
   };
 
@@ -285,7 +963,7 @@ const Invoice = () => {
     return `INV-${newNumber}`;
   };
 
-  // Fetch invoices from API - REMOVED customer_name from state
+  // Fetch invoices from API
   const fetchInvoices = async () => {
     setIsLoading(true);
     try {
@@ -293,7 +971,7 @@ const Invoice = () => {
       const data = response.data;
       const invoicesList = Array.isArray(data) ? data : data?.results || [];
 
-      // Transform API data to frontend format - store only customer ID
+      // Transform API data to frontend format
       const transformed = invoicesList.map((inv) => {
         const safeInv = inv || {};
 
@@ -318,13 +996,15 @@ const Invoice = () => {
         const lines = Array.isArray(safeInv.lines) ? safeInv.lines : [];
         const items = lines.map((line) => {
           const safeLine = line || {};
+
           return {
             id: safeLine.id || null,
             item_id: safeLine.item || null,
             item_name: safeLine.item_name || "",
             qty: parseFloat(safeLine.qty) || 0,
             rate: parseFloat(safeLine.rate) || 0,
-            description: safeLine.description || "",
+            description:
+              safeLine.description || safeLine.item_description || "",
             service_charge_type: safeLine.service_charge_type || "AMOUNT",
             service_charge_value:
               parseFloat(safeLine.service_charge_value) || 0,
@@ -338,7 +1018,6 @@ const Invoice = () => {
           };
         });
 
-        // Store only customer ID, not customer_name
         return {
           id: safeInv.id,
           customer: safeInv.customer,
@@ -358,7 +1037,14 @@ const Invoice = () => {
           due_date: safeInv.due_date,
           discount_type: safeInv.discount_type || "PERCENT",
           discount_value: parseFloat(safeInv.discount_value) || 0,
+          discount_amount: parseFloat(safeInv.discount_amount) || 0,
+          shipping_charge: parseFloat(safeInv.shipping_charge) || 0,
+          adjustment: parseFloat(safeInv.adjustment) || 0,
+          service_charge_type: safeInv.service_charge_type || "NONE",
+          service_charge_value: parseFloat(safeInv.service_charge_value) || 0,
+          service_charge_amount: parseFloat(safeInv.service_charge_amount) || 0,
           terms_conditions: safeInv.terms_conditions || "",
+          notes: safeInv.notes || "",
           lines: lines,
           items: items,
           sub_total: parseFloat(safeInv.sub_total) || 0,
@@ -378,7 +1064,7 @@ const Invoice = () => {
     } catch (error) {
       console.error("Fetch invoices error:", error);
       if (error.response?.status !== 401 && error.response?.status !== 404) {
-        showToast("Failed to load invoices", "error");
+        toast.error("Failed to load invoices");
       }
     } finally {
       setIsLoading(false);
@@ -427,7 +1113,14 @@ const Invoice = () => {
     }
     discountAmount = Math.min(discountAmount, taxableAmount);
 
-    const gstBase = Math.max(0, taxableAmount - discountAmount);
+    const afterDiscount = Math.max(0, taxableAmount - discountAmount);
+
+    // Add shipping charge and adjustment
+    const shippingCharge = parseFloat(invoiceData.shipping_charge) || 0;
+    const adjustment = parseFloat(invoiceData.adjustment) || 0;
+
+    const afterShippingAndAdjustment =
+      afterDiscount + shippingCharge + adjustment;
 
     // Calculate GST breakdown
     let totalGST = 0;
@@ -436,7 +1129,7 @@ const Invoice = () => {
     itemsWithCalculations.forEach((item) => {
       const itemTaxable = item.taxable_amount;
       const proportion = taxableAmount > 0 ? itemTaxable / taxableAmount : 0;
-      const itemGstBase = gstBase * proportion;
+      const itemGstBase = afterDiscount * proportion;
 
       // Get GST rate from gst_treatment
       const gstRate = parseFloat(
@@ -459,14 +1152,16 @@ const Invoice = () => {
       gstBreakdown[rateKey].tax += gstAmount;
     });
 
-    const grandTotal = gstBase + totalGST;
+    const grandTotal = afterShippingAndAdjustment + totalGST;
 
     return {
       subTotal,
       serviceChargeTotal,
       taxableAmount,
       discountAmount,
-      gstBase,
+      afterDiscount,
+      shippingCharge,
+      adjustment,
       totalGST,
       grandTotal,
       gstBreakdown,
@@ -478,6 +1173,8 @@ const Invoice = () => {
     invoiceData.items,
     invoiceData.discount_value,
     invoiceData.discount_type,
+    invoiceData.shipping_charge,
+    invoiceData.adjustment,
     invoiceData.customer_state,
   ]);
 
@@ -490,11 +1187,9 @@ const Invoice = () => {
     let assign_id = null;
     let assign_name = "";
 
-    // get complaints
     const complaints = customer?.complaints_history || [];
     setCustomerComplaints(complaints);
 
-    // get latest complaint
     const latestComplaint =
       complaints.length > 0 ? complaints[complaints.length - 1] : null;
 
@@ -508,8 +1203,8 @@ const Invoice = () => {
       assign_name = latestComplaint.assigned_to_display.name;
     }
 
-    setInvoiceData({
-      ...invoiceData,
+    setInvoiceData((prev) => ({
+      ...prev,
       customer: id,
       customer_phone: customer?.customer_phone || "",
       customer_email: customer?.email || "",
@@ -517,10 +1212,10 @@ const Invoice = () => {
       customer_state: customer?.state || "Kerala",
       customer_city: customer?.area || customer?.city || "",
       customer_pincode: customer?.pincode || "",
-      assign_type: assign_type || "shop",
-      assign_id: assign_id,
-      assign_name: assign_name,
-    });
+      assign_type: assign_type || prev.assign_type,
+      assign_id: assign_id || prev.assign_id,
+      assign_name: assign_name || prev.assign_name,
+    }));
   };
 
   // Handle complaint data
@@ -577,19 +1272,21 @@ const Invoice = () => {
         items: items,
         discount_type: quotationData.discount_type || "PERCENT",
         discount_value: parseFloat(quotationData.discount_value || 0),
+        shipping_charge: parseFloat(quotationData.shipping_charge || 0),
+        adjustment: parseFloat(quotationData.adjustment || 0),
+        service_charge_type: quotationData.service_charge_type || "NONE",
+        service_charge_value: parseFloat(
+          quotationData.service_charge_value || 0,
+        ),
         terms_conditions:
           quotationData.terms_conditions || prev.terms_conditions,
+        notes: quotationData.notes || "",
       }));
 
       setCurrentScreen("form");
       setEditIndex(null);
     }
   }, [quotationData, customers, invoices.length]);
-
-  // Show toast notification
-  const showToast = (message, type = "error") => {
-    setToastMsg({ show: true, message, type });
-  };
 
   // Validate form
   const validateForm = () => {
@@ -645,11 +1342,20 @@ const Invoice = () => {
       newErrors.discount = "Discount percentage cannot exceed 100%";
     }
 
+    // Validate new fields
+    if (invoiceData.shipping_charge < 0) {
+      newErrors.shipping_charge = "Shipping charge cannot be negative";
+    }
+
+    if (invoiceData.adjustment < 0) {
+      newErrors.adjustment = "Adjustment cannot be negative";
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  // Transform to API format - with proper data formatting
+  // Transform to API format
   const transformToAPIFormat = () => {
     // Format numbers to 2 decimal places as strings
     const formatNumber = (num) => {
@@ -681,7 +1387,16 @@ const Invoice = () => {
       due_date: invoiceData.due_date || null,
       discount_type: invoiceData.discount_type || "PERCENT",
       discount_value: formatNumber(discountValue),
+      shipping_charge: formatNumber(
+        parseFloat(invoiceData.shipping_charge) || 0,
+      ),
+      adjustment: formatNumber(parseFloat(invoiceData.adjustment) || 0),
+      service_charge_type: invoiceData.service_charge_type || "NONE",
+      service_charge_value: formatNumber(
+        parseFloat(invoiceData.service_charge_value) || 0,
+      ),
       terms_conditions: invoiceData.terms_conditions || "",
+      notes: invoiceData.notes || "",
       lines_payload: lines_payload,
     };
 
@@ -698,39 +1413,43 @@ const Invoice = () => {
   // Save invoice
   const saveInvoice = async () => {
     if (!validateForm()) {
-      showToast("Please fix validation errors", "error");
+      toast.error("Please fix validation errors");
       return;
     }
 
     // Check if there are any valid items
     const validItems = invoiceData.items.filter((item) => item.item_id);
     if (validItems.length === 0) {
-      showToast("At least one valid item is required", "error");
+      toast.error("At least one valid item is required");
       return;
     }
 
     setIsLoading(true);
+    const loadingToast = toast.loading(
+      editIndex !== null ? "Updating invoice..." : "Creating invoice...",
+    );
+
     try {
       const apiData = transformToAPIFormat();
 
-      let response;
       if (editIndex !== null && invoiceData.id) {
-        response = await axiosInstance.put(
+        await axiosInstance.put(
           `/zoho/local-invoices/${invoiceData.id}/`,
           apiData,
         );
       } else {
-        response = await axiosInstance.post("/zoho/local-invoices/", apiData);
+        await axiosInstance.post("/zoho/local-invoices/", apiData);
       }
 
-      showToast(
+      toast.success(
         `Invoice ${editIndex !== null ? "updated" : "created"} successfully!`,
-        "success",
+        { id: loadingToast },
       );
       await fetchInvoices();
       exitScreen();
     } catch (error) {
       console.error("Save invoice error:", error);
+      toast.dismiss(loadingToast);
 
       if (error.response) {
         console.error("Error status:", error.response.status);
@@ -756,35 +1475,102 @@ const Invoice = () => {
             errorMessage = errors.join("\n");
           }
 
-          showToast(errorMessage, "error");
+          toast.error(errorMessage);
         } else {
-          showToast(
-            error.response.data?.message || "Failed to save invoice",
-            "error",
-          );
+          toast.error(error.response.data?.message || "Failed to save invoice");
         }
       } else if (error.request) {
-        showToast(
-          "No response from server. Please check your connection.",
-          "error",
-        );
+        toast.error("No response from server. Please check your connection.");
       } else {
-        showToast("Error: " + error.message, "error");
+        toast.error("Error: " + error.message);
       }
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Edit invoice - REMOVED customer_name from state
+  // Bulk delete invoices
+  const bulkDeleteInvoices = async () => {
+    if (selectedInvoices.length === 0) {
+      toast.error("No invoices selected");
+      return;
+    }
+
+    toast(
+      (t) => (
+        <div className="flex flex-col gap-3">
+          <p className="text-sm font-semibold text-gray-800">
+            Delete {selectedInvoices.length} Invoices?
+          </p>
+          <p className="text-xs text-gray-500">This action cannot be undone.</p>
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => toast.dismiss(t.id)}
+              className="px-3 py-1.5 bg-gray-200 rounded-md text-sm hover:bg-gray-300 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={async () => {
+                toast.dismiss(t.id);
+                const loadingToast = toast.loading("Deleting invoices...");
+
+                try {
+                  await Promise.all(
+                    selectedInvoices.map((id) =>
+                      axiosInstance.delete(`/zoho/local-invoices/${id}/`),
+                    ),
+                  );
+
+                  await fetchInvoices();
+                  setSelectedInvoices([]);
+
+                  toast.success(`${selectedInvoices.length} invoices deleted`, {
+                    id: loadingToast,
+                  });
+                } catch (error) {
+                  console.error("Bulk delete error:", error);
+                  toast.error("Error deleting invoices", { id: loadingToast });
+                }
+              }}
+              className="px-3 py-1.5 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 transition-colors"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      ),
+      { duration: Infinity },
+    );
+  };
+
+  // Handle view invoice
+  const handleView = (invoice) => {
+    console.log("Opening view modal for invoice:", invoice);
+    setSelectedInvoiceForView(invoice);
+    setViewModalOpen(true);
+  };
+
+  // Edit invoice
   const handleEdit = (invoice) => {
-    // Don't copy customer_name from invoice - it will be derived from customers list
-    const { customer_name, ...invoiceWithoutName } = invoice;
+    const customer = customers.find((c) => c.id === invoice.customer);
 
     setInvoiceData({
-      ...invoiceWithoutName,
-      items: invoice.items || [],
+      ...initialInvoiceState, // start from default structure
+      ...invoice, // then apply invoice values
+      items: invoice.items?.length ? invoice.items : initialInvoiceState.items,
+
+      customer_phone: invoice.customer_phone || customer?.customer_phone || "",
+      customer_email: invoice.customer_email || customer?.email || "",
+      customer_address: invoice.customer_address || customer?.address || "",
+      customer_state: invoice.customer_state || customer?.state || "Kerala",
+      customer_city:
+        invoice.customer_city || customer?.area || customer?.city || "",
+      customer_pincode: invoice.customer_pincode || customer?.pincode || "",
     });
+
+    setCustomerComplaints(customer?.complaints_history || []);
+
     setEditIndex(invoices.findIndex((i) => i.id === invoice.id));
     setCurrentScreen("form");
   };
@@ -796,9 +1582,7 @@ const Invoice = () => {
           <p className="text-sm font-semibold text-gray-800">
             Delete this invoice?
           </p>
-
           <p className="text-xs text-gray-500">This action cannot be undone.</p>
-
           <div className="flex justify-end gap-2">
             <button
               onClick={() => toast.dismiss(t.id)}
@@ -806,7 +1590,6 @@ const Invoice = () => {
             >
               Cancel
             </button>
-
             <button
               onClick={async () => {
                 toast.dismiss(t.id);
@@ -814,18 +1597,13 @@ const Invoice = () => {
 
                 try {
                   await axiosInstance.delete(`/zoho/local-invoices/${id}/`);
-
                   await fetchInvoices();
-
                   toast.success("Invoice deleted successfully", {
                     id: loadingToast,
                   });
                 } catch (error) {
                   console.error("Delete invoice error:", error);
-
-                  toast.error("Error deleting invoice", {
-                    id: loadingToast,
-                  });
+                  toast.error("Error deleting invoice", { id: loadingToast });
                 }
               }}
               className="px-3 py-1.5 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 transition-colors"
@@ -840,10 +1618,12 @@ const Invoice = () => {
   };
 
   // Open PDF in new tab using axios
-  const openPDF = async (url) => {
+  const openPDF = async (url, id = null) => {
     if (!url) return;
 
-    setPdfLoading(true);
+    if (id) setPdfId(id);
+    else setPdfLoading(true);
+
     try {
       const response = await axiosInstance.get(url, {
         responseType: "blob",
@@ -858,9 +1638,10 @@ const Invoice = () => {
       }, 100);
     } catch (error) {
       console.error("Error opening PDF:", error);
-      showToast("Failed to open PDF", "error");
+      toast.error("Failed to open PDF");
     } finally {
-      setPdfLoading(false);
+      if (id) setPdfId(null);
+      else setPdfLoading(false);
     }
   };
 
@@ -877,10 +1658,11 @@ const Invoice = () => {
       service_charge_amount: 0,
       gst_treatment: "GST_5",
     };
-    setInvoiceData({
-      ...invoiceData,
-      items: [...invoiceData.items, newItem],
-    });
+
+    setInvoiceData((prev) => ({
+      ...prev,
+      items: [...prev.items, newItem],
+    }));
   };
 
   // Update item
@@ -895,32 +1677,32 @@ const Invoice = () => {
         item_id: parseInt(value),
         item_name: selectedItem?.name || "",
         rate: parseFloat(selectedItem?.selling_price) || 0,
-
-        // auto fill description from items API
         description:
           updatedItems[index].description ||
           selectedItem?.sales_description ||
           "",
-
-        // optional: auto fill GST if available
         gst_treatment:
           selectedItem?.gst_treatment?.replace("IGST", "GST") || "GST_5",
-
-        // optional: auto fill service charge
         service_charge_value: parseFloat(selectedItem?.service_charge) || 0,
       };
     } else if (field === "qty" || field === "rate") {
-      updatedItems[index][field] = parseFloat(value) || 0;
+      // Handle leading zeros for number inputs
+      const formattedValue = removeLeadingZeros(value);
+      updatedItems[index][field] =
+        formattedValue === "" ? 0 : parseFloat(formattedValue) || 0;
     } else if (field === "service_charge_value") {
-      updatedItems[index].service_charge_value = parseFloat(value) || 0;
+      const formattedValue = removeLeadingZeros(value);
+      updatedItems[index].service_charge_value =
+        formattedValue === "" ? 0 : parseFloat(formattedValue) || 0;
 
       // Calculate service charge amount immediately for UI
       const itemAmount = updatedItems[index].qty * updatedItems[index].rate;
       if (updatedItems[index].service_charge_type === "PERCENTAGE") {
         updatedItems[index].service_charge_amount =
-          (itemAmount * (parseFloat(value) || 0)) / 100;
+          (itemAmount * (parseFloat(formattedValue) || 0)) / 100;
       } else {
-        updatedItems[index].service_charge_amount = parseFloat(value) || 0;
+        updatedItems[index].service_charge_amount =
+          parseFloat(formattedValue) || 0;
       }
     } else if (field === "service_charge_type") {
       updatedItems[index].service_charge_type = value;
@@ -938,17 +1720,25 @@ const Invoice = () => {
       updatedItems[index][field] = value;
     }
 
-    setInvoiceData({ ...invoiceData, items: updatedItems });
+    setInvoiceData((prev) => ({
+      ...prev,
+      items: updatedItems,
+    }));
   };
 
   // Remove item
   const removeItem = (index) => {
     if (invoiceData.items.length === 1) {
-      showToast("At least one item is required", "error");
+      toast.error("At least one item is required");
       return;
     }
+
     const updatedItems = invoiceData.items.filter((_, i) => i !== index);
-    setInvoiceData({ ...invoiceData, items: updatedItems });
+
+    setInvoiceData((prev) => ({
+      ...prev,
+      items: updatedItems,
+    }));
   };
 
   // Exit screen
@@ -1016,11 +1806,22 @@ const Invoice = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6 lg:p-8 font-sans">
-      {toastMsg.show && (
-        <Toast
-          message={toastMsg.message}
-          type={toastMsg.type}
-          onClose={() => setToastMsg({ show: false, message: "", type: "" })}
+      {/* View Modal - FIXED: Conditionally render with proper state */}
+      {viewModalOpen && selectedInvoiceForView && (
+        <InvoiceViewModal
+          invoice={selectedInvoiceForView}
+          customers={customers}
+          onClose={() => {
+            console.log("Closing view modal");
+            setViewModalOpen(false);
+            setSelectedInvoiceForView(null);
+          }}
+          onEdit={() => {
+            console.log("Editing from view modal");
+            setViewModalOpen(false);
+            handleEdit(selectedInvoiceForView);
+          }}
+          onPDF={openPDF}
         />
       )}
 
@@ -1037,6 +1838,15 @@ const Invoice = () => {
               </p>
             </div>
             <div className="flex gap-3 w-full sm:w-auto">
+              {selectedInvoices.length > 0 && (
+                <button
+                  onClick={bulkDeleteInvoices}
+                  className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 flex items-center gap-2"
+                >
+                  <Trash2 size={18} />
+                  Delete Selected ({selectedInvoices.length})
+                </button>
+              )}
               <button
                 onClick={() => {
                   setInvoiceData({
@@ -1056,7 +1866,6 @@ const Invoice = () => {
                       },
                     ],
                   });
-
                   setCurrentScreen("form");
                 }}
                 className="w-full sm:w-auto bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2"
@@ -1080,16 +1889,6 @@ const Invoice = () => {
               className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
             />
           </div>
-          {selectedInvoices.length > 0 && (
-            <div className="mb-4 flex gap-3">
-              <button
-                onClick={bulkDeleteInvoices}
-                className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
-              >
-                Delete Selected ({selectedInvoices.length})
-              </button>
-            </div>
-          )}
 
           {/* Mobile Cards */}
           <div className="sm:hidden space-y-4">
@@ -1153,6 +1952,13 @@ const Invoice = () => {
 
                   <div className="flex justify-between pt-3 border-t">
                     <button
+                      onClick={() => handleView(inv)}
+                      className="p-2 text-blue-600 hover:bg-blue-50 rounded"
+                      title="View"
+                    >
+                      <Eye size={18} />
+                    </button>
+                    <button
                       onClick={() => handleEdit(inv)}
                       className="p-2 text-green-600 hover:bg-green-50 rounded"
                       title="Edit"
@@ -1161,15 +1967,15 @@ const Invoice = () => {
                     </button>
                     {inv.pdf_url && (
                       <button
-                        onClick={() => openPDF(inv.pdf_url)}
-                        disabled={pdfLoading}
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded disabled:opacity-50"
+                        onClick={() => openPDF(inv.pdf_url, inv.id)}
+                        disabled={pdfId === inv.id}
+                        className="p-2 text-purple-600 hover:bg-purple-50 rounded disabled:opacity-50"
                         title="View PDF"
                       >
-                        {pdfLoading ? (
+                        {pdfId === inv.id ? (
                           <Loader2 size={18} className="animate-spin" />
                         ) : (
-                          <Eye size={18} />
+                          <FileText size={18} />
                         )}
                       </button>
                     )}
@@ -1189,8 +1995,8 @@ const Invoice = () => {
           {/* Desktop Table */}
           <div className="hidden sm:block bg-white rounded-lg shadow overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-100">
+              <table className="min-w-full text-sm">
+                <thead className="bg-gray-100 text-gray-600 uppercase text-xs">
                   <tr>
                     <th className="px-4 py-3 text-center">
                       <input
@@ -1202,41 +2008,29 @@ const Invoice = () => {
                         onChange={toggleSelectAll}
                       />
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">
-                      Invoice #
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">
-                      Customer
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">
-                      Assign To
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">
-                      Date
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">
-                      Due Date
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">
-                      State
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-600 uppercase">
-                      Total
-                    </th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-600 uppercase">
-                      Actions
-                    </th>
+
+                    <th className="px-6 py-3 text-center">Invoice #</th>
+
+                    <th className="px-6 py-3 text-center">Customer</th>
+
+                    <th className="px-6 py-3 text-center">Date</th>
+
+                    <th className="px-6 py-3 text-center">Due Date</th>
+
+                    <th className="px-6 py-3 text-center">Status</th>
+
+                    <th className="px-6 py-3 text-center">Total</th>
+
+                    <th className="px-6 py-3 text-center">Actions</th>
                   </tr>
                 </thead>
+
                 <tbody className="divide-y divide-gray-200">
                   {isLoading ? (
                     <tr>
                       <td
-                        colSpan="10"
-                        className="px-6 py-8 text-center text-gray-500"
+                        colSpan="8"
+                        className="px-6 py-10 text-center text-gray-500"
                       >
                         <Loader2
                           className="animate-spin mx-auto mb-2"
@@ -1248,15 +2042,15 @@ const Invoice = () => {
                   ) : filteredInvoices.length === 0 ? (
                     <tr>
                       <td
-                        colSpan="10"
-                        className="px-6 py-8 text-center text-gray-500"
+                        colSpan="8"
+                        className="px-6 py-10 text-center text-gray-500"
                       >
                         {quickSearch ? "No invoices found" : "No invoices yet"}
                       </td>
                     </tr>
                   ) : (
                     filteredInvoices.map((inv) => (
-                      <tr key={inv.id} className="hover:bg-gray-50">
+                      <tr key={inv.id} className="hover:bg-gray-50 transition">
                         <td className="px-4 py-4 text-center">
                           <input
                             type="checkbox"
@@ -1264,48 +2058,43 @@ const Invoice = () => {
                             onChange={() => toggleInvoiceSelection(inv.id)}
                           />
                         </td>
-                        <td className="px-6 py-4 font-medium text-blue-600">
+
+                        <td className="px-6 py-4 font-semibold text-blue-600 text-center">
                           {inv.invoice_number}
                         </td>
-                        <td className="px-6 py-4">
+
+                        <td className="px-6 py-4 text-center">
                           {getCustomerName(inv.customer)}
                         </td>
-                        <td className="px-6 py-4">
-                          {inv.assign_name ? (
-                            <div className="flex items-center gap-1">
-                              <span>
-                                {inv.assign_type === "shop" ? "🏪" : "🏷️"}
-                              </span>
-                              <span>{inv.assign_name}</span>
-                            </div>
-                          ) : (
-                            <span className="text-gray-400">-</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-gray-600">
+
+                        <td className="px-6 py-4 text-gray-600 text-center">
                           {inv.invoice_date}
                         </td>
-                        <td className="px-6 py-4 text-gray-600">
+
+                        <td className="px-6 py-4 text-gray-600 text-center">
                           {inv.due_date || "-"}
                         </td>
-                        <td className="px-6 py-4">
-                          <span
-                            className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full ${inv.customer_state === "Kerala" ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800"}`}
-                          >
-                            <MapPin size={12} />
-                            {inv.customer_state}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
+
+                        <td className="px-6 py-4 text-center">
                           <span className={getStatusBadge(inv.status)}>
                             {inv.status}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-right font-bold">
+
+                        <td className="px-6 py-4 font-bold text-gray-800 text-center">
                           ₹{format(inv.grand_total)}
                         </td>
+
                         <td className="px-6 py-4">
                           <div className="flex items-center justify-center gap-2">
+                            <button
+                              onClick={() => handleView(inv)}
+                              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
+                              title="View"
+                            >
+                              <Eye size={16} />
+                            </button>
+
                             <button
                               onClick={() => handleEdit(inv)}
                               className="p-1.5 text-green-600 hover:bg-green-50 rounded"
@@ -1313,20 +2102,22 @@ const Invoice = () => {
                             >
                               <Edit size={16} />
                             </button>
+
                             {inv.pdf_url && (
                               <button
-                                onClick={() => openPDF(inv.pdf_url)}
-                                disabled={pdfLoading}
-                                className="p-1.5 text-blue-600 hover:bg-blue-50 rounded disabled:opacity-50"
+                                onClick={() => openPDF(inv.pdf_url, inv.id)}
+                                disabled={pdfId === inv.id}
+                                className="p-1.5 text-purple-600 hover:bg-purple-50 rounded disabled:opacity-50"
                                 title="View PDF"
                               >
-                                {pdfLoading ? (
+                                {pdfId === inv.id ? (
                                   <Loader2 size={16} className="animate-spin" />
                                 ) : (
-                                  <Eye size={16} />
+                                  <FileText size={16} />
                                 )}
                               </button>
                             )}
+
                             <button
                               onClick={() => handleDelete(inv.id)}
                               className="p-1.5 text-red-600 hover:bg-red-50 rounded"
@@ -1456,15 +2247,15 @@ const Invoice = () => {
                 <select
                   value={invoiceData.status}
                   onChange={(e) =>
-                    setInvoiceData({ ...invoiceData, status: e.target.value })
+                    setInvoiceData((prev) => ({
+                      ...prev,
+                      status: e.target.value,
+                    }))
                   }
                   className="w-full px-3 py-2 border rounded-lg"
                 >
                   <option value="DRAFT">DRAFT</option>
-                  <option value="PAID">PAID</option>
-                  <option value="PARTIALLY_PAID">PARTIALLY PAID</option>
                   <option value="SENT">SENT</option>
-                  <option value="OVERDUE">OVERDUE</option>
                   <option value="CANCELLED">CANCELLED</option>
                 </select>
               </div>
@@ -1473,7 +2264,6 @@ const Invoice = () => {
                 <label className="block text-sm font-medium mb-1">
                   Invoice Number *
                 </label>
-
                 <input
                   type="text"
                   value={invoiceData.invoice_number}
@@ -1525,34 +2315,53 @@ const Invoice = () => {
 
             {/* Customer Details Display */}
             {invoiceData.customer && (
-              <div className="mb-8 p-4 bg-blue-50 rounded-lg">
-                <h4 className="font-bold mb-3 flex items-center gap-2">
-                  <User size={18} /> Customer Details
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h4 className="font-medium text-gray-700 mb-3">
+                  Customer Information
                 </h4>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+
+                <div className="grid grid-cols-2 gap-3 text-sm">
                   <div>
-                    <span className="text-gray-600">Name:</span>
+                    <span className="text-gray-500">Name</span>
                     <p className="font-medium">
                       {getCustomerName(invoiceData.customer)}
                     </p>
                   </div>
+
                   <div>
-                    <span className="text-gray-600">Phone:</span>
-                    <p className="font-medium">{invoiceData.customer_phone}</p>
+                    <span className="text-gray-500">Phone</span>
+                    <p>{invoiceData.customer_phone || "N/A"}</p>
                   </div>
+
                   <div>
-                    <span className="text-gray-600">Email:</span>
-                    <p className="font-medium">{invoiceData.customer_email}</p>
+                    <span className="text-gray-500">Email</span>
+                    <p>{invoiceData.customer_email || "N/A"}</p>
                   </div>
+
                   <div>
-                    <span className="text-gray-600">State:</span>
-                    <p className="font-medium">{invoiceData.customer_state}</p>
+                    <span className="text-gray-500">State</span>
+                    <p>{invoiceData.customer_state || "Kerala"}</p>
+                  </div>
+
+                  <div>
+                    <span className="text-gray-500">City</span>
+                    <p>{invoiceData.customer_city || "N/A"}</p>
+                  </div>
+
+                  <div>
+                    <span className="text-gray-500">Pincode</span>
+                    <p>{invoiceData.customer_pincode || "N/A"}</p>
+                  </div>
+
+                  <div className="col-span-2">
+                    <span className="text-gray-500">Address</span>
+                    <p>{invoiceData.customer_address || "N/A"}</p>
                   </div>
                 </div>
               </div>
             )}
 
-            {customerComplaints.length > 0 && (
+            {invoiceData.customer && customerComplaints.length > 0 && (
               <div className="mb-6 p-4 bg-yellow-50 rounded-lg border">
                 <h4 className="font-semibold mb-3">Customer Complaints</h4>
 
@@ -1561,12 +2370,15 @@ const Invoice = () => {
                     <div>
                       <b>Model:</b> {c.phone_model}
                     </div>
+
                     <div>
                       <b>Issue:</b> {c.issue_details}
                     </div>
+
                     <div>
                       <b>Status:</b> {c.status}
                     </div>
+
                     <div>
                       <b>Assigned To:</b> {c.assigned_to_display?.name}
                     </div>
@@ -1640,6 +2452,13 @@ const Invoice = () => {
                               onChange={(e) =>
                                 updateItem(index, "qty", e.target.value)
                               }
+                              onBlur={(e) => {
+                                const numValue =
+                                  parseFloat(e.target.value) || 0;
+                                if (numValue !== item.qty) {
+                                  updateItem(index, "qty", numValue);
+                                }
+                              }}
                               min="1"
                               className="w-20 px-2 py-1 border rounded text-center text-sm"
                             />
@@ -1656,6 +2475,13 @@ const Invoice = () => {
                               onChange={(e) =>
                                 updateItem(index, "rate", e.target.value)
                               }
+                              onBlur={(e) => {
+                                const numValue =
+                                  parseFloat(e.target.value) || 0;
+                                if (numValue !== item.rate) {
+                                  updateItem(index, "rate", numValue);
+                                }
+                              }}
                               min="0"
                               step="0.01"
                               className="w-24 px-2 py-1 border rounded text-right text-sm"
@@ -1678,11 +2504,21 @@ const Invoice = () => {
                                     e.target.value,
                                   )
                                 }
+                                onBlur={(e) => {
+                                  const numValue =
+                                    parseFloat(e.target.value) || 0;
+                                  if (numValue !== item.service_charge_value) {
+                                    updateItem(
+                                      index,
+                                      "service_charge_value",
+                                      numValue,
+                                    );
+                                  }
+                                }}
                                 min="0"
                                 placeholder="0"
                                 className="w-full px-2 py-1.5 text-sm text-right outline-none"
                               />
-
                               <select
                                 value={item.service_charge_type}
                                 onChange={(e) =>
@@ -1753,8 +2589,6 @@ const Invoice = () => {
                               className="w-full px-3 py-1.5 border rounded text-sm bg-white"
                             />
                           </td>
-
-                          {/* empty cells to keep table alignment */}
                           <td></td>
                           <td></td>
                           <td></td>
@@ -1769,132 +2603,252 @@ const Invoice = () => {
               </div>
             </div>
 
-            {/* Invoice Summary Card - Using calculated values for real-time updates */}
-            <div className="mb-8 bg-gray-50 rounded-lg p-4 border border-gray-200">
-              <h4 className="font-semibold mb-3 text-gray-700">
-                Invoice Summary
-              </h4>
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Sub Total:</span>
-                  <span className="font-medium">
-                    ₹{format(calculatedTotals.subTotal)}
-                  </span>
+            {/* Terms, Notes, and Summary */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+              <div className="space-y-4">
+                <div>
+                  <h4 className="font-bold mb-2">Terms & Conditions</h4>
+                  <textarea
+                    value={invoiceData.terms_conditions}
+                    onChange={(e) =>
+                      setInvoiceData({
+                        ...invoiceData,
+                        terms_conditions: e.target.value,
+                      })
+                    }
+                    rows="6"
+                    className="w-full px-3 py-2 border rounded-lg text-sm"
+                    placeholder="Enter terms and conditions..."
+                  />
                 </div>
 
-                {calculatedTotals.serviceChargeTotal > 0 && (
-                  <div className="flex justify-between text-sm text-purple-600">
-                    <span>Service Charges:</span>
-                    <span className="font-bold">
-                      + ₹{format(calculatedTotals.serviceChargeTotal)}
-                    </span>
-                  </div>
-                )}
-
-                <div className="flex justify-between text-sm border-t pt-2">
-                  <span className="font-medium">Taxable Amount:</span>
-                  <span className="font-bold">
-                    ₹{format(calculatedTotals.taxableAmount)}
-                  </span>
-                </div>
-
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-600">Discount:</span>
-                  <div className="flex w-40">
-                    <input
-                      type="number"
-                      value={invoiceData.discount_value || ""}
-                      onChange={(e) =>
-                        setInvoiceData({
-                          ...invoiceData,
-                          discount_value: parseFloat(e.target.value) || 0,
-                        })
-                      }
-                      min="0"
-                      max={
-                        invoiceData.discount_type === "PERCENT"
-                          ? 100
-                          : calculatedTotals.taxableAmount
-                      }
-                      className="w-24 px-2 py-1 border rounded-l text-right text-sm"
-                    />
-                    <select
-                      value={invoiceData.discount_type}
-                      onChange={(e) =>
-                        setInvoiceData({
-                          ...invoiceData,
-                          discount_type: e.target.value,
-                        })
-                      }
-                      className="w-16 px-2 py-1 border border-l-0 rounded-r text-sm bg-gray-50"
-                    >
-                      <option value="PERCENT">%</option>
-                      <option value="AMOUNT">₹</option>
-                    </select>
-                  </div>
-                </div>
-
-                {calculatedTotals.discountAmount > 0 && (
-                  <div className="flex justify-between text-sm text-red-600">
-                    <span>Discount Amount:</span>
-                    <span className="font-bold">
-                      - ₹{format(calculatedTotals.discountAmount)}
-                    </span>
-                  </div>
-                )}
-
-                {/* GST Breakdown */}
-                {calculatedTotals.totalGST > 0 && (
-                  <div className="space-y-1">
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="font-medium">GST:</span>
-                      <span
-                        className={`text-xs px-2 py-1 rounded ${calculatedTotals.isSameState ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800"}`}
-                      >
-                        {calculatedTotals.gstMode}
-                      </span>
-                    </div>
-                    {Object.entries(calculatedTotals.gstBreakdown).map(
-                      ([key, tax]) =>
-                        tax.tax > 0 && (
-                          <div
-                            key={key}
-                            className="flex justify-between text-xs text-gray-600 pl-4"
-                          >
-                            <span>GST {tax.rate}%:</span>
-                            <span>₹{format(tax.tax)}</span>
-                          </div>
-                        ),
-                    )}
-                    <div className="flex justify-between text-sm font-medium">
-                      <span>Total GST:</span>
-                      <span>₹{format(calculatedTotals.totalGST)}</span>
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex justify-between pt-3 border-t-2 text-lg font-bold text-blue-700">
-                  <span>TOTAL:</span>
-                  <span>₹{format(calculatedTotals.grandTotal)}</span>
+                <div>
+                  <h4 className="font-bold mb-2">Notes</h4>
+                  <textarea
+                    value={invoiceData.notes || ""}
+                    onChange={(e) =>
+                      setInvoiceData({
+                        ...invoiceData,
+                        notes: e.target.value,
+                      })
+                    }
+                    rows="4"
+                    className="w-full px-3 py-2 border rounded-lg text-sm"
+                    placeholder="Additional notes..."
+                  />
                 </div>
               </div>
-            </div>
 
-            {/* Terms */}
-            <div className="mb-8">
-              <h4 className="font-bold mb-2">Terms & Conditions</h4>
-              <textarea
-                value={invoiceData.terms_conditions}
-                onChange={(e) =>
-                  setInvoiceData({
-                    ...invoiceData,
-                    terms_conditions: e.target.value,
-                  })
-                }
-                rows="4"
-                className="w-full px-3 py-2 border rounded-lg"
-                placeholder="Enter terms and conditions..."
-              />
+              {/* Invoice Summary Card */}
+              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                <h4 className="font-semibold mb-3 text-gray-700">
+                  Invoice Summary
+                </h4>
+                <div className="space-y-3">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Sub Total:</span>
+                    <span className="font-medium">
+                      ₹{format(calculatedTotals.subTotal)}
+                    </span>
+                  </div>
+
+                  {calculatedTotals.serviceChargeTotal > 0 && (
+                    <div className="flex justify-between text-sm text-purple-600">
+                      <span>Service Charges:</span>
+                      <span className="font-bold">
+                        + ₹{format(calculatedTotals.serviceChargeTotal)}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-600">Discount:</span>
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={invoiceData.discount_type}
+                        onChange={(e) =>
+                          setInvoiceData({
+                            ...invoiceData,
+                            discount_type: e.target.value,
+                          })
+                        }
+                        className="px-2 py-1 border border-gray-300 rounded text-sm"
+                      >
+                        <option value="PERCENT">%</option>
+                        <option value="AMOUNT">₹</option>
+                      </select>
+                      <input
+                        type="number"
+                        value={invoiceData.discount_value || ""}
+                        onChange={(e) => {
+                          const formattedValue = removeLeadingZeros(
+                            e.target.value,
+                          );
+                          setInvoiceData({
+                            ...invoiceData,
+                            discount_value:
+                              formattedValue === ""
+                                ? 0
+                                : parseFloat(formattedValue) || 0,
+                          });
+                        }}
+                        onBlur={(e) => {
+                          const numValue = parseFloat(e.target.value) || 0;
+                          if (numValue !== invoiceData.discount_value) {
+                            setInvoiceData({
+                              ...invoiceData,
+                              discount_value: numValue,
+                            });
+                          }
+                        }}
+                        min="0"
+                        max={
+                          invoiceData.discount_type === "PERCENT"
+                            ? 100
+                            : calculatedTotals.taxableAmount
+                        }
+                        className="w-20 px-2 py-1 border border-gray-300 rounded text-sm text-right"
+                      />
+                      <span className="font-medium w-16 text-right">
+                        - ₹{format(calculatedTotals.discountAmount)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Shipping Charge */}
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-600">Shipping Charge:</span>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        value={invoiceData.shipping_charge || ""}
+                        onChange={(e) => {
+                          const formattedValue = removeLeadingZeros(
+                            e.target.value,
+                          );
+                          setInvoiceData({
+                            ...invoiceData,
+                            shipping_charge:
+                              formattedValue === ""
+                                ? 0
+                                : parseFloat(formattedValue) || 0,
+                          });
+                        }}
+                        onBlur={(e) => {
+                          const numValue = parseFloat(e.target.value) || 0;
+                          if (numValue !== invoiceData.shipping_charge) {
+                            setInvoiceData({
+                              ...invoiceData,
+                              shipping_charge: numValue,
+                            });
+                          }
+                        }}
+                        min="0"
+                        step="0.01"
+                        className="w-28 px-2 py-1 border border-gray-300 rounded text-sm text-right"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Adjustment */}
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-600">Adjustment:</span>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        value={invoiceData.adjustment || ""}
+                        onChange={(e) => {
+                          const formattedValue = removeLeadingZeros(
+                            e.target.value,
+                          );
+                          setInvoiceData({
+                            ...invoiceData,
+                            adjustment:
+                              formattedValue === ""
+                                ? 0
+                                : parseFloat(formattedValue) || 0,
+                          });
+                        }}
+                        onBlur={(e) => {
+                          const numValue = parseFloat(e.target.value) || 0;
+                          if (numValue !== invoiceData.adjustment) {
+                            setInvoiceData({
+                              ...invoiceData,
+                              adjustment: numValue,
+                            });
+                          }
+                        }}
+                        step="0.01"
+                        className="w-28 px-2 py-1 border border-gray-300 rounded text-sm text-right"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between text-sm font-medium border-t pt-2">
+                    <span className="text-gray-600">After Discount:</span>
+                    <span>₹{format(calculatedTotals.afterDiscount)}</span>
+                  </div>
+
+                  {/* GST Breakdown */}
+                  {calculatedTotals.totalGST > 0 && (
+                    <div className="space-y-1">
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="font-medium">GST:</span>
+                        <span
+                          className={`text-xs px-2 py-1 rounded ${calculatedTotals.isSameState ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800"}`}
+                        >
+                          {calculatedTotals.gstMode}
+                        </span>
+                      </div>
+                      {Object.entries(calculatedTotals.gstBreakdown).map(
+                        ([key, tax]) =>
+                          tax.tax > 0 && (
+                            <div
+                              key={key}
+                              className="flex justify-between text-xs text-gray-600 pl-4"
+                            >
+                              <span>GST {tax.rate}%:</span>
+                              <span>+ ₹{format(tax.tax)}</span>
+                            </div>
+                          ),
+                      )}
+                      <div className="flex justify-between text-sm font-medium">
+                        <span>Total GST:</span>
+                        <span>₹{format(calculatedTotals.totalGST)}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex justify-between pt-3 border-t-2 text-lg font-bold text-blue-700">
+                    <span>GRAND TOTAL:</span>
+                    <span>₹{format(calculatedTotals.grandTotal)}</span>
+                  </div>
+
+                  {/* Tax Treatment Info */}
+                  {invoiceData.customer_state && (
+                    <div
+                      className={`p-2 rounded-lg mt-2 ${
+                        calculatedTotals.isSameState
+                          ? "bg-green-50"
+                          : "bg-blue-50"
+                      }`}
+                    >
+                      <p
+                        className={`text-xs ${
+                          calculatedTotals.isSameState
+                            ? "text-green-700"
+                            : "text-blue-700"
+                        }`}
+                      >
+                        <strong>Transaction Type:</strong>{" "}
+                        {calculatedTotals.isSameState
+                          ? "Intra-state (CGST + SGST)"
+                          : "Inter-state (IGST)"}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* PDF Link - Show only if PDF exists */}

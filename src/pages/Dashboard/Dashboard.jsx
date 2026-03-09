@@ -39,17 +39,21 @@ ChartJS.register(
   Tooltip,
   Legend,
   Filler,
-  Title
+  Title,
 );
 
 // Helper function to extract error message
 const getErrorMessage = (error) => {
-  return error.response?.data?.message || error.message || "An unexpected error occurred";
+  return (
+    error.response?.data?.message ||
+    error.message ||
+    "An unexpected error occurred"
+  );
 };
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  
+
   // State for meta data
   const [metaData, setMetaData] = useState({
     loading: true,
@@ -57,11 +61,11 @@ export default function AdminDashboard() {
     start_year: 2026,
     current_year: 2026,
     years: [2026],
-    default_year: 2026
+    default_year: 2026,
   });
-  
+
   const [selectedYear, setSelectedYear] = useState(null);
-  
+
   // State for dashboard data
   const [dashboardData, setDashboardData] = useState({
     loading: true,
@@ -91,9 +95,9 @@ export default function AdminDashboard() {
         growtags: 0,
         franchise_shops: 0,
         other_shops: 0,
-        admin_earnings: 0
-      }
-    }
+        admin_earnings: 0,
+      },
+    },
   });
 
   const today = new Date().toLocaleDateString("en-US", {
@@ -135,35 +139,45 @@ export default function AdminDashboard() {
     try {
       const response = await axiosInstance.get("/api/admin/dashboard/meta/");
       const data = response.data;
-      
+
       setMetaData({
         loading: false,
         error: null,
         start_year: data.start_year,
         current_year: data.current_year,
         years: data.years,
-        default_year: data.default_year
+        default_year: data.default_year,
       });
-      
     } catch (error) {
-      // 401 is handled globally by axiosInstance interceptor
-      setMetaData(prev => ({
+      console.error("Meta data API error:", error);
+
+      // Network error handled globally
+      if (!error.response) {
+        setMetaData((prev) => ({
+          ...prev,
+          loading: false,
+        }));
+        return;
+      }
+
+      setMetaData((prev) => ({
         ...prev,
         loading: false,
         error: getErrorMessage(error),
       }));
-      console.error("Meta data API error:", error);
     }
   };
 
   // Fetch dashboard data from API
   const fetchDashboardData = async () => {
-    setDashboardData(prev => ({ ...prev, loading: true, error: null }));
+    setDashboardData((prev) => ({ ...prev, loading: true, error: null }));
 
     try {
-      const response = await axiosInstance.get(`/api/admin/dashboard/?year=${selectedYear}`);
+      const response = await axiosInstance.get(
+        `/api/admin/dashboard/?year=${selectedYear}`,
+      );
       const data = response.data;
-      
+
       setDashboardData({
         loading: false,
         error: null,
@@ -173,13 +187,21 @@ export default function AdminDashboard() {
         charts: data.charts,
       });
     } catch (error) {
-      // 401 is handled globally by axiosInstance interceptor
-      setDashboardData(prev => ({
+      console.error("Dashboard API error:", error);
+
+      if (!error.response) {
+        setDashboardData((prev) => ({
+          ...prev,
+          loading: false,
+        }));
+        return;
+      }
+
+      setDashboardData((prev) => ({
         ...prev,
         loading: false,
         error: getErrorMessage(error),
       }));
-      console.error("Dashboard API error:", error);
     }
   };
 
@@ -199,80 +221,92 @@ export default function AdminDashboard() {
   // Charts Data Configuration
   const complaintsChart = {
     labels: dashboardData.charts?.complaints_overview?.labels || [],
-    datasets: [{
-      label: "Total Complaints",
-      data: dashboardData.charts?.complaints_overview?.totals || [],
-      backgroundColor: "rgba(59,130,246,0.8)",
-      borderRadius: 6,
-    }],
+    datasets: [
+      {
+        label: "Total Complaints",
+        data: dashboardData.charts?.complaints_overview?.totals || [],
+        backgroundColor: "rgba(59,130,246,0.8)",
+        borderRadius: 6,
+      },
+    ],
   };
 
   const growTagsChart = {
     labels: dashboardData.charts?.growtags_growth?.labels || [],
-    datasets: [{
-      label: "GrowTags",
-      data: dashboardData.charts?.growtags_growth?.totals || [],
-      borderColor: "rgba(34,197,94,1)",
-      backgroundColor: "rgba(34,197,94,0.15)",
-      borderWidth: 3,
-      fill: true,
-      tension: 0.4,
-      pointRadius: 4,
-    }],
+    datasets: [
+      {
+        label: "GrowTags",
+        data: dashboardData.charts?.growtags_growth?.totals || [],
+        borderColor: "rgba(34,197,94,1)",
+        backgroundColor: "rgba(34,197,94,0.15)",
+        borderWidth: 3,
+        fill: true,
+        tension: 0.4,
+        pointRadius: 4,
+      },
+    ],
   };
 
   const franchiseShopsChart = {
     labels: dashboardData.charts?.franchise_shops_growth?.labels || [],
-    datasets: [{
-      label: "Franchise Shops",
-      data: dashboardData.charts?.franchise_shops_growth?.totals || [],
-      backgroundColor: "rgba(59,130,246,0.8)",
-      borderRadius: 6,
-    }],
+    datasets: [
+      {
+        label: "Franchise Shops",
+        data: dashboardData.charts?.franchise_shops_growth?.totals || [],
+        backgroundColor: "rgba(59,130,246,0.8)",
+        borderRadius: 6,
+      },
+    ],
   };
 
   const otherShopsChart = {
     labels: dashboardData.charts?.other_shops_growth?.labels || [],
-    datasets: [{
-      label: "Other Shops",
-      data: dashboardData.charts?.other_shops_growth?.totals || [],
-      backgroundColor: "rgba(168,85,247,0.8)",
-      borderRadius: 6,
-    }],
+    datasets: [
+      {
+        label: "Other Shops",
+        data: dashboardData.charts?.other_shops_growth?.totals || [],
+        backgroundColor: "rgba(168,85,247,0.8)",
+        borderRadius: 6,
+      },
+    ],
   };
 
   const revenueChart = {
     labels: dashboardData.charts?.revenue_trend?.labels || [],
-    datasets: [{
-      label: "Revenue (₹)",
-      data: dashboardData.charts?.revenue_trend?.amounts || [],
-      borderColor: "rgba(245,158,11,1)",
-      backgroundColor: "rgba(245,158,11,0.15)",
-      fill: true,
-      tension: 0.4,
-    }],
+    datasets: [
+      {
+        label: "Revenue (₹)",
+        data: dashboardData.charts?.revenue_trend?.amounts || [],
+        borderColor: "rgba(245,158,11,1)",
+        backgroundColor: "rgba(245,158,11,0.15)",
+        fill: true,
+        tension: 0.4,
+      },
+    ],
   };
 
   const performanceChart = {
     labels: ["Complaints", "GrowTags", "Franchise", "Other Shops", "Earnings"],
-    datasets: [{
-      label: "Growth Performance",
-      data: [
-        dashboardData.charts?.growth_performance?.complaints || 0,
-        dashboardData.charts?.growth_performance?.growtags || 0,
-        dashboardData.charts?.growth_performance?.franchise_shops || 0,
-        dashboardData.charts?.growth_performance?.other_shops || 0,
-        dashboardData.charts?.growth_performance?.admin_earnings || 0,
-      ],
-      backgroundColor: [
-        "rgba(59,130,246,0.7)",
-        "rgba(34,197,94,0.7)",
-        "rgba(29,78,216,0.7)",
-        "rgba(168,85,247,0.7)",
-        "rgba(245,158,11,0.7)",
-      ],
-      borderWidth: 1,
-    }],
+    datasets: [
+      {
+        label: "Growth Performance",
+        data: [
+          dashboardData.charts?.growth_performance?.complaints || 0,
+          dashboardData.charts?.growth_performance?.growtags || 0,
+          dashboardData.charts?.growth_performance?.franchise_shops || 0,
+          dashboardData.charts?.growth_performance?.other_shops || 0,
+          dashboardData.charts?.growth_performance?.admin_earnings || 0,
+        ],
+        backgroundColor: [
+          "rgba(59,130,246,0.7)",
+          "rgba(34,197,94,0.7)",
+          "rgba(29,78,216,0.7)",
+          "rgba(168,85,247,0.7)",
+          "rgba(245,158,11,0.7)",
+        ],
+        borderWidth: 1,
+      },
+    ],
   };
 
   // Chart options with integer-only Y-axis
@@ -297,7 +331,7 @@ export default function AdminDashboard() {
         ticks: {
           color: "#374151",
           font: { size: 11 },
-          callback: function(value) {
+          callback: function (value) {
             if (Number.isInteger(value)) {
               return value;
             }
@@ -305,28 +339,28 @@ export default function AdminDashboard() {
           },
           stepSize: 1,
         },
-        afterBuildTicks: function(scale) {
-          const ticks = scale.ticks.map(tick => Math.round(tick.value));
-          scale.ticks = [...new Set(ticks)].map(value => ({ value }));
+        afterBuildTicks: function (scale) {
+          const ticks = scale.ticks.map((tick) => Math.round(tick.value));
+          scale.ticks = [...new Set(ticks)].map((value) => ({ value }));
         },
       },
     },
     plugins: {
       legend: { display: true },
-      tooltip: { 
+      tooltip: {
         enabled: true,
         callbacks: {
-          label: function(context) {
-            let label = context.dataset.label || '';
+          label: function (context) {
+            let label = context.dataset.label || "";
             if (label) {
-              label += ': ';
+              label += ": ";
             }
             if (context.parsed.y !== null) {
               label += Math.round(context.parsed.y);
             }
             return label;
-          }
-        }
+          },
+        },
       },
     },
   };
@@ -345,7 +379,9 @@ export default function AdminDashboard() {
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md text-center">
           <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Oops! Something went wrong</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+            Oops! Something went wrong
+          </h2>
           <p className="text-gray-600 mb-6">{error}</p>
           <button
             onClick={handleRefresh}
@@ -377,12 +413,12 @@ export default function AdminDashboard() {
               {today}
             </p>
           </div>
-          
+
           <div className="flex items-center gap-3">
             {/* Year Filter Dropdown */}
             <div className="relative">
               <select
-                value={selectedYear || ''}
+                value={selectedYear || ""}
                 onChange={(e) => handleYearChange(Number(e.target.value))}
                 className="appearance-none px-4 py-2 pr-10 border rounded-xl text-sm bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 disabled={metaData.loading}
@@ -401,18 +437,23 @@ export default function AdminDashboard() {
               disabled={dashboardData.loading}
               className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors flex items-center gap-2 shadow-md disabled:opacity-50"
             >
-              <RefreshCw className={`w-4 h-4 ${dashboardData.loading ? 'animate-spin' : ''}`} />
+              <RefreshCw
+                className={`w-4 h-4 ${dashboardData.loading ? "animate-spin" : ""}`}
+              />
               Refresh
             </button>
           </div>
         </div>
-        
+
         {/* Year Info */}
         {!metaData.loading && (
           <div className="mt-2 text-sm text-gray-500">
-            Showing data for year: <span className="font-semibold text-blue-600">{selectedYear}</span>
+            Showing data for year:{" "}
+            <span className="font-semibold text-blue-600">{selectedYear}</span>
             {metaData.years.length > 1 && (
-              <span className="ml-2">(Available years: {metaData.years.join(', ')})</span>
+              <span className="ml-2">
+                (Available years: {metaData.years.join(", ")})
+              </span>
             )}
           </div>
         )}
@@ -422,7 +463,9 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
         <StatCard
           title="Total Complaints"
-          value={dashboardData.loading ? "..." : dashboardData.cards.total_complaints}
+          value={
+            dashboardData.loading ? "..." : dashboardData.cards.total_complaints
+          }
           icon={<AlertCircle className="w-6 h-6 text-blue-600" />}
           bgColor="bg-blue-50"
           textColor="text-blue-600"
@@ -430,7 +473,9 @@ export default function AdminDashboard() {
         />
         <StatCard
           title="Total GrowTags"
-          value={dashboardData.loading ? "..." : dashboardData.cards.total_growtags}
+          value={
+            dashboardData.loading ? "..." : dashboardData.cards.total_growtags
+          }
           icon={<Users className="w-6 h-6 text-green-600" />}
           bgColor="bg-green-50"
           textColor="text-green-600"
@@ -438,7 +483,9 @@ export default function AdminDashboard() {
         />
         <StatCard
           title="Franchise Shops"
-          value={dashboardData.loading ? "..." : dashboardData.cards.franchise_shops}
+          value={
+            dashboardData.loading ? "..." : dashboardData.cards.franchise_shops
+          }
           icon={<Building className="w-6 h-6 text-blue-700" />}
           bgColor="bg-blue-100"
           textColor="text-blue-700"
@@ -446,7 +493,9 @@ export default function AdminDashboard() {
         />
         <StatCard
           title="Other Shops"
-          value={dashboardData.loading ? "..." : dashboardData.cards.other_shops}
+          value={
+            dashboardData.loading ? "..." : dashboardData.cards.other_shops
+          }
           icon={<Store className="w-6 h-6 text-purple-600" />}
           bgColor="bg-purple-50"
           textColor="text-purple-600"
@@ -454,7 +503,11 @@ export default function AdminDashboard() {
         />
         <StatCard
           title="Total Revenue"
-          value={dashboardData.loading ? "..." : `₹${dashboardData.cards.total_earnings.toLocaleString()}`}
+          value={
+            dashboardData.loading
+              ? "..."
+              : `₹${dashboardData.cards.total_earnings.toLocaleString()}`
+          }
           icon={<DollarSign className="w-6 h-6 text-amber-600" />}
           bgColor="bg-amber-50"
           textColor="text-amber-600"
@@ -466,7 +519,11 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StatCard
           title="Today's Complaints"
-          value={dashboardData.loading ? "..." : dashboardData.summary.today_complaints}
+          value={
+            dashboardData.loading
+              ? "..."
+              : dashboardData.summary.today_complaints
+          }
           icon={<AlertCircle className="w-6 h-6 text-blue-600" />}
           bgColor="bg-blue-50"
           textColor="text-blue-600"
@@ -474,7 +531,11 @@ export default function AdminDashboard() {
         />
         <StatCard
           title="Pending Complaints"
-          value={dashboardData.loading ? "..." : dashboardData.summary.pending_complaints}
+          value={
+            dashboardData.loading
+              ? "..."
+              : dashboardData.summary.pending_complaints
+          }
           icon={<Clock className="w-6 h-6 text-yellow-600" />}
           bgColor="bg-yellow-50"
           textColor="text-yellow-600"
@@ -482,7 +543,11 @@ export default function AdminDashboard() {
         />
         <StatCard
           title="Active Complaints"
-          value={dashboardData.loading ? "..." : dashboardData.summary.active_complaints}
+          value={
+            dashboardData.loading
+              ? "..."
+              : dashboardData.summary.active_complaints
+          }
           icon={<Activity className="w-6 h-6 text-orange-600" />}
           bgColor="bg-orange-50"
           textColor="text-orange-600"
@@ -490,7 +555,11 @@ export default function AdminDashboard() {
         />
         <StatCard
           title="Resolved Complaints"
-          value={dashboardData.loading ? "..." : dashboardData.summary.resolved_complaints}
+          value={
+            dashboardData.loading
+              ? "..."
+              : dashboardData.summary.resolved_complaints
+          }
           icon={<CheckCircle className="w-6 h-6 text-green-600" />}
           bgColor="bg-green-50"
           textColor="text-green-600"
@@ -502,46 +571,64 @@ export default function AdminDashboard() {
       {!dashboardData.loading && (
         <>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            <ChartCard title="Complaints Overview" subtitle={`Monthly complaints overview for ${selectedYear}`}>
+            <ChartCard
+              title="Complaints Overview"
+              subtitle={`Monthly complaints overview for ${selectedYear}`}
+            >
               <Bar data={complaintsChart} options={chartOptions} />
             </ChartCard>
 
-            <ChartCard title="Revenue Trend" subtitle={`Monthly revenue growth for ${selectedYear}`}>
+            <ChartCard
+              title="Revenue Trend"
+              subtitle={`Monthly revenue growth for ${selectedYear}`}
+            >
               <Line data={revenueChart} options={lineChartOptions} />
             </ChartCard>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            <ChartCard title="GrowTags Growth" subtitle={`Yearly new GrowTag registrations in ${selectedYear}`}>
+            <ChartCard
+              title="GrowTags Growth"
+              subtitle={`Yearly new GrowTag registrations in ${selectedYear}`}
+            >
               <Line data={growTagsChart} options={lineChartOptions} />
             </ChartCard>
 
-            <ChartCard title="Growth Performance" subtitle={`Yearly growth rates for ${selectedYear}`}>
+            <ChartCard
+              title="Growth Performance"
+              subtitle={`Yearly growth rates for ${selectedYear}`}
+            >
               <Bar data={performanceChart} options={chartOptions} />
             </ChartCard>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <ChartCard 
-              title="Franchise Shops Growth" 
+            <ChartCard
+              title="Franchise Shops Growth"
               subtitle={`Yearly franchise shops growth in ${selectedYear}`}
               icon={<Building className="w-5 h-5 text-blue-700" />}
               footer={
                 <div className="text-sm text-gray-600">
-                  Total: <span className="font-bold text-blue-700">{dashboardData.cards.franchise_shops}</span>
+                  Total:{" "}
+                  <span className="font-bold text-blue-700">
+                    {dashboardData.cards.franchise_shops}
+                  </span>
                 </div>
               }
             >
               <Bar data={franchiseShopsChart} options={chartOptions} />
             </ChartCard>
 
-            <ChartCard 
-              title="Other Shops Growth" 
+            <ChartCard
+              title="Other Shops Growth"
               subtitle={`Yearly other shops growth in ${selectedYear}`}
               icon={<Store className="w-5 h-5 text-purple-600" />}
               footer={
                 <div className="text-sm text-gray-600">
-                  Total: <span className="font-bold text-purple-600">{dashboardData.cards.other_shops}</span>
+                  Total:{" "}
+                  <span className="font-bold text-purple-600">
+                    {dashboardData.cards.other_shops}
+                  </span>
                 </div>
               }
             >
@@ -561,7 +648,9 @@ const StatCard = ({ title, value, icon, bgColor, textColor, loading }) => (
       <div className={`p-3 ${bgColor} rounded-xl`}>{icon}</div>
     </div>
     <h3 className="text-gray-500 text-sm font-medium mb-2">{title}</h3>
-    <p className={`text-3xl font-bold ${loading ? 'text-gray-400' : textColor}`}>
+    <p
+      className={`text-3xl font-bold ${loading ? "text-gray-400" : textColor}`}
+    >
       {loading ? (
         <span className="inline-block w-12 h-8 bg-gray-200 rounded animate-pulse"></span>
       ) : (

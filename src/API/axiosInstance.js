@@ -1,25 +1,40 @@
-// src/API/axiosInstance.js
 import axios from "axios";
+import toast from "react-hot-toast";
 import { BASE_URL } from "@/API/BaseURL";
 
 const axiosInstance = axios.create({
   baseURL: BASE_URL,
 });
 
-// Flag to prevent multiple refresh requests
+// Prevent multiple refresh calls
 let isRefreshing = false;
-// Queue of failed requests to retry after token refresh
+
+// Queue requests while refreshing token
 let failedQueue = [];
 
+// Prevent multiple network error toasts
+let networkToastShown = false;
+
+const showNetworkError = () => {
+  if (!networkToastShown) {
+    toast.error("No internet connection");
+    networkToastShown = true;
+
+    setTimeout(() => {
+      networkToastShown = false;
+    }, 5000);
+  }
+};
+
 const processQueue = (error, token = null) => {
-  failedQueue.forEach(prom => {
+  failedQueue.forEach((prom) => {
     if (error) {
       prom.reject(error);
     } else {
       prom.resolve(token);
     }
   });
-  
+
   failedQueue = [];
 };
 
@@ -38,76 +53,80 @@ axiosInstance.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// 🔁 Handle 401 with token refresh
+// 🔁 Handle response errors
 axiosInstance.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
 
-    // If error is not 401 or request already retried, reject
+    // 🌐 Network error (internet off)
+    if (!navigator.onLine || error.message === "Network Error") {
+      showNetworkError();
+      return Promise.reject(error);
+    }
+
+    // If not 401 or already retried
     if (error.response?.status !== 401 || originalRequest._retry) {
       return Promise.reject(error);
     }
 
-    // Check if we have a refresh token
     const refreshToken = localStorage.getItem("refresh_token");
-    
-    // If no refresh token, clear and redirect to login
+
+    // No refresh token → logout
     if (!refreshToken) {
       localStorage.clear();
       window.location.href = "/login";
       return Promise.reject(error);
     }
 
-    // Mark request as retried to prevent infinite loops
     originalRequest._retry = true;
 
-    // If already refreshing, add to queue
+    // If refresh already running → queue request
     if (isRefreshing) {
       return new Promise((resolve, reject) => {
         failedQueue.push({ resolve, reject });
       })
-        .then(token => {
+        .then((token) => {
           originalRequest.headers.Authorization = `Bearer ${token}`;
           return axiosInstance(originalRequest);
         })
-        .catch(err => Promise.reject(err));
+        .catch((err) => Promise.reject(err));
     }
 
     isRefreshing = true;
 
     try {
-      // Attempt to refresh the token
       const response = await axios.post(`${BASE_URL}/auth/token/refresh/`, {
-        refresh: refreshToken
+        refresh: refreshToken,
       });
 
-      const newAccessToken = response.data.access || response.data.access_token;
-      
+      const newAccessToken =
+        response.data.access || response.data.access_token;
+
       if (!newAccessToken) {
         throw new Error("No access token in refresh response");
       }
 
-      // Update token in localStorage
+      // Save new token
       localStorage.setItem("access_token", newAccessToken);
 
-      // Update authorization header
-      axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${newAccessToken}`;
+      // Update axios header
+      axiosInstance.defaults.headers.common[
+        "Authorization"
+      ] = `Bearer ${newAccessToken}`;
 
-      // Process queued requests
+      // Retry queued requests
       processQueue(null, newAccessToken);
 
       // Retry original request
       originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
       return axiosInstance(originalRequest);
-
     } catch (refreshError) {
-      // Refresh failed - clear everything and redirect to login
       processQueue(refreshError, null);
-      
+
       localStorage.clear();
       window.location.href = "/login";
-      
+
       return Promise.reject(refreshError);
     } finally {
       isRefreshing = false;

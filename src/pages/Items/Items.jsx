@@ -98,7 +98,14 @@ const SearchInput = ({ value, onChange }) => (
 );
 
 // ==================== LOADING BUTTON COMPONENT ====================
-const LoadingButton = ({ loading, children, onClick, className, disabled, type = "button" }) => {
+const LoadingButton = ({
+  loading,
+  children,
+  onClick,
+  className,
+  disabled,
+  type = "button",
+}) => {
   return (
     <button
       type={type}
@@ -162,19 +169,23 @@ export default function Items() {
   // ==================== DATA FETCHING ====================
   const fetchItems = async () => {
     setLoading(true);
-    
+
     try {
       const response = await axiosInstance.get(ITEMS_API_URL);
       const itemsData = response.data?.results || response.data || [];
       setItems(itemsData);
     } catch (error) {
       console.error("Fetch error:", error);
-      if (error.response?.status === 401) {
+
+      // network error already handled globally
+      if (!error.response) return;
+
+      if (error.response.status === 401) {
         toast.error("Session expired. Please login again.");
-      } else if (error.response?.status === 403) {
+      } else if (error.response.status === 403) {
         toast.error("You don't have permission to view items");
       } else {
-        toast.error(error.response?.data?.detail || "Failed to load items");
+        toast.error(error.response.data?.detail || "Failed to load items");
       }
     } finally {
       setLoading(false);
@@ -223,18 +234,26 @@ export default function Items() {
         item.sku?.toLowerCase().includes(searchTerm.toLowerCase());
 
       // Product type filter
-      const matchesProductType = !filterProductType || item.product_type === filterProductType;
+      const matchesProductType =
+        !filterProductType || item.product_type === filterProductType;
 
       // Sellable filter
-      const matchesSellable = !filterSellable || 
+      const matchesSellable =
+        !filterSellable ||
         (filterSellable === "sellable" && item.is_sellable) ||
         (filterSellable === "not_sellable" && !item.is_sellable);
 
       // Created by filter
       const itemCreator = getCreatedBy(item);
-      const matchesCreatedBy = !filterCreatedBy || itemCreator === filterCreatedBy;
+      const matchesCreatedBy =
+        !filterCreatedBy || itemCreator === filterCreatedBy;
 
-      return matchesSearch && matchesProductType && matchesSellable && matchesCreatedBy;
+      return (
+        matchesSearch &&
+        matchesProductType &&
+        matchesSellable &&
+        matchesCreatedBy
+      );
     });
   }, [items, searchTerm, filterProductType, filterSellable, filterCreatedBy]);
 
@@ -380,24 +399,29 @@ export default function Items() {
       // Switch to appropriate tab based on error
       if (validationErrors.selling_price || validationErrors.sales_account) {
         setActiveTab("Sales");
-      } else if (validationErrors.cost_price || validationErrors.purchase_account) {
+      } else if (
+        validationErrors.cost_price ||
+        validationErrors.purchase_account
+      ) {
         setActiveTab("Purchase");
       }
       return;
     }
 
     setSubmitLoading(true);
-    const toastId = toast.loading(isEdit ? "Updating item..." : "Creating item...");
+    const toastId = toast.loading(
+      isEdit ? "Updating item..." : "Creating item...",
+    );
 
     try {
       const formData = new FormData();
-      
+
       // Append all form fields
       Object.keys(form).forEach((key) => {
         if (form[key] !== null && form[key] !== undefined && form[key] !== "") {
-          if (key === 'item_image' && form[key] instanceof File) {
+          if (key === "item_image" && form[key] instanceof File) {
             formData.append(key, form[key]);
-          } else if (typeof form[key] === 'boolean') {
+          } else if (typeof form[key] === "boolean") {
             formData.append(key, form[key].toString());
           } else {
             formData.append(key, form[key]);
@@ -407,14 +431,14 @@ export default function Items() {
 
       let response;
       const url = ITEMS_API_URL;
-      
+
       if (isEdit && editId) {
         response = await axiosInstance.patch(`${url}${editId}/`, formData, {
-          headers: { "Content-Type": "multipart/form-data" }
+          headers: { "Content-Type": "multipart/form-data" },
         });
       } else {
         response = await axiosInstance.post(url, formData, {
-          headers: { "Content-Type": "multipart/form-data" }
+          headers: { "Content-Type": "multipart/form-data" },
         });
       }
 
@@ -422,21 +446,30 @@ export default function Items() {
         await fetchItems();
         resetForm();
         toast.success(
-          isEdit ? "Item updated successfully!" : "Item created successfully!", 
-          { id: toastId }
+          isEdit ? "Item updated successfully!" : "Item created successfully!",
+          { id: toastId },
         );
       }
     } catch (error) {
       console.error("Submit error:", error);
-      
-      if (error.response?.status === 401) {
+
+      if (!error.response) {
+        toast.dismiss(toastId);
+        return;
+      }
+
+      if (error.response.status === 401) {
         toast.error("Session expired. Please login again.", { id: toastId });
-      } else if (error.response?.status === 403) {
-        toast.error("You don't have permission to perform this action", { id: toastId });
+      } else if (error.response.status === 403) {
+        toast.error("You don't have permission to perform this action", {
+          id: toastId,
+        });
       } else {
-        const errorMessage = error.response?.data?.detail || 
-                            error.response?.data?.message || 
-                            "Failed to save item";
+        const errorMessage =
+          error.response.data?.detail ||
+          error.response.data?.message ||
+          "Failed to save item";
+
         toast.error(errorMessage, { id: toastId });
       }
     } finally {
@@ -497,14 +530,16 @@ export default function Items() {
       preferred_vendor: item.preferred_vendor || "",
       is_active: item.is_active ?? true,
     });
-    
+
     // Set existing image URL for preview
     if (item.item_image) {
-      setExistingImageUrl(item.item_image.startsWith('http') ? item.item_image : item.item_image);
+      setExistingImageUrl(
+        item.item_image.startsWith("http") ? item.item_image : item.item_image,
+      );
     } else {
       setExistingImageUrl(null);
     }
-    
+
     setEditId(item.id);
     setIsEdit(true);
     setCurrentPage("form");
@@ -521,11 +556,13 @@ export default function Items() {
     toast(
       (t) => (
         <div className="flex flex-col gap-3">
-          <p className="text-sm font-semibold text-gray-800">Delete "{itemName}"?</p>
+          <p className="text-sm font-semibold text-gray-800">
+            Delete "{itemName}"?
+          </p>
           <p className="text-xs text-gray-500">This action cannot be undone.</p>
           <div className="flex justify-end gap-2">
-            <button 
-              onClick={() => toast.dismiss(t.id)} 
+            <button
+              onClick={() => toast.dismiss(t.id)}
               className="px-3 py-1.5 bg-gray-200 rounded-md text-sm hover:bg-gray-300 transition-colors"
             >
               Cancel
@@ -537,17 +574,30 @@ export default function Items() {
                 try {
                   await axiosInstance.delete(`${ITEMS_API_URL}${id}/`);
                   setItems((prev) => prev.filter((item) => item.id !== id));
-                  setSelectedItems((prev) => prev.filter((itemId) => itemId !== id));
-                  toast.success(`"${itemName}" deleted successfully`, { id: toastId });
+                  setSelectedItems((prev) =>
+                    prev.filter((itemId) => itemId !== id),
+                  );
+                  toast.success(`"${itemName}" deleted successfully`, {
+                    id: toastId,
+                  });
                 } catch (error) {
-                  if (error.response?.status === 401) {
-                    toast.error("Session expired. Please login again.", { id: toastId });
-                  } else if (error.response?.status === 403) {
-                    toast.error("You don't have permission to delete", { id: toastId });
+                  if (!error.response) {
+                    toast.dismiss(toastId);
+                    return;
+                  }
+
+                  if (error.response.status === 401) {
+                    toast.error("Session expired. Please login again.", {
+                      id: toastId,
+                    });
+                  } else if (error.response.status === 403) {
+                    toast.error("You don't have permission to delete", {
+                      id: toastId,
+                    });
                   } else {
                     toast.error(
-                      error.response?.data?.detail || "Failed to delete item", 
-                      { id: toastId }
+                      error.response.data?.detail || "Failed to delete item",
+                      { id: toastId },
                     );
                   }
                 }
@@ -559,7 +609,7 @@ export default function Items() {
           </div>
         </div>
       ),
-      { duration: Infinity }
+      { duration: Infinity },
     );
   };
 
@@ -572,11 +622,13 @@ export default function Items() {
     toast(
       (t) => (
         <div className="flex flex-col gap-3">
-          <p className="text-sm font-semibold text-gray-800">Delete {selectedItems.length} selected items?</p>
+          <p className="text-sm font-semibold text-gray-800">
+            Delete {selectedItems.length} selected items?
+          </p>
           <p className="text-xs text-gray-500">This action cannot be undone.</p>
           <div className="flex justify-end gap-2">
-            <button 
-              onClick={() => toast.dismiss(t.id)} 
+            <button
+              onClick={() => toast.dismiss(t.id)}
               className="px-3 py-1.5 bg-gray-200 rounded-md text-sm hover:bg-gray-300 transition-colors"
             >
               Cancel
@@ -584,30 +636,49 @@ export default function Items() {
             <button
               onClick={async () => {
                 toast.dismiss(t.id);
-                const toastId = toast.loading(`Deleting ${selectedItems.length} items...`);
-                
+                const toastId = toast.loading(
+                  `Deleting ${selectedItems.length} items...`,
+                );
+
                 try {
                   const results = await Promise.allSettled(
-                    selectedItems.map((id) => 
-                      axiosInstance.delete(`${ITEMS_API_URL}${id}/`)
-                    )
+                    selectedItems.map((id) =>
+                      axiosInstance.delete(`${ITEMS_API_URL}${id}/`),
+                    ),
                   );
 
-                  const successful = results.filter(r => r.status === 'fulfilled').length;
-                  
+                  const successful = results.filter(
+                    (r) => r.status === "fulfilled",
+                  ).length;
+
                   await fetchItems();
                   setSelectedItems([]);
 
                   if (successful === selectedItems.length) {
-                    toast.success(`Deleted ${successful} items successfully`, { id: toastId });
+                    toast.success(`Deleted ${successful} items successfully`, {
+                      id: toastId,
+                    });
                   } else {
-                    toast.success(`Deleted ${successful}/${selectedItems.length} items`, { id: toastId });
+                    toast.success(
+                      `Deleted ${successful}/${selectedItems.length} items`,
+                      { id: toastId },
+                    );
                   }
                 } catch (error) {
-                  if (error.response?.status === 401) {
-                    toast.error("Session expired. Please login again.", { id: toastId });
-                  } else if (error.response?.status === 403) {
-                    toast.error("You don't have permission to perform bulk delete", { id: toastId });
+                  if (!error.response) {
+                    toast.dismiss(toastId);
+                    return;
+                  }
+
+                  if (error.response.status === 401) {
+                    toast.error("Session expired. Please login again.", {
+                      id: toastId,
+                    });
+                  } else if (error.response.status === 403) {
+                    toast.error(
+                      "You don't have permission to perform bulk delete",
+                      { id: toastId },
+                    );
                   } else {
                     toast.error("Bulk delete failed", { id: toastId });
                   }
@@ -620,7 +691,7 @@ export default function Items() {
           </div>
         </div>
       ),
-      { duration: Infinity }
+      { duration: Infinity },
     );
   };
 
@@ -629,7 +700,10 @@ export default function Items() {
 
     try {
       setSyncStatus((prev) => ({ ...prev, [id]: "syncing" }));
-      const response = await axiosInstance.post(`${ITEMS_API_URL}${id}/sync-to-zoho/`, {});
+      const response = await axiosInstance.post(
+        `${ITEMS_API_URL}${id}/sync-to-zoho/`,
+        {},
+      );
 
       if (response.data.success) {
         setSyncStatus((prev) => ({ ...prev, [id]: "synced" }));
@@ -637,19 +711,30 @@ export default function Items() {
         toast.success("Item synced to Zoho successfully!", { id: toastId });
       } else {
         setSyncStatus((prev) => ({ ...prev, [id]: "failed" }));
-        toast.error("Sync failed: " + (response.data.error || "Unknown error"), { id: toastId });
+        toast.error(
+          "Sync failed: " + (response.data.error || "Unknown error"),
+          { id: toastId },
+        );
       }
     } catch (error) {
       setSyncStatus((prev) => ({ ...prev, [id]: "failed" }));
-      
-      if (error.response?.status === 401) {
+
+      if (!error.response) {
+        toast.dismiss(toastId);
+        return;
+      }
+
+      if (error.response.status === 401) {
         toast.error("Session expired. Please login again.", { id: toastId });
-      } else if (error.response?.status === 403) {
-        toast.error("You don't have permission to sync to Zoho", { id: toastId });
-      } else {
-        toast.error("Sync failed: " + (error.response?.data?.error || error.message), {
+      } else if (error.response.status === 403) {
+        toast.error("You don't have permission to sync to Zoho", {
           id: toastId,
         });
+      } else {
+        toast.error(
+          "Sync failed: " + (error.response.data?.error || "Unknown error"),
+          { id: toastId },
+        );
       }
     }
   };
@@ -663,8 +748,10 @@ export default function Items() {
   };
 
   const toggleSelect = (id) => {
-    setSelectedItems(prev => 
-      prev.includes(id) ? prev.filter(itemId => itemId !== id) : [...prev, id]
+    setSelectedItems((prev) =>
+      prev.includes(id)
+        ? prev.filter((itemId) => itemId !== id)
+        : [...prev, id],
     );
   };
 
@@ -752,7 +839,8 @@ export default function Items() {
       {selectedItems.length > 0 && (
         <div className="px-6 py-4 bg-red-50 border-b border-red-200 flex items-center justify-between">
           <span className="text-sm font-medium text-red-700">
-            {selectedItems.length} item{selectedItems.length > 1 ? "s" : ""} selected
+            {selectedItems.length} item{selectedItems.length > 1 ? "s" : ""}{" "}
+            selected
           </span>
           <button
             onClick={handleBulkDelete}
@@ -772,7 +860,10 @@ export default function Items() {
                 <input
                   type="checkbox"
                   onChange={(e) => handleSelectAll(e.target.checked)}
-                  checked={filteredItems.length > 0 && selectedItems.length === filteredItems.length}
+                  checked={
+                    filteredItems.length > 0 &&
+                    selectedItems.length === filteredItems.length
+                  }
                   className="rounded text-blue-600 h-4 w-4 cursor-pointer"
                 />
               </th>
@@ -798,7 +889,10 @@ export default function Items() {
               <tr>
                 <td colSpan="6" className="text-center py-12">
                   <div className="flex flex-col items-center">
-                    <Loader2 size={40} className="text-blue-600 animate-spin mb-3" />
+                    <Loader2
+                      size={40}
+                      className="text-blue-600 animate-spin mb-3"
+                    />
                     <p className="text-gray-600">Loading items...</p>
                   </div>
                 </td>
@@ -808,8 +902,13 @@ export default function Items() {
                 <td colSpan="6" className="text-center py-12">
                   <div className="flex flex-col items-center">
                     <Search size={40} className="text-gray-300 mb-3" />
-                    <p className="text-gray-600 text-lg font-medium">No items found</p>
-                    {(searchTerm || filterProductType || filterSellable || filterCreatedBy) && (
+                    <p className="text-gray-600 text-lg font-medium">
+                      No items found
+                    </p>
+                    {(searchTerm ||
+                      filterProductType ||
+                      filterSellable ||
+                      filterCreatedBy) && (
                       <button
                         onClick={clearFilters}
                         className="mt-2 text-blue-600 hover:text-blue-800 text-sm font-medium"
@@ -849,13 +948,18 @@ export default function Items() {
                       <div className="flex-shrink-0">
                         {item.item_image ? (
                           <img
-                            src={item.item_image.startsWith('http') ? item.item_image : item.item_image}
+                            src={
+                              item.item_image.startsWith("http")
+                                ? item.item_image
+                                : item.item_image
+                            }
                             className="w-12 h-12 object-contain rounded-lg border border-gray-200"
                             alt={item.name}
                             onError={(e) => {
                               e.target.onerror = null;
-                              e.target.style.display = 'none';
-                              e.target.parentNode.innerHTML = '<div class="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center"><svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg></div>';
+                              e.target.style.display = "none";
+                              e.target.parentNode.innerHTML =
+                                '<div class="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center"><svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg></div>';
                             }}
                           />
                         ) : (
@@ -865,9 +969,15 @@ export default function Items() {
                         )}
                       </div>
                       <div className="min-w-0">
-                        <h4 className="font-medium text-gray-900 text-sm mb-1">{item.name}</h4>
-                        <span className="text-xs text-gray-500">SKU: {item.sku || "—"}</span>
-                        <span className="text-xs text-gray-500 block">Unit: {UNIT_DISPLAY_NAMES[item.unit] || item.unit}</span>
+                        <h4 className="font-medium text-gray-900 text-sm mb-1">
+                          {item.name}
+                        </h4>
+                        <span className="text-xs text-gray-500">
+                          SKU: {item.sku || "—"}
+                        </span>
+                        <span className="text-xs text-gray-500 block">
+                          Unit: {UNIT_DISPLAY_NAMES[item.unit] || item.unit}
+                        </span>
                       </div>
                     </div>
                   </td>
@@ -879,7 +989,8 @@ export default function Items() {
                           : "bg-blue-100 text-blue-700"
                       }`}
                     >
-                      {PRODUCT_TYPE_DISPLAY_NAMES[item.product_type] || item.product_type}
+                      {PRODUCT_TYPE_DISPLAY_NAMES[item.product_type] ||
+                        item.product_type}
                     </span>
                     <span className="text-xs text-gray-500 block mt-1">
                       {item.is_sellable ? "Sellable" : "Not Sellable"}
@@ -925,8 +1036,8 @@ export default function Items() {
       {filteredItems.length > 0 && (
         <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
           <span className="text-sm text-gray-600">
-            Showing <span className="font-medium">{filteredItems.length}</span> of{" "}
-            <span className="font-medium">{items.length}</span> items
+            Showing <span className="font-medium">{filteredItems.length}</span>{" "}
+            of <span className="font-medium">{items.length}</span> items
           </span>
           {selectedItems.length > 0 && (
             <span className="text-sm font-medium text-blue-600">
@@ -973,12 +1084,16 @@ export default function Items() {
             {viewedItem.item_image && (
               <div className="flex justify-center mb-6">
                 <img
-                  src={viewedItem.item_image.startsWith('http') ? viewedItem.item_image : viewedItem.item_image}
+                  src={
+                    viewedItem.item_image.startsWith("http")
+                      ? viewedItem.item_image
+                      : viewedItem.item_image
+                  }
                   alt={viewedItem.name}
                   className="max-h-48 object-contain rounded-lg border border-gray-200 p-2"
                   onError={(e) => {
                     e.target.onerror = null;
-                    e.target.style.display = 'none';
+                    e.target.style.display = "none";
                   }}
                 />
               </div>
@@ -986,38 +1101,81 @@ export default function Items() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-4">
-                <h3 className="font-semibold text-gray-800 border-b pb-2">General Information</h3>
+                <h3 className="font-semibold text-gray-800 border-b pb-2">
+                  General Information
+                </h3>
                 <DetailRow
                   label="Product Type"
-                  value={PRODUCT_TYPE_DISPLAY_NAMES[viewedItem.product_type] || viewedItem.product_type}
+                  value={
+                    PRODUCT_TYPE_DISPLAY_NAMES[viewedItem.product_type] ||
+                    viewedItem.product_type
+                  }
                 />
                 <DetailRow label="SKU" value={viewedItem.sku} />
-                <DetailRow label="Unit" value={UNIT_DISPLAY_NAMES[viewedItem.unit] || viewedItem.unit} />
                 <DetailRow
-                  label={viewedItem.product_type === "goods" ? "HSN Code" : "SAC Code"}
+                  label="Unit"
+                  value={UNIT_DISPLAY_NAMES[viewedItem.unit] || viewedItem.unit}
+                />
+                <DetailRow
+                  label={
+                    viewedItem.product_type === "goods"
+                      ? "HSN Code"
+                      : "SAC Code"
+                  }
                   value={viewedItem.hsn_or_sac}
                 />
-                <DetailRow 
-                  label="Tax Preference" 
-                  value={TAX_PREFERENCE_DISPLAY_NAMES[viewedItem.tax_preference] || viewedItem.tax_preference} 
+                <DetailRow
+                  label="Tax Preference"
+                  value={
+                    TAX_PREFERENCE_DISPLAY_NAMES[viewedItem.tax_preference] ||
+                    viewedItem.tax_preference
+                  }
                 />
-                <DetailRow 
-                  label="GST Treatment" 
-                  value={GST_TREATMENTS.find(g => g.value === viewedItem.gst_treatment)?.label || viewedItem.gst_treatment} 
+                <DetailRow
+                  label="GST Treatment"
+                  value={
+                    GST_TREATMENTS.find(
+                      (g) => g.value === viewedItem.gst_treatment,
+                    )?.label || viewedItem.gst_treatment
+                  }
                 />
-                <DetailRow label="Status" value={viewedItem.is_active ? "Active" : "Inactive"} />
+                <DetailRow
+                  label="Status"
+                  value={viewedItem.is_active ? "Active" : "Inactive"}
+                />
               </div>
 
               <div className="space-y-4">
-                <h3 className="font-semibold text-gray-800 border-b pb-2">Additional Info</h3>
-                <DetailRow label="Zoho Item ID" value={viewedItem.zoho_item_id || "Not synced"} />
+                <h3 className="font-semibold text-gray-800 border-b pb-2">
+                  Additional Info
+                </h3>
+                <DetailRow
+                  label="Zoho Item ID"
+                  value={viewedItem.zoho_item_id || "Not synced"}
+                />
                 <DetailRow label="Created By" value={creator} />
-                <DetailRow label="Created At" value={viewedItem.created_at ? new Date(viewedItem.created_at).toLocaleString() : null} />
-                <DetailRow label="Updated At" value={viewedItem.updated_at ? new Date(viewedItem.updated_at).toLocaleString() : null} />
+                <DetailRow
+                  label="Created At"
+                  value={
+                    viewedItem.created_at
+                      ? new Date(viewedItem.created_at).toLocaleString()
+                      : null
+                  }
+                />
+                <DetailRow
+                  label="Updated At"
+                  value={
+                    viewedItem.updated_at
+                      ? new Date(viewedItem.updated_at).toLocaleString()
+                      : null
+                  }
+                />
 
                 {viewedItem.is_sellable && (
                   <>
-                    <h3 className="font-semibold text-gray-800 border-b pb-2 mt-4">Sales Details</h3>
+                    <h3 className="font-semibold text-gray-800 border-b pb-2 mt-4">
+                      Sales Details
+                    </h3>
                     <DetailRow
                       label="Selling Price"
                       value={`₹${parseFloat(viewedItem.selling_price || 0).toFixed(2)}`}
@@ -1030,31 +1188,49 @@ export default function Items() {
                     )}
                     <DetailRow
                       label="Sales Account"
-                      value={ACCOUNT_DISPLAY_NAMES[viewedItem.sales_account] || viewedItem.sales_account}
+                      value={
+                        ACCOUNT_DISPLAY_NAMES[viewedItem.sales_account] ||
+                        viewedItem.sales_account
+                      }
                     />
                     {viewedItem.sales_description && (
-                      <DetailRow label="Description" value={viewedItem.sales_description} />
+                      <DetailRow
+                        label="Description"
+                        value={viewedItem.sales_description}
+                      />
                     )}
                   </>
                 )}
 
                 {viewedItem.is_purchasable && (
                   <>
-                    <h3 className="font-semibold text-gray-800 border-b pb-2 mt-4">Purchase Details</h3>
+                    <h3 className="font-semibold text-gray-800 border-b pb-2 mt-4">
+                      Purchase Details
+                    </h3>
                     <DetailRow
                       label="Cost Price"
                       value={`₹${parseFloat(viewedItem.cost_price || 0).toFixed(2)}`}
                     />
                     <DetailRow
                       label="Purchase Account"
-                      value={ACCOUNT_DISPLAY_NAMES[viewedItem.purchase_account] || viewedItem.purchase_account}
+                      value={
+                        ACCOUNT_DISPLAY_NAMES[viewedItem.purchase_account] ||
+                        viewedItem.purchase_account
+                      }
                     />
                     <DetailRow
                       label="Preferred Vendor"
-                      value={VENDORS.find((v) => v.id === viewedItem.preferred_vendor)?.name || viewedItem.preferred_vendor}
+                      value={
+                        VENDORS.find(
+                          (v) => v.id === viewedItem.preferred_vendor,
+                        )?.name || viewedItem.preferred_vendor
+                      }
                     />
                     {viewedItem.purchase_description && (
-                      <DetailRow label="Description" value={viewedItem.purchase_description} />
+                      <DetailRow
+                        label="Description"
+                        value={viewedItem.purchase_description}
+                      />
                     )}
                   </>
                 )}
@@ -1092,7 +1268,10 @@ export default function Items() {
         <LabelWithInfo required>Product Type</LabelWithInfo>
         <div className="flex gap-6 mt-2">
           {PRODUCT_TYPES.map((type) => (
-            <label key={type} className="flex items-center text-sm cursor-pointer">
+            <label
+              key={type}
+              className="flex items-center text-sm cursor-pointer"
+            >
               <input
                 type="radio"
                 name="product_type"
@@ -1101,7 +1280,13 @@ export default function Items() {
                 onChange={handleChange}
                 className="mr-3 h-4 w-4 text-blue-600"
               />
-              <span className={form.product_type === type ? "font-semibold text-blue-700" : "text-gray-700"}>
+              <span
+                className={
+                  form.product_type === type
+                    ? "font-semibold text-blue-700"
+                    : "text-gray-700"
+                }
+              >
                 {PRODUCT_TYPE_DISPLAY_NAMES[type]}
               </span>
             </label>
@@ -1185,7 +1370,11 @@ export default function Items() {
             value={form.hsn_or_sac}
             onChange={handleChange}
             className={getInputClass("hsn_or_sac")}
-            placeholder={form.product_type === "goods" ? "Enter HSN code" : "Enter SAC code"}
+            placeholder={
+              form.product_type === "goods"
+                ? "Enter HSN code"
+                : "Enter SAC code"
+            }
           />
           {errors.hsn_or_sac && <ValidationError message={errors.hsn_or_sac} />}
         </div>
@@ -1215,7 +1404,9 @@ export default function Items() {
               />
               <button
                 type="button"
-                onClick={() => setForm((prev) => ({ ...prev, item_image: null }))}
+                onClick={() =>
+                  setForm((prev) => ({ ...prev, item_image: null }))
+                }
                 className="absolute top-3 right-3 bg-red-500 text-white p-2 rounded-full hover:bg-red-600"
               >
                 <X size={16} />
@@ -1261,9 +1452,12 @@ export default function Items() {
             <>
               <Image size={32} className="text-gray-400 mb-3" />
               <p className="text-gray-600 text-center text-base mb-2">
-                Drag and drop or <span className="text-blue-600 font-semibold">Browse</span>
+                Drag and drop or{" "}
+                <span className="text-blue-600 font-semibold">Browse</span>
               </p>
-              <p className="text-xs text-gray-500">Supports JPG, PNG up to 5MB</p>
+              <p className="text-xs text-gray-500">
+                Supports JPG, PNG up to 5MB
+              </p>
             </>
           )}
           {!form.item_image && !existingImageUrl && (
@@ -1311,7 +1505,9 @@ export default function Items() {
               Selling Price <span className="text-red-500">*</span>
             </label>
             <div className="flex border-2 border-gray-300 rounded-lg overflow-hidden focus-within:border-blue-500">
-              <span className="bg-gray-100 text-gray-700 p-3 text-sm font-medium border-r">₹</span>
+              <span className="bg-gray-100 text-gray-700 p-3 text-sm font-medium border-r">
+                ₹
+              </span>
               <input
                 type="number"
                 name="selling_price"
@@ -1323,13 +1519,17 @@ export default function Items() {
                 step="0.01"
               />
             </div>
-            {errors.selling_price && <ValidationError message={errors.selling_price} />}
+            {errors.selling_price && (
+              <ValidationError message={errors.selling_price} />
+            )}
           </div>
 
           <div>
             <label className="text-sm font-medium mb-2">Service Charge</label>
             <div className="flex border-2 border-gray-300 rounded-lg overflow-hidden focus-within:border-blue-500">
-              <span className="bg-gray-100 text-gray-700 p-3 text-sm font-medium border-r">₹</span>
+              <span className="bg-gray-100 text-gray-700 p-3 text-sm font-medium border-r">
+                ₹
+              </span>
               <input
                 type="number"
                 name="service_charge"
@@ -1359,11 +1559,15 @@ export default function Items() {
                 </option>
               ))}
             </select>
-            {errors.sales_account && <ValidationError message={errors.sales_account} />}
+            {errors.sales_account && (
+              <ValidationError message={errors.sales_account} />
+            )}
           </div>
 
           <div>
-            <label className="text-sm font-medium mb-2">Sales Description</label>
+            <label className="text-sm font-medium mb-2">
+              Sales Description
+            </label>
             <textarea
               name="sales_description"
               value={form.sales_description}
@@ -1377,7 +1581,9 @@ export default function Items() {
         <div className="p-8 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 text-center">
           <DollarSign size={32} className="mx-auto text-gray-400 mb-3" />
           <p className="text-gray-600 text-base font-medium">
-            Mark this item as <span className="text-blue-600 font-semibold">'Sellable'</span> to define sales details
+            Mark this item as{" "}
+            <span className="text-blue-600 font-semibold">'Sellable'</span> to
+            define sales details
           </p>
         </div>
       )}
@@ -1387,7 +1593,9 @@ export default function Items() {
   const renderPurchaseTab = () => (
     <div className="space-y-6">
       <div className="flex items-center pb-2">
-        <h3 className="font-semibold text-lg text-gray-800">Purchasing Details</h3>
+        <h3 className="font-semibold text-lg text-gray-800">
+          Purchasing Details
+        </h3>
         <label className="flex items-center ml-auto text-sm text-blue-600 cursor-pointer">
           <input
             type="checkbox"
@@ -1407,7 +1615,9 @@ export default function Items() {
               Cost Price <span className="text-red-500">*</span>
             </label>
             <div className="flex border-2 border-gray-300 rounded-lg overflow-hidden focus-within:border-blue-500">
-              <span className="bg-gray-100 text-gray-700 p-3 text-sm font-medium border-r">₹</span>
+              <span className="bg-gray-100 text-gray-700 p-3 text-sm font-medium border-r">
+                ₹
+              </span>
               <input
                 type="number"
                 name="cost_price"
@@ -1419,7 +1629,9 @@ export default function Items() {
                 step="0.01"
               />
             </div>
-            {errors.cost_price && <ValidationError message={errors.cost_price} />}
+            {errors.cost_price && (
+              <ValidationError message={errors.cost_price} />
+            )}
           </div>
 
           <div>
@@ -1438,7 +1650,9 @@ export default function Items() {
                 </option>
               ))}
             </select>
-            {errors.purchase_account && <ValidationError message={errors.purchase_account} />}
+            {errors.purchase_account && (
+              <ValidationError message={errors.purchase_account} />
+            )}
           </div>
 
           <div>
@@ -1458,7 +1672,9 @@ export default function Items() {
           </div>
 
           <div>
-            <label className="text-sm font-medium mb-2">Purchase Description</label>
+            <label className="text-sm font-medium mb-2">
+              Purchase Description
+            </label>
             <textarea
               name="purchase_description"
               value={form.purchase_description}
@@ -1472,7 +1688,9 @@ export default function Items() {
         <div className="p-8 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 text-center">
           <ShoppingBag size={32} className="mx-auto text-gray-400 mb-3" />
           <p className="text-gray-600 text-base font-medium">
-            Mark this item as <span className="text-blue-600 font-semibold">'Purchasable'</span> to define cost details
+            Mark this item as{" "}
+            <span className="text-blue-600 font-semibold">'Purchasable'</span>{" "}
+            to define cost details
           </p>
         </div>
       )}
@@ -1495,9 +1713,13 @@ export default function Items() {
 
         <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
           <div className="px-6 py-5 bg-gray-50 border-b border-gray-200">
-            <h1 className="text-2xl font-bold text-gray-800">{isEdit ? "Edit Item" : "Create New Item"}</h1>
+            <h1 className="text-2xl font-bold text-gray-800">
+              {isEdit ? "Edit Item" : "Create New Item"}
+            </h1>
             <p className="text-sm text-gray-600 mt-1">
-              {isEdit ? "Update item details below" : "Fill in the details to add a new item to your inventory"}
+              {isEdit
+                ? "Update item details below"
+                : "Fill in the details to add a new item to your inventory"}
             </p>
           </div>
 
@@ -1513,7 +1735,9 @@ export default function Items() {
                   type="button"
                   onClick={() => setActiveTab(tab.name)}
                   className={`px-6 py-4 text-sm font-medium flex items-center gap-2 transition-colors relative ${
-                    activeTab === tab.name ? "text-blue-700" : "text-gray-600 hover:text-gray-900"
+                    activeTab === tab.name
+                      ? "text-blue-700"
+                      : "text-gray-600 hover:text-gray-900"
                   }`}
                 >
                   <tab.icon size={18} />
@@ -1568,7 +1792,9 @@ export default function Items() {
               <Smartphone size={24} className="text-blue-700" />
             </div>
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Items Management</h1>
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-800">
+                Items Management
+              </h1>
               <p className="text-sm text-gray-600 mt-0.5">
                 Total Items: <span className="font-medium">{items.length}</span>
               </p>
@@ -1596,7 +1822,9 @@ export default function Items() {
             </h3>
             <div className="flex flex-col sm:flex-row sm:flex-wrap gap-4 w-full md:w-auto">
               <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                <label className="text-sm font-medium text-gray-600">Product Type:</label>
+                <label className="text-sm font-medium text-gray-600">
+                  Product Type:
+                </label>
                 <select
                   value={filterProductType}
                   onChange={(e) => setFilterProductType(e.target.value)}
@@ -1610,8 +1838,8 @@ export default function Items() {
                   ))}
                 </select>
                 {filterProductType && (
-                  <button 
-                    onClick={() => setFilterProductType("")} 
+                  <button
+                    onClick={() => setFilterProductType("")}
                     className="text-red-500 hover:text-red-700 text-sm"
                   >
                     Clear
@@ -1620,7 +1848,9 @@ export default function Items() {
               </div>
 
               <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                <label className="text-sm font-medium text-gray-600">Sellable:</label>
+                <label className="text-sm font-medium text-gray-600">
+                  Sellable:
+                </label>
                 <select
                   value={filterSellable}
                   onChange={(e) => setFilterSellable(e.target.value)}
@@ -1631,8 +1861,8 @@ export default function Items() {
                   <option value="not_sellable">Non-Sellable Only</option>
                 </select>
                 {filterSellable && (
-                  <button 
-                    onClick={() => setFilterSellable("")} 
+                  <button
+                    onClick={() => setFilterSellable("")}
                     className="text-red-500 hover:text-red-700 text-sm"
                   >
                     Clear
@@ -1657,8 +1887,8 @@ export default function Items() {
                   ))}
                 </select>
                 {filterCreatedBy && (
-                  <button 
-                    onClick={() => setFilterCreatedBy("")} 
+                  <button
+                    onClick={() => setFilterCreatedBy("")}
                     className="text-red-500 hover:text-red-700 text-sm"
                   >
                     Clear

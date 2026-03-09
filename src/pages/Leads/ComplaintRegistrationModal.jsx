@@ -128,12 +128,14 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
   // ----------------------------------------------------------------
   const fetchPrefillData = useCallback(async (leadId) => {
     if (!leadId) return;
-    
+
     setIsLoadingPrefill(true);
-    
+
     try {
-      const response = await axiosInstance.get(`/api/leads/${leadId}/complaint_prefill/`);
-      
+      const response = await axiosInstance.get(
+        `/api/leads/${leadId}/complaint_prefill/`,
+      );
+
       const data = response.data;
       console.log("Prefill data received:", data);
 
@@ -148,10 +150,10 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
       setPincode(data.pincode || "");
       setArea(data.area || "");
       setState(data.state || "");
-      
+
       // Set default password (this might be handled differently in production)
       setPassword("default123");
-      
+
       setPrefillLoaded(true);
 
       // If we have pincode and area, fetch nearest options
@@ -159,7 +161,7 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
         // First, load areas from pincode API
         try {
           const pincodeRes = await fetch(
-            `https://api.postalpincode.in/pincode/${data.pincode}`
+            `https://api.postalpincode.in/pincode/${data.pincode}`,
           );
           const pincodeData = await pincodeRes.json();
 
@@ -175,10 +177,12 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
         // Then fetch nearest options
         fetchNearestOptions(data.pincode, data.area);
       }
-
     } catch (error) {
       console.error("Prefill API Error:", error);
-      
+
+      // Network error handled globally by axiosInstance
+      if (!error.response) return;
+
       if (error.response?.status === 401) {
         toast.error("Session expired. Please login again.");
       } else if (error.response?.status === 403) {
@@ -204,9 +208,9 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
 
     try {
       const response = await axiosInstance.get(
-        `/api/complaints/nearest-options/?area=${encodeURIComponent(selectedArea)}&pincode=${pcode}`
+        `/api/complaints/nearest-options/?area=${encodeURIComponent(selectedArea)}&pincode=${pcode}`,
       );
-      
+
       const data = response.data;
       console.log("Nearest options response:", data);
 
@@ -215,7 +219,9 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
       setAvailableTags(data.growtags || []);
     } catch (error) {
       console.error("Nearest Options API Error:", error);
-      
+
+      if (!error.response) return;
+
       if (error.response?.status === 401) {
         toast.error("Session expired. Please login again.");
       } else if (error.response?.status === 403) {
@@ -248,9 +254,9 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
   // 🔥 HANDLE PINCODE
   const handlePincode = async (value) => {
     // Only allow digits and limit to 6
-    const cleanedValue = value.replace(/\D/g, '').slice(0, 6);
+    const cleanedValue = value.replace(/\D/g, "").slice(0, 6);
     setPincode(cleanedValue);
-    
+
     if (cleanedValue.length === 6) {
       validatePincode(cleanedValue);
 
@@ -264,7 +270,7 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
 
       try {
         const res = await fetch(
-          `https://api.postalpincode.in/pincode/${cleanedValue}`
+          `https://api.postalpincode.in/pincode/${cleanedValue}`,
         );
         const data = await res.json();
 
@@ -277,7 +283,7 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
           setAreas(list);
           setState(stateName);
           setPincodeError("");
-          
+
           // If there's only one area, auto-select it
           if (list.length === 1) {
             setArea(list[0]);
@@ -293,7 +299,9 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
         console.error("Pincode API Error:", error);
         setAreas([]);
         setState("");
-        toast.error("Error fetching pincode details.");
+        if (error.message !== "Failed to fetch") {
+          toast.error("Error fetching pincode details.");
+        }
       }
     } else {
       setAreas([]);
@@ -304,7 +312,7 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
   // 🔥 HANDLE MOBILE
   const handleMobileChange = (value) => {
     // Only allow digits and limit to 10
-    const cleanedValue = value.replace(/\D/g, '').slice(0, 10);
+    const cleanedValue = value.replace(/\D/g, "").slice(0, 10);
     setMobile(cleanedValue);
     if (cleanedValue.length === 10) {
       validateMobile(cleanedValue);
@@ -316,9 +324,9 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
   // 🔥 HANDLE NAME
   const handleNameChange = (value) => {
     // Only allow letters, spaces, dots, and hyphens
-    const filteredValue = value.replace(/[^a-zA-Z\s\.\-]/g, '');
+    const filteredValue = value.replace(/[^a-zA-Z\s\.\-]/g, "");
     // Prevent multiple consecutive spaces
-    const cleanValue = filteredValue.replace(/\s+/g, ' ').trimStart();
+    const cleanValue = filteredValue.replace(/\s+/g, " ").trimStart();
     setName(cleanValue);
   };
 
@@ -336,10 +344,10 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
   useEffect(() => {
     if (open && leadData) {
       console.log("Opening modal for lead:", leadData);
-      
+
       // Reset form first
       resetFormStates();
-      
+
       // Fetch prefill data from the API
       fetchPrefillData(leadData.id);
     }
@@ -349,32 +357,41 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
     const errors = {};
 
     if (!name.trim()) errors.name = "Customer name is required";
-    else if (!validateName(name)) errors.name = "Name must be 2-50 characters (letters and spaces only)";
-    
+    else if (!validateName(name))
+      errors.name = "Name must be 2-50 characters (letters and spaces only)";
+
     if (!mobile.trim()) errors.mobile = "Mobile number is required";
-    else if (!/^\d{10}$/.test(mobile)) errors.mobile = "Mobile number must be exactly 10 digits";
-    
+    else if (!/^\d{10}$/.test(mobile))
+      errors.mobile = "Mobile number must be exactly 10 digits";
+
     if (!email.trim()) errors.email = "Email is required";
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = "Enter a valid email address";
-    
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+      errors.email = "Enter a valid email address";
+
     if (!password.trim()) errors.password = "Password is required";
-    
+
     if (!model.trim()) errors.model = "Phone model is required";
-    else if (model.length < 2 || model.length > 100) errors.model = "Phone model must be 2-100 characters";
-    
+    else if (model.length < 2 || model.length > 100)
+      errors.model = "Phone model must be 2-100 characters";
+
     if (!issue.trim()) errors.issue = "Issue details are required";
-    else if (issue.length < 5) errors.issue = "Issue details must be at least 5 characters";
-    
+    else if (issue.length < 5)
+      errors.issue = "Issue details must be at least 5 characters";
+
     if (!addressLine.trim()) errors.addressLine = "Address is required";
-    else if (addressLine.length < 10) errors.addressLine = "Address must be at least 10 characters";
-    
+    else if (addressLine.length < 10)
+      errors.addressLine = "Address must be at least 10 characters";
+
     if (!pincode.trim()) errors.pincode = "Pincode is required";
-    else if (!/^\d{6}$/.test(pincode)) errors.pincode = "Pincode must be exactly 6 digits";
-    
+    else if (!/^\d{6}$/.test(pincode))
+      errors.pincode = "Pincode must be exactly 6 digits";
+
     if (!area.trim()) errors.area = "Area is required";
-    else if (area.length < 3) errors.area = "Area must be at least 3 characters";
-    
-    if (!assignedType.trim()) errors.assignedType = "Assignment type is required";
+    else if (area.length < 3)
+      errors.area = "Area must be at least 3 characters";
+
+    if (!assignedType.trim())
+      errors.assignedType = "Assignment type is required";
 
     // Check assignment specific validations
     if (assignedType === "franchise" && !selectedShopId) {
@@ -414,7 +431,7 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
       status,
       assignedType,
       selectedShopId,
-      selectedGrowTagId
+      selectedGrowTagId,
     });
 
     // Check blank required fields
@@ -431,7 +448,11 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
     const isPincodeValid = validatePincode(pincode);
 
     if (!isEmailValid || !isMobileValid || !isPincodeValid) {
-      console.log("Field validation failed:", { isEmailValid, isMobileValid, isPincodeValid });
+      console.log("Field validation failed:", {
+        isEmailValid,
+        isMobileValid,
+        isPincodeValid,
+      });
       toast.error("Please correct the highlighted form errors.");
       return;
     }
@@ -470,23 +491,33 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
     }
 
     // Remove any undefined or empty values
-    Object.keys(payload).forEach(key => {
-      if (payload[key] === undefined || payload[key] === null || payload[key] === '') {
+    Object.keys(payload).forEach((key) => {
+      if (
+        payload[key] === undefined ||
+        payload[key] === null ||
+        payload[key] === ""
+      ) {
         delete payload[key];
       }
     });
 
-    console.log("🚀 Submitting complaint data:", JSON.stringify(payload, null, 2));
+    console.log(
+      "🚀 Submitting complaint data:",
+      JSON.stringify(payload, null, 2),
+    );
 
     setIsSubmitting(true);
-    
+
     // Show loading toast
     const loadingToastId = toast.loading("Registering complaint...");
-    
+
     try {
       // Use the lead-specific endpoint for registration
-      const response = await axiosInstance.post(`/api/leads/${leadData.id}/register_complaint/`, payload);
-      
+      const response = await axiosInstance.post(
+        `/api/leads/${leadData.id}/register_complaint/`,
+        payload,
+      );
+
       console.log("✅ Complaint registered successfully:", response.data);
 
       toast.dismiss(loadingToastId);
@@ -496,19 +527,19 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
       resetFormStates();
     } catch (error) {
       console.error("❌ API Submission Error:", error);
-      
+
       let errorMessage = "Failed to register complaint";
-      
+
       if (error.response) {
         console.error("Error response status:", error.response.status);
         console.error("Error response data:", error.response.data);
-        
+
         if (error.response.status === 401) {
           errorMessage = "Session expired. Please login again.";
         } else if (error.response.status === 403) {
           errorMessage = "You don't have permission to register complaints";
         } else if (error.response.data) {
-          if (typeof error.response.data === 'string') {
+          if (typeof error.response.data === "string") {
             errorMessage = error.response.data;
           } else if (error.response.data.detail) {
             errorMessage = error.response.data.detail;
@@ -531,14 +562,17 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
         }
       } else if (error.request) {
         console.error("Error request (no response):", error.request);
-        errorMessage = "No response from server. Please check your connection.";
+
+        // Network error already handled globally
+        toast.dismiss(loadingToastId);
+        return;
       } else {
         console.error("Error message:", error.message);
         errorMessage = error.message || "Failed to register complaint";
       }
-      
+
       // Update the loading toast to error
-      toast.error(errorMessage, { 
+      toast.error(errorMessage, {
         id: loadingToastId,
       });
     } finally {
@@ -592,7 +626,8 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
             {leadData && (
               <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200 mb-2">
                 <p className="text-xs font-medium text-yellow-800">
-                  Registering complaint from Lead: <span className="font-bold">{leadData.leadId}</span>
+                  Registering complaint from Lead:{" "}
+                  <span className="font-bold">{leadData.leadId}</span>
                 </p>
               </div>
             )}
@@ -613,7 +648,10 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
                   }}
                   onBlur={() => {
                     if (name && !validateName(name)) {
-                      setFieldErrors(prev => ({ ...prev, name: "Name must be 2-50 characters (letters and spaces only)" }));
+                      setFieldErrors((prev) => ({
+                        ...prev,
+                        name: "Name must be 2-50 characters (letters and spaces only)",
+                      }));
                     }
                   }}
                   maxLength={50}
@@ -622,10 +660,14 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
                   }`}
                 />
                 {fieldErrors.name && (
-                  <p className="text-red-500 text-xs mt-1">{fieldErrors.name}</p>
+                  <p className="text-red-500 text-xs mt-1">
+                    {fieldErrors.name}
+                  </p>
                 )}
                 {name && !fieldErrors.name && (
-                  <p className="text-gray-400 text-xs mt-1 text-right">{name.length}/50</p>
+                  <p className="text-gray-400 text-xs mt-1 text-right">
+                    {name.length}/50
+                  </p>
                 )}
               </div>
 
@@ -643,15 +685,21 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
                   }}
                   onBlur={(e) => validateMobile(e.target.value)}
                   className={`w-full p-2 border rounded-lg ${
-                    mobileError || fieldErrors.mobile ? "border-red-500" : "border-gray-300"
+                    mobileError || fieldErrors.mobile
+                      ? "border-red-500"
+                      : "border-gray-300"
                   }`}
                   placeholder="Enter 10 digit mobile number"
                 />
                 {(mobileError || fieldErrors.mobile) && (
-                  <p className="text-red-500 text-xs mt-1">{mobileError || fieldErrors.mobile}</p>
+                  <p className="text-red-500 text-xs mt-1">
+                    {mobileError || fieldErrors.mobile}
+                  </p>
                 )}
                 {mobile && !mobileError && (
-                  <p className="text-gray-400 text-xs mt-1 text-right">{mobile.length}/10</p>
+                  <p className="text-gray-400 text-xs mt-1 text-right">
+                    {mobile.length}/10
+                  </p>
                 )}
               </div>
 
@@ -670,12 +718,16 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
                   }}
                   onBlur={(e) => validateEmail(e.target.value)}
                   className={`w-full p-2 border rounded-lg ${
-                    emailError || fieldErrors.email ? "border-red-500" : "border-gray-300"
+                    emailError || fieldErrors.email
+                      ? "border-red-500"
+                      : "border-gray-300"
                   }`}
                   placeholder="customer@example.com"
                 />
                 {(emailError || fieldErrors.email) && (
-                  <p className="text-red-500 text-xs mt-1">{emailError || fieldErrors.email}</p>
+                  <p className="text-red-500 text-xs mt-1">
+                    {emailError || fieldErrors.email}
+                  </p>
                 )}
               </div>
 
@@ -695,7 +747,9 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
                     placeholder="Enter password"
                     minLength={6}
                     className={`w-full p-2 border rounded-lg ${
-                      fieldErrors.password ? "border-red-500" : "border-gray-300"
+                      fieldErrors.password
+                        ? "border-red-500"
+                        : "border-gray-300"
                     }`}
                   />
                   <button
@@ -707,7 +761,9 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
                   </button>
                 </div>
                 {fieldErrors.password && (
-                  <p className="text-red-500 text-xs mt-1">{fieldErrors.password}</p>
+                  <p className="text-red-500 text-xs mt-1">
+                    {fieldErrors.password}
+                  </p>
                 )}
               </div>
 
@@ -729,10 +785,14 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
                   }`}
                 />
                 {fieldErrors.model && (
-                  <p className="text-red-500 text-xs mt-1">{fieldErrors.model}</p>
+                  <p className="text-red-500 text-xs mt-1">
+                    {fieldErrors.model}
+                  </p>
                 )}
                 {model && !fieldErrors.model && (
-                  <p className="text-gray-400 text-xs mt-1 text-right">{model.length}/100</p>
+                  <p className="text-gray-400 text-xs mt-1 text-right">
+                    {model.length}/100
+                  </p>
                 )}
               </div>
 
@@ -747,7 +807,9 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
                   className="w-full p-2 border rounded-lg bg-white border-gray-300"
                 >
                   {STATUS_OPTIONS.map((s) => (
-                    <option key={s} value={s}>{s}</option>
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -767,14 +829,20 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
                   rows="2"
                   maxLength={200}
                   className={`w-full p-2 border rounded-lg ${
-                    fieldErrors.addressLine ? "border-red-500" : "border-gray-300"
+                    fieldErrors.addressLine
+                      ? "border-red-500"
+                      : "border-gray-300"
                   }`}
                 />
                 {fieldErrors.addressLine && (
-                  <p className="text-red-500 text-xs mt-1">{fieldErrors.addressLine}</p>
+                  <p className="text-red-500 text-xs mt-1">
+                    {fieldErrors.addressLine}
+                  </p>
                 )}
                 {addressLine && !fieldErrors.addressLine && (
-                  <p className="text-gray-400 text-xs mt-1 text-right">{addressLine.length}/200</p>
+                  <p className="text-gray-400 text-xs mt-1 text-right">
+                    {addressLine.length}/200
+                  </p>
                 )}
               </div>
 
@@ -805,12 +873,16 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
                       onChange={(e) => handlePincode(e.target.value)}
                       onBlur={(e) => validatePincode(e.target.value)}
                       className={`w-full p-2 border rounded-lg ${
-                        pincodeError || fieldErrors.pincode ? "border-red-500" : "border-gray-300"
+                        pincodeError || fieldErrors.pincode
+                          ? "border-red-500"
+                          : "border-gray-300"
                       }`}
                       placeholder="Enter 6 digit pincode"
                     />
                     {(pincodeError || fieldErrors.pincode) && (
-                      <p className="text-red-500 text-xs mt-1">{pincodeError || fieldErrors.pincode}</p>
+                      <p className="text-red-500 text-xs mt-1">
+                        {pincodeError || fieldErrors.pincode}
+                      </p>
                     )}
                   </div>
 
@@ -823,12 +895,16 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
                         value={area}
                         onChange={(e) => handleAreaChange(e.target.value)}
                         className={`w-full p-2 border rounded-lg bg-white ${
-                          fieldErrors.area ? "border-red-500" : "border-gray-300"
+                          fieldErrors.area
+                            ? "border-red-500"
+                            : "border-gray-300"
                         }`}
                       >
                         <option value="">Select Area</option>
                         {areas.map((a, index) => (
-                          <option key={index} value={a}>{a}</option>
+                          <option key={index} value={a}>
+                            {a}
+                          </option>
                         ))}
                       </select>
                     ) : (
@@ -840,13 +916,17 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
                           setFieldErrors((prev) => ({ ...prev, area: "" }));
                         }}
                         className={`w-full p-2 border rounded-lg bg-white ${
-                          fieldErrors.area ? "border-red-500" : "border-gray-300"
+                          fieldErrors.area
+                            ? "border-red-500"
+                            : "border-gray-300"
                         }`}
                         placeholder="Enter area manually"
                       />
                     )}
                     {fieldErrors.area && (
-                      <p className="text-red-500 text-xs mt-1">{fieldErrors.area}</p>
+                      <p className="text-red-500 text-xs mt-1">
+                        {fieldErrors.area}
+                      </p>
                     )}
                   </div>
                 </div>
@@ -889,28 +969,42 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
             </div>
 
             {/* ASSIGN SECTION */}
-            <div className={`p-3 border rounded-lg text-sm ${
-              fieldErrors.assignedType || fieldErrors.assignment ? "border-red-500 bg-red-50" : "border-gray-300 bg-gray-50"
-            }`}>
+            <div
+              className={`p-3 border rounded-lg text-sm ${
+                fieldErrors.assignedType || fieldErrors.assignment
+                  ? "border-red-500 bg-red-50"
+                  : "border-gray-300 bg-gray-50"
+              }`}
+            >
               <label className="font-semibold text-gray-700 block mb-2">
                 Assign To: <span className="text-red-500">*</span>
               </label>
-              
+
               <select
                 value={assignedType}
                 onChange={(e) => handleAssignTypeChange(e.target.value)}
                 className={`w-full p-2 border rounded-lg mb-2 ${
-                  fieldErrors.assignedType ? "border-red-500" : "border-gray-300"
+                  fieldErrors.assignedType
+                    ? "border-red-500"
+                    : "border-gray-300"
                 }`}
               >
                 <option value="">Select Type</option>
-                <option value="franchise">Franchise ({franchises.length})</option>
-                <option value="othershop">Other Shops ({otherShops.length})</option>
-                <option value="growtag">GrowTags ({availableTags.length})</option>
+                <option value="franchise">
+                  Franchise ({franchises.length})
+                </option>
+                <option value="othershop">
+                  Other Shops ({otherShops.length})
+                </option>
+                <option value="growtag">
+                  GrowTags ({availableTags.length})
+                </option>
               </select>
-              
+
               {fieldErrors.assignedType && (
-                <p className="text-red-500 text-xs mt-1 mb-2">{fieldErrors.assignedType}</p>
+                <p className="text-red-500 text-xs mt-1 mb-2">
+                  {fieldErrors.assignedType}
+                </p>
               )}
 
               <div className="min-h-[60px]">
@@ -920,22 +1014,30 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
                   </p>
                 )}
 
-                {(assignedType === "franchise" || assignedType === "othershop") && !isFetchingNearest && (
-                  <select
-                    value={selectedShopId}
-                    onChange={(e) => setSelectedShopId(e.target.value)}
-                    className="w-full p-2 border rounded-lg border-gray-300"
-                  >
-                    <option value="">
-                      Select {assignedType === "franchise" ? "Franchise" : "Other Shop"}
-                    </option>
-                    {(assignedType === "franchise" ? franchises : otherShops).map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.label}
+                {(assignedType === "franchise" ||
+                  assignedType === "othershop") &&
+                  !isFetchingNearest && (
+                    <select
+                      value={selectedShopId}
+                      onChange={(e) => setSelectedShopId(e.target.value)}
+                      className="w-full p-2 border rounded-lg border-gray-300"
+                    >
+                      <option value="">
+                        Select{" "}
+                        {assignedType === "franchise"
+                          ? "Franchise"
+                          : "Other Shop"}
                       </option>
-                    ))}
-                  </select>
-                )}
+                      {(assignedType === "franchise"
+                        ? franchises
+                        : otherShops
+                      ).map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.label}
+                        </option>
+                      ))}
+                    </select>
+                  )}
 
                 {assignedType === "growtag" && !isFetchingNearest && (
                   <select
@@ -953,7 +1055,9 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
                 )}
               </div>
               {fieldErrors.assignment && (
-                <p className="text-red-500 text-xs mt-2">{fieldErrors.assignment}</p>
+                <p className="text-red-500 text-xs mt-2">
+                  {fieldErrors.assignment}
+                </p>
               )}
             </div>
 

@@ -110,7 +110,22 @@ const Quotes = () => {
     expiry_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
       .toISOString()
       .split("T")[0],
-    items: [],
+    items: [
+      {
+        item: null,
+        item_id: "",
+        item_name: "",
+        description: "",
+        quantity: 1,
+        rate: 0,
+        gst_rate: 18,
+        taxable_value: 0,
+        total: 0,
+        igst: 0,
+        cgst: 0,
+        sgst: 0,
+      },
+    ],
     terms_conditions:
       "1. All prices are in Indian Rupee (₹)\n2. Taxes as applicable\n3. Payment terms: 30 days\n4. This is a quotation only and not an invoice",
     notes: "",
@@ -132,9 +147,6 @@ const Quotes = () => {
     grand_total: 0,
     status: "draft",
   });
-
-  // Cache for detailed quotations
-  const [quoteDetailsCache, setQuoteDetailsCache] = useState({});
 
   // Determine tax treatment based on place of supply vs company state
   const getTaxTreatment = (placeOfSupply) => {
@@ -245,6 +257,10 @@ const Quotes = () => {
       await fetchQuotations();
     } catch (error) {
       console.error("Error loading initial data:", error);
+
+      // network handled globally
+      if (!error.response) return;
+
       toast.error("Error loading data");
     } finally {
       setLoading(false);
@@ -276,6 +292,9 @@ const Quotes = () => {
       return [];
     } catch (error) {
       console.error("Error fetching items:", error);
+
+      if (!error.response) throw error; // network handled globally
+
       toast.error("Failed to fetch items");
       throw error;
     } finally {
@@ -292,6 +311,9 @@ const Quotes = () => {
       setQuotations(list);
     } catch (error) {
       console.error("Error fetching quotations:", error);
+
+      if (!error.response) return;
+
       toast.error("Failed to load quotations");
     }
   };
@@ -358,13 +380,16 @@ const Quotes = () => {
 
         grand_total: parseFloat(data.grand_total || 0),
 
-        terms_conditions: data.terms_conditions || "",
+        terms_conditions: data.terms_and_conditions || "",
         notes: data.notes || "",
       };
 
       return mappedData;
     } catch (error) {
       console.error("Error fetching quotation details:", error);
+
+      if (!error.response) return null;
+
       toast.error("Failed to load quotation details");
       return null;
     }
@@ -422,35 +447,25 @@ const Quotes = () => {
       newErrors.expiry_date = "Expiry date is required";
     }
 
-    if (formData.items.length === 0) {
+    if (!formData.items || formData.items.length === 0) {
       newErrors.items = "At least one item is required";
     }
 
     formData.items.forEach((item, index) => {
-      if (!item.item_id) {
-        newErrors[`item_${index}`] = "Item selection required";
+      const itemId = item.item_id || item.item?.id;
+
+      if (!itemId) {
+        newErrors[`item_${index}`] = "Item is required";
       }
-      if (item.quantity <= 0) {
+
+      if (!item.quantity || item.quantity <= 0) {
         newErrors[`quantity_${index}`] = "Quantity must be greater than 0";
       }
-      if (item.rate < 0) {
+
+      if (item.rate === "" || item.rate < 0) {
         newErrors[`rate_${index}`] = "Rate cannot be negative";
       }
     });
-
-    // Validate service charge if enabled
-    if (formData.service_charge_type !== "none") {
-      if (formData.service_charge_value < 0) {
-        newErrors.service_charge = "Service charge cannot be negative";
-      }
-      if (
-        formData.service_charge_type === "percentage" &&
-        formData.service_charge_value > 100
-      ) {
-        newErrors.service_charge =
-          "Service charge percentage cannot exceed 100%";
-      }
-    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -748,11 +763,15 @@ const Quotes = () => {
         company_state: COMPANY_STATE,
         supply_type: "GOODS",
 
+        reference_number: formData.reference_number || "",
+        notes: formData.notes || "",
+        terms_and_conditions: formData.terms_conditions || "",
+
         discount_type:
           formData.discount_type === "percentage" ? "PERCENT" : "AMOUNT",
 
-        discount_value: String(formData.discount_value || "0"),
-        shipping_charge: String(formData.shipping_charge || "0"),
+        discount_value: formData.discount_value || 0,
+        shipping_charge: formData.shipping_charge || 0,
 
         service_charge_type:
           formData.service_charge_type === "fixed"
@@ -761,15 +780,15 @@ const Quotes = () => {
               ? "PERCENTAGE"
               : "NONE",
 
-        service_charge_value: String(formData.service_charge_value || "0"),
-        adjustment: String(formData.adjustment || "0"),
+        service_charge_value: formData.service_charge_value || 0,
+        adjustment: formData.adjustment || 0,
 
         lines: formData.items.map((item) => ({
-          item: parseInt(item.item_id),
+          item: item.item_id || item.item?.id,
           description: item.description || "",
-          qty: String(item.quantity),
-          rate: String(item.rate),
-          gst_percent: String(item.gst_rate),
+          qty: item.quantity || 1,
+          rate: item.rate || 0,
+          gst_percent: item.gst_rate || 0,
         })),
       };
 
@@ -790,14 +809,10 @@ const Quotes = () => {
       setShowForm(false);
     } catch (error) {
       console.error("Save quotation error:", error);
-      console.log("Error status:", error.response?.status);
-      console.log("Error data:", error.response?.data);
 
-      toast.error(
-        error.response?.data?.detail ||
-          JSON.stringify(error.response?.data) ||
-          "Error saving quotation",
-      );
+      if (!error.response) return;
+
+      toast.error(error.response?.data?.detail || "Error saving quotation");
     } finally {
       setIsSubmitting(false);
     }
@@ -834,7 +849,8 @@ const Quotes = () => {
                   });
                 } catch (error) {
                   console.error("Error deleting quotation:", error);
-                  console.log("Error data:", error.response?.data);
+
+                  if (!error.response) return;
 
                   toast.error("Error deleting quotation", { id: loadingToast });
                 }
@@ -897,7 +913,8 @@ const Quotes = () => {
                   );
                 } catch (error) {
                   console.error("Bulk delete error:", error);
-                  console.log("Error data:", error.response?.data);
+
+                  if (!error.response) return;
 
                   toast.error("Error deleting quotations", {
                     id: loadingToast,
@@ -915,10 +932,34 @@ const Quotes = () => {
     );
   };
 
-  const handleConvertToInvoice = (quotation) => {
-    navigate("/invoice", {
-      state: { quotationData: quotation },
-    });
+  const handleConvertToInvoice = async (quotation) => {
+    try {
+      // 1️⃣ Get full quotation details
+      const detailedQuote = await fetchQuotationDetails(quotation.id);
+
+      if (!detailedQuote) {
+        toast.error("Failed to load quotation");
+        return;
+      }
+
+      // 2️⃣ Update quotation status → converted
+      await axiosInstance.patch(`/zoho/quotations/${quotation.id}/`, {
+        status: "converted",
+      });
+
+      // 3️⃣ Navigate to invoice page with quote data
+      navigate("/invoice", {
+        state: { quotationData: detailedQuote },
+      });
+
+      toast.success("Quotation converted to invoice");
+    } catch (error) {
+      console.error("Convert error:", error);
+
+      if (!error.response) return;
+
+      toast.error("Failed to convert quotation");
+    }
   };
 
   const handleSelectQuote = (id) => {
@@ -992,7 +1033,22 @@ const Quotes = () => {
       expiry_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
         .toISOString()
         .split("T")[0],
-      items: [],
+      items: [
+        {
+          item: null,
+          item_id: "",
+          item_name: "",
+          description: "",
+          quantity: 1,
+          rate: 0,
+          gst_rate: 18,
+          taxable_value: 0,
+          total: 0,
+          igst: 0,
+          cgst: 0,
+          sgst: 0,
+        },
+      ],
       terms_conditions:
         "1. All prices are in Indian Rupee (₹)\n2. Taxes as applicable\n3. Payment terms: 30 days\n4. This is a quotation only and not an invoice",
       notes: "",
@@ -1217,8 +1273,9 @@ const Quotes = () => {
                               {quotation.customer_name}
                             </div>
                             <div className="text-xs text-gray-500">
-                              {quotation.customer_area},{" "}
-                              {quotation.customer_pincode}
+                              {[quotation.customer_area, quotation.customer_pincode]
+                                .filter(Boolean)
+                                .join(", ")}
                             </div>
                           </div>
                         </td>
@@ -1882,7 +1939,7 @@ const Quotes = () => {
                     />
                   </div>
 
-                  <div>
+                  {/* <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Attachment
                     </label>
@@ -1909,7 +1966,7 @@ const Quotes = () => {
                         </span>
                       )}
                     </div>
-                  </div>
+                  </div> */}
                 </div>
 
                 <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">

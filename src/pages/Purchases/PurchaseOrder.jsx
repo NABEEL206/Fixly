@@ -20,10 +20,10 @@ import toast from "react-hot-toast";
 // Utility function to ensure only numbers are entered and remove leading zeros
 const processNumericInput = (value, allowDecimal = true, maxLength = null) => {
   if (!value && value !== 0) return "";
-  
+
   // Convert to string
   let stringValue = String(value);
-  
+
   // Remove any non-numeric characters except decimal point if allowed
   if (allowDecimal) {
     // Allow digits and at most one decimal point
@@ -33,30 +33,30 @@ const processNumericInput = (value, allowDecimal = true, maxLength = null) => {
     // Only digits
     stringValue = stringValue.replace(/[^\d]/g, "");
   }
-  
+
   // Apply max length if specified
   if (maxLength && stringValue.length > maxLength) {
     stringValue = stringValue.slice(0, maxLength);
   }
-  
+
   return stringValue;
 };
 
 // Remove leading zeros from numeric strings
 const removeLeadingZeros = (value) => {
   if (!value && value !== 0) return "";
-  
+
   const stringValue = String(value);
-  
+
   // If it's just "0", keep it
   if (stringValue === "0") return "0";
-  
+
   // If it's a decimal number starting with 0
   if (stringValue.startsWith("0.")) return stringValue;
-  
+
   // Remove leading zeros but keep the rest
   const trimmed = stringValue.replace(/^0+(?=\d)/, "");
-  
+
   // If empty after trimming, return "0"
   return trimmed || "0";
 };
@@ -185,6 +185,10 @@ const PurchaseOrder = () => {
       setVendors(vendorsList);
     } catch (error) {
       console.error("Fetch vendors error:", error);
+
+      // Network error handled globally
+      if (!error.response) return;
+
       toast.error("Failed to load vendors");
     }
   };
@@ -207,6 +211,9 @@ const PurchaseOrder = () => {
       setItems(itemsList);
     } catch (error) {
       console.error("Fetch items error:", error);
+
+      if (!error.response) return;
+
       toast.error("Failed to load items");
     }
   };
@@ -335,6 +342,8 @@ const PurchaseOrder = () => {
       setPurchaseOrders(transformedOrders);
     } catch (error) {
       console.error("Fetch purchase orders error:", error);
+
+      if (!error.response) return;
 
       if (error.response?.status === 401 || error.response?.status === 403) {
         return;
@@ -553,15 +562,15 @@ const PurchaseOrder = () => {
       // Determine if decimal is allowed
       const allowDecimal = field !== "quantity"; // Quantity should be whole numbers only
       const maxLength = field === "quantity" ? 6 : 10;
-      
+
       // Process the input to only allow valid characters
       let processedValue = processNumericInput(value, allowDecimal, maxLength);
-      
+
       // Remove leading zeros for display
       if (field === "quantity") {
         processedValue = removeLeadingZeros(processedValue);
       }
-      
+
       newItems[index][field] = processedValue;
 
       // Parse to number for calculations
@@ -606,12 +615,12 @@ const PurchaseOrder = () => {
 
     // Format the number properly on blur (remove leading zeros)
     let formattedValue = numericValue.toString();
-    
+
     // For quantity, ensure it's a whole number
     if (field === "quantity") {
       formattedValue = Math.floor(numericValue).toString();
     }
-    
+
     newItems[index][field] = formattedValue;
 
     const itemForCalculation = {
@@ -682,7 +691,7 @@ const PurchaseOrder = () => {
   const handleChargesChange = (field, value) => {
     // Allow only numbers and decimal point
     let processedValue = processNumericInput(value, true, 10);
-    
+
     setFormData((prev) => ({
       ...prev,
       [field]: processedValue,

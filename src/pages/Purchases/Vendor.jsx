@@ -756,7 +756,11 @@ export default function Vendor() {
       setVendors(vendorsList);
     } catch (error) {
       console.error("Fetch vendors error:", error);
-      if (error.response?.status !== 403 && error.response?.status !== 401) {
+
+      // network error handled globally by axios
+      if (!error.response) return;
+
+      if (error.response.status !== 403 && error.response.status !== 401) {
         toast.error("Failed to load vendors");
       }
     } finally {
@@ -857,7 +861,12 @@ export default function Vendor() {
     } catch (error) {
       console.error("Submit error:", error);
 
-      if (error.response?.status === 400) {
+      if (!error.response) {
+        toast.dismiss(newToastId);
+        return;
+      }
+
+      if (error.response.status === 400) {
         const apiErrors = error.response.data;
         const errorMessages = [];
 
@@ -957,13 +966,18 @@ export default function Vendor() {
                   toast.success("Vendor deleted successfully", { id: dt });
                 } catch (error) {
                   console.error("Delete error:", error);
+
+                  if (!error.response) {
+                    toast.dismiss(dt);
+                    return;
+                  }
+
                   if (
-                    error.response?.status !== 403 &&
-                    error.response?.status !== 401
+                    error.response.status !== 403 &&
+                    error.response.status !== 401
                   ) {
                     toast.error(
-                      error.response?.data?.message ||
-                        "Failed to delete vendor",
+                      error.response.data?.message || "Failed to delete vendor",
                       { id: dt },
                     );
                   }
@@ -1026,6 +1040,7 @@ export default function Vendor() {
                       await axiosInstance.delete(`/api/vendors/${id}/`);
                       return { id, success: true };
                     } catch (error) {
+                      if (!error.response) return { id, success: false };
                       return { id, success: false };
                     }
                   }),
