@@ -13,6 +13,7 @@ import {
   Edit3,
   User,
   Filter,
+  FileText,
 } from "lucide-react";
 import axiosInstance from "@/API/axiosInstance";
 import toast from "react-hot-toast";
@@ -1329,6 +1330,29 @@ const PurchaseOrder = () => {
     return matchesSearch && matchesStatus && matchesCreatedBy;
   });
 
+  const handleDownloadPOPdf = async (id) => {
+    const loadingToast = toast.loading("Generating PDF...");
+
+    try {
+      const response = await axiosInstance.get(`/purchase-orders/${id}/pdf/`, {
+        responseType: "blob",
+      });
+
+      const pdfBlob = new Blob([response.data], { type: "application/pdf" });
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+
+      window.open(pdfUrl, "_blank");
+
+      toast.success("PDF opened", { id: loadingToast });
+    } catch (error) {
+      console.error("PO PDF error:", error);
+
+      if (!error.response) return;
+
+      toast.error("Failed to open PDF", { id: loadingToast });
+    }
+  };
+
   // View Modal Component
   const ViewModal = () => (
     <div className="fixed inset-0  bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
@@ -1866,6 +1890,7 @@ const PurchaseOrder = () => {
                           >
                             <Eye size={18} />
                           </button>
+
                           <button
                             onClick={() => editPO(po)}
                             className="text-green-600 hover:text-green-800 p-1.5 hover:bg-green-50 rounded transition-colors"
@@ -1873,6 +1898,15 @@ const PurchaseOrder = () => {
                           >
                             <Edit size={18} />
                           </button>
+
+                          <button
+                            onClick={() => handleDownloadPOPdf(po.id)}
+                            className="text-indigo-600 hover:text-indigo-800 p-1.5 hover:bg-indigo-50 rounded transition-colors"
+                            title="PDF"
+                          >
+                            <FileText size={18} />
+                          </button>
+
                           <button
                             onClick={() => deletePO(po.id)}
                             className="text-red-600 hover:text-red-800 p-1.5 hover:bg-red-50 rounded transition-colors"

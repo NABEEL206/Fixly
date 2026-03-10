@@ -1107,6 +1107,25 @@ const Quotes = () => {
     );
   };
 
+  const handleDownloadPDF = async (id) => {
+    const loadingToast = toast.loading("Generating PDF...");
+
+    try {
+      const response = await axiosInstance.get(`/zoho/quotations/${id}/pdf/`, {
+        responseType: "blob",
+      });
+
+      const pdfBlob = new Blob([response.data], { type: "application/pdf" });
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+
+      window.open(pdfUrl, "_blank");
+
+      toast.success("PDF opened", { id: loadingToast });
+    } catch (error) {
+      toast.error("Failed to open PDF", { id: loadingToast });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       {!showForm ? (
@@ -1273,7 +1292,10 @@ const Quotes = () => {
                               {quotation.customer_name}
                             </div>
                             <div className="text-xs text-gray-500">
-                              {[quotation.customer_area, quotation.customer_pincode]
+                              {[
+                                quotation.customer_area,
+                                quotation.customer_pincode,
+                              ]
                                 .filter(Boolean)
                                 .join(", ")}
                             </div>
@@ -1294,31 +1316,37 @@ const Quotes = () => {
                           <div className="flex gap-2">
                             <button
                               onClick={() => handleViewQuotation(quotation)}
-                              className="text-blue-600 hover:text-blue-800 p-1.5 hover:bg-blue-50 rounded transition-colors"
-                              title="View"
+                              className="text-blue-600 hover:text-blue-800 p-1.5 hover:bg-blue-50 rounded"
                             >
                               <Eye size={18} />
                             </button>
+
                             <button
                               onClick={() => handleEditQuotation(quotation)}
-                              className="text-green-600 hover:text-green-800 p-1.5 hover:bg-green-50 rounded transition-colors"
-                              title="Edit"
+                              className="text-green-600 hover:text-green-800 p-1.5 hover:bg-green-50 rounded"
                             >
                               <Edit size={18} />
                             </button>
+
+                            <button
+                              onClick={() => handleDownloadPDF(quotation.id)}
+                              className="text-indigo-600 hover:text-indigo-800 p-1.5 hover:bg-indigo-50 rounded"
+                            >
+                              <FileText size={18} />
+                            </button>
+
                             <button
                               onClick={() =>
                                 handleDeleteQuotation(quotation.id)
                               }
-                              className="text-red-600 hover:text-red-800 p-1.5 hover:bg-red-50 rounded transition-colors"
-                              title="Delete"
+                              className="text-red-600 hover:text-red-800 p-1.5 hover:bg-red-50 rounded"
                             >
                               <Trash2 size={18} />
                             </button>
+
                             <button
                               onClick={() => handleConvertToInvoice(quotation)}
-                              className="text-purple-600 hover:text-purple-800 p-1.5 hover:bg-purple-50 rounded transition-colors"
-                              title="Convert to Invoice"
+                              className="text-purple-600 hover:text-purple-800 p-1.5 hover:bg-purple-50 rounded"
                             >
                               <Receipt size={18} />
                             </button>
