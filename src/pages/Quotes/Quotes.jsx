@@ -23,11 +23,11 @@ import axiosInstance from "@/API/axiosInstance";
 import { useNavigate } from "react-router-dom";
 
 const STATUS_OPTIONS = [
-  { value: "draft", label: "Draft" },
-  { value: "sent", label: "Sent" },
-  { value: "accepted", label: "Accepted" },
-  { value: "converted", label: "Converted" },
-  { value: "expired", label: "Expired" },
+  { value: "DRAFT", label: "Draft" },
+  { value: "SENT", label: "Sent" },
+  { value: "ACCEPTED", label: "Accepted" },
+  { value: "CONVERTED", label: "Converted" },
+  { value: "EXPIRED", label: "Expired" },
 ];
 
 // GST rate options
@@ -145,7 +145,7 @@ const Quotes = () => {
     service_charge_value: 0,
     service_charge_amount: 0,
     grand_total: 0,
-    status: "draft",
+    status: "DRAFT",
   });
 
   // Determine tax treatment based on place of supply vs company state
@@ -332,8 +332,7 @@ const Quotes = () => {
         reference_number: data.reference_number || "",
         quote_date: data.quotation_date,
         expiry_date: data.expiry_date,
-        status: data.status?.toLowerCase() || "draft",
-
+        status: data.status || "DRAFT",
         items:
           data.lines?.map((line) => ({
             item: items.find((i) => i.id === line.item) || null,
@@ -417,7 +416,20 @@ const Quotes = () => {
   };
 
   const generateQuoteNumber = () => {
-    const newQuoteNumber = `QUOTE-${new Date().getFullYear()}-${String(quotations.length + 1).padStart(4, "0")}`;
+    const year = new Date().getFullYear();
+
+    const numbers = quotations
+      .map((q) => q.quotation_number)
+      .filter(Boolean)
+      .map((num) => {
+        const parts = num.split("-");
+        return parseInt(parts[2]) || 0;
+      });
+
+    const nextNumber = numbers.length > 0 ? Math.max(...numbers) + 1 : 1;
+
+    const newQuoteNumber = `QUOTE-${year}-${String(nextNumber).padStart(4, "0")}`;
+
     setFormData((prev) => ({
       ...prev,
       quote_number: newQuoteNumber,
@@ -760,6 +772,7 @@ const Quotes = () => {
         quotation_number: formData.quote_number,
         quotation_date: formData.quote_date,
         expiry_date: formData.expiry_date,
+        status: formData.status?.toUpperCase(),
         company_state: COMPANY_STATE,
         supply_type: "GOODS",
 
@@ -934,30 +947,21 @@ const Quotes = () => {
 
   const handleConvertToInvoice = async (quotation) => {
     try {
-      // 1️⃣ Get full quotation details
-      const detailedQuote = await fetchQuotationDetails(quotation.id);
-
-      if (!detailedQuote) {
-        toast.error("Failed to load quotation");
-        return;
-      }
-
-      // 2️⃣ Update quotation status → converted
       await axiosInstance.patch(`/zoho/quotations/${quotation.id}/`, {
-        status: "converted",
+        status: "CONVERTED",
       });
 
-      // 3️⃣ Navigate to invoice page with quote data
+      const response = await axiosInstance.get(
+        `/zoho/quotations/${quotation.id}/`,
+      );
+
+      const detailedQuote = response.data;
+
       navigate("/invoice", {
         state: { quotationData: detailedQuote },
       });
-
-      toast.success("Quotation converted to invoice");
     } catch (error) {
       console.error("Convert error:", error);
-
-      if (!error.response) return;
-
       toast.error("Failed to convert quotation");
     }
   };
@@ -1067,7 +1071,7 @@ const Quotes = () => {
       service_charge_value: 0,
       service_charge_amount: 0,
       grand_total: 0,
-      status: "draft",
+      status: "DRAFT",
     });
     setErrors({});
     setAttachedFile(null);
@@ -1096,7 +1100,8 @@ const Quotes = () => {
       expired: { bg: "bg-red-200", text: "text-red-800", label: "Expired" },
     };
 
-    const config = statusConfig[status] || statusConfig.draft;
+    const key = status?.toLowerCase();
+    const config = statusConfig[key] || statusConfig.draft;
 
     return (
       <span
@@ -1343,13 +1348,25 @@ const Quotes = () => {
                             >
                               <Trash2 size={18} />
                             </button>
-
-                            <button
-                              onClick={() => handleConvertToInvoice(quotation)}
-                              className="text-purple-600 hover:text-purple-800 p-1.5 hover:bg-purple-50 rounded"
-                            >
-                              <Receipt size={18} />
-                            </button>
+                            {quotation.status === "CONVERTED" ? (
+                              <span className="px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded-full">
+                                Converted
+                              </span>
+                            ) : quotation.status === "ACCEPTED" ? (
+                              <button
+                                onClick={() =>
+                                  handleConvertToInvoice(quotation)
+                                }
+                                className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-green-600 text-white rounded-lg hover:bg-green-700"
+                              >
+                                <FileText size={14} />
+                                Convert
+                              </button>
+                            ) : (
+                              <span className="px-2 py-1 text-xs bg-gray-100 text-gray-500 rounded-full">
+                                Not Allowed
+                              </span>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -1668,12 +1685,14 @@ const Quotes = () => {
                         Status
                       </label>
                       <select
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                         value={formData.status}
                         onChange={(e) =>
                           setFormData({ ...formData, status: e.target.value })
                         }
-                        disabled={formMode === "view" || isSubmitting}
+                        disabled={
+                          formData.status === "CONVERTED" || formMode === "view"
+                        }
                       >
                         {STATUS_OPTIONS.map((option) => (
                           <option key={option.value} value={option.value}>
@@ -1966,35 +1985,6 @@ const Quotes = () => {
                       placeholder="Additional notes..."
                     />
                   </div>
-
-                  {/* <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Attachment
-                    </label>
-                    <div className="flex items-center gap-3">
-                      <label
-                        className={`cursor-pointer px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm hover:bg-gray-50 flex items-center gap-2 ${
-                          formMode === "view"
-                            ? "opacity-50 cursor-not-allowed"
-                            : ""
-                        }`}
-                      >
-                        <Upload className="w-4 h-4" />
-                        Choose File
-                        <input
-                          type="file"
-                          className="hidden"
-                          onChange={handleFileChange}
-                          disabled={formMode === "view" || isSubmitting}
-                        />
-                      </label>
-                      {attachedFile && (
-                        <span className="text-sm text-gray-600">
-                          {attachedFile.name}
-                        </span>
-                      )}
-                    </div>
-                  </div> */}
                 </div>
 
                 <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">

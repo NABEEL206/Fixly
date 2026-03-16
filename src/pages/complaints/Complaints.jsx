@@ -13,6 +13,10 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import axiosInstance from "@/API/axiosInstance";
+import { PERMISSIONS } from "@/config/permissions";
+import { canAccess } from "@/utils/canAccess";
+
+import { useAuth } from "@/auth/AuthContext";
 
 const COMPLAINT_API = "/api/complaints/";
 const CUSTOMER_API = "/api/customers/";
@@ -101,6 +105,16 @@ export default function Complaints() {
   const [isFetchingData, setIsFetchingData] = useState(false);
   const [isFetchingNearest, setIsFetchingNearest] = useState(false);
   const [isPincodeLoading, setIsPincodeLoading] = useState(false);
+
+  // permission flag
+  const { user } = useAuth();
+
+  const role = user?.role;
+
+  const canView = canAccess(role, PERMISSIONS.complaints.view);
+  const canCreate = canAccess(role, PERMISSIONS.complaints.create);
+  const canEdit = canAccess(role, PERMISSIONS.complaints.edit);
+  const canDelete = canAccess(role, PERMISSIONS.complaints.delete);
 
   // Constants for character limits
   const MAX_ADDRESS_CHARS = 200;
@@ -1049,18 +1063,19 @@ export default function Complaints() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-8">
         <h1 className="text-3xl font-bold text-gray-800">Complaints</h1>
-        <button
-          onClick={() => {
-            setOpenForm(true);
-            setIsEdit(false);
-            setEditComplaint(null);
-            resetFormStates();
-          }}
-          className="bg-blue-600 text-white px-6 py-2 rounded-xl shadow-md hover:bg-blue-700 transition-all w-full md:w-auto"
-          disabled={isSubmitting}
-        >
-          + Register Complaint
-        </button>
+        {canCreate && (
+          <button
+            onClick={() => {
+              setOpenForm(true);
+              setIsEdit(false);
+              setEditComplaint(null);
+              resetFormStates();
+            }}
+            className="bg-blue-600 text-white px-6 py-2 rounded-xl shadow-md hover:bg-blue-700"
+          >
+            + Register Complaint
+          </button>
+        )}
       </div>
 
       {/* FORM MODAL */}
@@ -1881,7 +1896,7 @@ export default function Complaints() {
           <h2 className="font-semibold text-gray-700 text-sm sm:text-base">
             Complaint Records ({filtered.length})
           </h2>
-          {selectedIds.length > 0 && (
+          {canDelete && selectedIds.length > 0 && (
             <button
               onClick={handleBulkDelete}
               className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 flex items-center gap-2"
@@ -2040,20 +2055,22 @@ export default function Complaints() {
                         >
                           <Eye size={18} />
                         </button>
-                        <button
-                          onClick={() => handleEdit(c)}
-                          className="p-2 rounded-lg bg-yellow-50 text-yellow-600 hover:bg-yellow-100 transition-colors"
-                          title="Edit Complaint"
-                        >
-                          <Edit size={18} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(c.id)}
-                          className="p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
-                          title="Delete Complaint"
-                        >
-                          <Trash2 size={18} />
-                        </button>
+                        {canEdit && (
+                          <button
+                            onClick={() => handleEdit(c)}
+                            className="p-2 rounded-lg bg-yellow-50 text-yellow-600 hover:bg-yellow-100"
+                          >
+                            <Edit size={18} />
+                          </button>
+                        )}
+                        {canDelete && (
+                          <button
+                            onClick={() => handleDelete(c.id)}
+                            className="p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        )}
                         <button
                           onClick={() => handleInvoiceClick(c)}
                           className="p-2 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100 transition-colors"

@@ -20,6 +20,9 @@ import {
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import axiosInstance from "@/API/axiosInstance";
+import { PERMISSIONS } from "@/config/permissions";
+import { canAccess } from "@/utils/canAccess";
+import { useAuth } from "@/auth/AuthContext";
 
 // ----------------------------------------------------
 // 1. Password Input Component (Eye Icon Toggle)
@@ -881,6 +884,13 @@ const ViewModal = ({ shop, onClose }) => {
 // ----------------------------------------------------
 export default function Shops() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const role = user?.role;
+
+  const canView = canAccess(role, PERMISSIONS.shops.view);
+  const canCreate = canAccess(role, PERMISSIONS.shops.create);
+  const canEdit = canAccess(role, PERMISSIONS.shops.edit);
+  const canDelete = canAccess(role, PERMISSIONS.shops.delete);
 
   const [selectedIds, setSelectedIds] = useState([]);
   const [openForm, setOpenForm] = useState(false);
@@ -916,6 +926,13 @@ export default function Shops() {
   const [areaList, setAreaList] = useState([]);
   const [shops, setShops] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  if (!canView) {
+    return (
+      <div className="p-10 text-center text-red-500 font-semibold">
+        You do not have permission to access this page.
+      </div>
+    );
+  }
 
   // Validation patterns
   const VALIDATION_PATTERNS = {
@@ -1654,7 +1671,7 @@ export default function Shops() {
             </p>
           </div>
         </div>
-        {!openForm && (
+        {canCreate && !openForm && (
           <button
             onClick={() => {
               setOpenForm(true);
@@ -1956,27 +1973,35 @@ export default function Shops() {
                     </td>
                     <td className="px-4 py-4 align-middle">
                       <div className="flex items-center justify-center gap-2">
-                        <button
-                          onClick={() => startView(shop)}
-                          className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
-                          title="View Details"
-                        >
-                          <Eye size={18} />
-                        </button>
-                        <button
-                          onClick={() => startEdit(shop)}
-                          className="p-2 rounded-lg bg-yellow-50 text-yellow-600 hover:bg-yellow-100 transition-colors"
-                          title="Edit Shop"
-                        >
-                          <Edit size={18} />
-                        </button>
-                        <button
-                          onClick={() => deleteShop(shop.id)}
-                          className="p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
-                          title="Delete Shop"
-                        >
-                          <Trash2 size={18} />
-                        </button>
+                        {canView && (
+                          <button
+                            onClick={() => startView(shop)}
+                            className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
+                            title="View Details"
+                          >
+                            <Eye size={18} />
+                          </button>
+                        )}
+
+                        {canEdit && (
+                          <button
+                            onClick={() => startEdit(shop)}
+                            className="p-2 rounded-lg bg-yellow-50 text-yellow-600 hover:bg-yellow-100 transition-colors"
+                            title="Edit Shop"
+                          >
+                            <Edit size={18} />
+                          </button>
+                        )}
+
+                        {canDelete && (
+                          <button
+                            onClick={() => deleteShop(shop.id)}
+                            className="p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                            title="Delete Shop"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -2039,28 +2064,39 @@ export default function Shops() {
                 </span>
               </div>
 
-              <div className="grid grid-cols-3 gap-2 pt-3">
-                <button
-                  onClick={() => startView(shop)}
-                  className="flex flex-col items-center justify-center p-3 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
-                >
-                  <Eye size={20} />
-                  <span className="text-xs mt-1 font-medium">View</span>
-                </button>
-                <button
-                  onClick={() => startEdit(shop)}
-                  className="flex flex-col items-center justify-center p-3 bg-yellow-50 text-yellow-600 rounded-lg hover:bg-yellow-100 transition-colors"
-                >
-                  <Edit size={20} />
-                  <span className="text-xs mt-1 font-medium">Edit</span>
-                </button>
-                <button
-                  onClick={() => deleteShop(shop.id)}
-                  className="flex flex-col items-center justify-center p-3 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
-                >
-                  <Trash2 size={20} />
-                  <span className="text-xs mt-1 font-medium">Delete</span>
-                </button>
+              <div className="flex gap-2 pt-3">
+                {/* VIEW */}
+                {canView && (
+                  <button
+                    onClick={() => startView(shop)}
+                    className="flex flex-col items-center justify-center p-3 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors flex-1"
+                  >
+                    <Eye size={20} />
+                    <span className="text-xs mt-1 font-medium">View</span>
+                  </button>
+                )}
+
+                {/* EDIT */}
+                {canEdit && (
+                  <button
+                    onClick={() => startEdit(shop)}
+                    className="flex flex-col items-center justify-center p-3 bg-yellow-50 text-yellow-600 rounded-lg hover:bg-yellow-100 transition-colors flex-1"
+                  >
+                    <Edit size={20} />
+                    <span className="text-xs mt-1 font-medium">Edit</span>
+                  </button>
+                )}
+
+                {/* DELETE */}
+                {canDelete && (
+                  <button
+                    onClick={() => deleteShop(shop.id)}
+                    className="flex flex-col items-center justify-center p-3 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors flex-1"
+                  >
+                    <Trash2 size={20} />
+                    <span className="text-xs mt-1 font-medium">Delete</span>
+                  </button>
+                )}
               </div>
             </div>
           ))
@@ -2075,7 +2111,7 @@ export default function Shops() {
                 ? "Try adjusting your search or filter criteria"
                 : "Get started by adding a new shop"}
             </p>
-            {!search && filterType === "all" && (
+            {canCreate && !search && filterType === "all" && (
               <button
                 onClick={() => {
                   setOpenForm(true);
@@ -2093,7 +2129,7 @@ export default function Shops() {
       </div>
 
       {openForm && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-2">
+        <div className="fixed inset-0  flex items-center justify-center z-50 p-2">
           <div className="bg-white w-full max-w-[800px] rounded-xl shadow-2xl border border-gray-200 max-h-[95vh] overflow-hidden">
             <div className="flex justify-between items-center px-6 py-4 border-b bg-gray-50">
               <div className="flex items-center gap-2">

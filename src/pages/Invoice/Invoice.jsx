@@ -29,6 +29,7 @@ import {
   Settings,
   Printer,
   Download,
+  CreditCard,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -53,40 +54,367 @@ const SERVICE_CHARGE_OPTIONS = [
   { value: "PERCENTAGE", label: "Percentage (%)" },
 ];
 
+// Payment methods matching API expectations
+const PAYMENT_METHODS = [
+  { value: "CASH", label: "Cash" },
+  { value: "CARD", label: "Card" },
+  { value: "UPI", label: "UPI" },
+  { value: "BANK", label: "Bank Transfer" },
+];
+
+// Utility function to remove leading zeros from numeric strings
+const removeLeadingZerosFromNumeric = (value) => {
+  if (!value && value !== 0) return value;
+
+  // Convert to string if it's a number
+  const stringValue = String(value);
+
+  // If it's just "0", keep it
+  if (stringValue === "0") return "0";
+
+  // Remove leading zeros but keep the number
+  const trimmed = stringValue.replace(/^0+(?=\d)/, "");
+
+  // If the result is empty or just a decimal point, return "0"
+  if (trimmed === "" || trimmed === ".") return "0";
+
+  // If it's a decimal number, ensure proper format
+  if (trimmed.includes(".")) {
+    const [whole, decimal] = trimmed.split(".");
+    // Remove leading zeros from whole part
+    const formattedWhole = whole.replace(/^0+(?=\d)/, "") || "0";
+    return `${formattedWhole}.${decimal}`;
+  }
+
+  return trimmed;
+};
+
+// Format number for display in input fields
+const formatNumberForInput = (value) => {
+  if (value === 0 || value === "0") return "0";
+  if (!value && value !== 0) return "";
+  return String(value);
+};
+
+// Helper function to transform API invoice data to frontend format
+const transformInvoiceData = (apiInvoice) => {
+  const safeInv = apiInvoice || {};
+
+  // Determine assign type and name
+  let assign_type = null;
+  let assign_id = null;
+  let assign_name = null;
+  let assign_shop_type = null;
+
+  if (safeInv.assigned_shop) {
+    assign_type = "shop";
+    assign_id = safeInv.assigned_shop;
+    assign_name = safeInv.assigned_shop_name || "";
+    assign_shop_type = safeInv.assigned_shop_type
+      ? safeInv.assigned_shop_type.toUpperCase()
+      : null;
+  }
+
+  // Safely transform lines
+  const lines = Array.isArray(safeInv.lines) ? safeInv.lines : [];
+  const items = lines.map((line) => {
+    const safeLine = line || {};
+    return {
+      id: safeLine.id || null,
+      item_id: safeLine.item || null,
+      item_name: safeLine.item_name || "",
+      qty: parseFloat(safeLine.qty) || 0,
+      rate: parseFloat(safeLine.rate) || 0,
+      description: safeLine.description || safeLine.item_description || "",
+      service_charge_type: safeLine.service_charge_type || "AMOUNT",
+      service_charge_value: parseFloat(safeLine.service_charge_value) || 0,
+      service_charge_amount: parseFloat(safeLine.service_charge_amount) || 0,
+      gst_treatment: safeLine.gst_treatment || "GST_5",
+      line_amount: parseFloat(safeLine.line_amount) || 0,
+      taxable_amount: parseFloat(safeLine.taxable_amount) || 0,
+      line_tax: parseFloat(safeLine.line_tax) || 0,
+      line_total: parseFloat(safeLine.line_total) || 0,
+    };
+  });
+
+  // Get payments
+  const payments = Array.isArray(safeInv.payments)
+    ? safeInv.payments.map((p) => ({
+        ...p,
+        amount: parseFloat(p.amount) || 0,
+        id: p.id,
+        invoice: p.invoice,
+        invoice_number: p.invoice_number,
+        payment_date: p.payment_date,
+        payment_mode: p.payment_mode,
+        reference_no: p.reference_no,
+        notes: p.notes,
+        pdf_url: p.pdf_url,
+        created_at: p.created_at,
+        updated_at: p.updated_at,
+      }))
+    : [];
+
+  // Calculate amount paid and balance due
+  const amountPaid = payments.reduce(
+    (sum, p) => sum + parseFloat(p.amount || 0),
+    0,
+  );
+  const grandTotal = parseFloat(safeInv.grand_total) || 0;
+
+  return {
+    id: safeInv.id,
+    customer: safeInv.customer,
+    customer_name: safeInv.customer_name,
+    customer_phone: safeInv.customer_phone,
+    customer_email: safeInv.customer_email,
+    customer_address: safeInv.customer_address,
+    customer_state: safeInv.customer_state || "Kerala",
+    customer_city: safeInv.customer_city,
+    customer_pincode: safeInv.customer_pincode,
+    assign_type,
+    assign_id,
+    assign_name,
+    assign_shop_type,
+    invoice_number: safeInv.invoice_number,
+    status: safeInv.status,
+    invoice_date: safeInv.invoice_date,
+    due_date: safeInv.due_date,
+    discount_type: safeInv.discount_type || "PERCENT",
+    discount_value: parseFloat(safeInv.discount_value) || 0,
+    discount_amount: parseFloat(safeInv.discount_amount) || 0,
+    shipping_charge: parseFloat(safeInv.shipping_charge) || 0,
+    adjustment: parseFloat(safeInv.adjustment) || 0,
+    service_charge_type: safeInv.service_charge_type || "NONE",
+    service_charge_value: parseFloat(safeInv.service_charge_value) || 0,
+    service_charge_amount: parseFloat(safeInv.service_charge_amount) || 0,
+    terms_conditions: safeInv.terms_conditions || "",
+    notes: safeInv.notes || "",
+    lines: lines,
+    items: items,
+    sub_total: parseFloat(safeInv.sub_total) || 0,
+    service_charge_total: parseFloat(safeInv.service_charge_total) || 0,
+    taxable_amount: parseFloat(safeInv.taxable_amount) || 0,
+    gst_breakdown: safeInv.gst_breakdown || {},
+    grand_total: grandTotal,
+    amount_paid: amountPaid,
+    balance_due: grandTotal - amountPaid,
+    payments: payments,
+    supply_type: safeInv.supply_type || "INTRASTATE",
+    gst_mode: safeInv.gst_mode || "CGST+SGST",
+    pdf_url: safeInv.pdf_url,
+    sync_status: safeInv.sync_status,
+    last_error: safeInv.last_error,
+    created_at: safeInv.created_at,
+    updated_at: safeInv.updated_at,
+    created_by_display: safeInv.created_by_display,
+  };
+};
+
+// ==================== PAYMENT MODAL COMPONENT ====================
+const PaymentModal = ({
+  selectedInvoice,
+  paymentForm,
+  paymentErrors,
+  isSubmitting,
+  handlePaymentInputChange,
+  recordPayment,
+  closePaymentModal,
+}) => {
+  if (!selectedInvoice) return null;
+
+  return (
+    <div className="fixed inset-0  flex items-center justify-center p-4 z-[9999]">
+      <div className="bg-white rounded-xl w-full max-w-md shadow-2xl">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b">
+          <div className="flex items-center gap-3">
+            <div className="bg-green-600 p-2 rounded-lg">
+              <CreditCard className="text-white" size={18} />
+            </div>
+
+            <div>
+              <h3 className="text-base font-semibold text-gray-800">
+                Record Payment
+              </h3>
+              <p className="text-xs text-gray-500">
+                Invoice #{selectedInvoice?.invoice_number}
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={closePaymentModal}
+            className="text-gray-400 hover:text-gray-600"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Invoice Summary */}
+        <div className="px-5 py-4 bg-gray-50 border-b">
+          <div className="grid grid-cols-3 text-sm">
+            <div>
+              <p className="text-gray-500 text-xs">Total</p>
+              <p className="font-semibold text-gray-800">
+                ₹{selectedInvoice?.grand_total?.toFixed(2)}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-gray-500 text-xs">Paid</p>
+              <p className="font-semibold text-green-600">
+                ₹{selectedInvoice?.amount_paid?.toFixed(2)}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-gray-500 text-xs">Balance</p>
+              <p className="font-bold text-red-600">
+                ₹{selectedInvoice?.balance_due?.toFixed(2)}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Form */}
+        <div className="p-5 space-y-4">
+          {/* Payment Date */}
+          <div>
+            <label className="block text-sm font-medium text-gray-600 mb-1">
+              Payment Date
+            </label>
+
+            <input
+              type="date"
+              name="payment_date"
+              value={paymentForm.payment_date}
+              onChange={handlePaymentInputChange}
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
+            />
+          </div>
+
+          {/* Amount */}
+          <div>
+            <label className="block text-sm font-medium text-gray-600 mb-1">
+              Amount
+            </label>
+
+            <div className="relative">
+              <span className="absolute left-3 top-2 text-gray-500">₹</span>
+
+              <input
+                type="text"
+                inputMode="decimal"
+                name="amount"
+                value={paymentForm.amount}
+                onChange={(e) => {
+                  const value = e.target.value;
+
+                  // allow only numbers and decimal
+                  if (/^\d*\.?\d*$/.test(value)) {
+                    handlePaymentInputChange({
+                      target: {
+                        name: "amount",
+                        value: value,
+                      },
+                    });
+                  }
+                }}
+                className="w-full pl-7 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
+                placeholder="0.00"
+              />
+            </div>
+          </div>
+
+          {/* Payment Method */}
+          <div>
+            <label className="block text-sm font-medium text-gray-600 mb-1">
+              Payment Method
+            </label>
+
+            <select
+              name="method"
+              value={paymentForm.method}
+              onChange={handlePaymentInputChange}
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
+            >
+              {PAYMENT_METHODS.map((method) => (
+                <option key={method.value} value={method.value}>
+                  {method.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Reference */}
+          <div>
+            <label className="block text-sm font-medium text-gray-600 mb-1">
+              Reference
+            </label>
+
+            <input
+              type="text"
+              name="reference"
+              value={paymentForm.reference}
+              onChange={handlePaymentInputChange}
+              placeholder="Transaction ID / Check No"
+              className="w-full px-3 py-2 border rounded-lg"
+            />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex justify-end gap-3 px-5 py-4 border-t bg-gray-50">
+          <button
+            onClick={closePaymentModal}
+            className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-100"
+          >
+            Cancel
+          </button>
+
+          <button
+            onClick={recordPayment}
+            disabled={isSubmitting}
+            className="px-5 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
+          >
+            {isSubmitting ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <CreditCard size={16} />
+            )}
+            Record Payment
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const getStatusBadge = (status) => {
   const base = "px-3 py-1 text-xs rounded-full font-semibold border";
 
   switch (status) {
     case "DRAFT":
       return base + " bg-gray-50 text-gray-700 border-gray-300";
-
     case "SENT":
       return base + " bg-blue-50 text-blue-700 border-blue-300";
-
     case "CANCELLED":
       return base + " bg-red-50 text-red-700 border-red-300";
-
     default:
       return base + " bg-gray-50 text-gray-700 border-gray-300";
   }
 };
 
-// Helper function to remove leading zeros from a number string
-const removeLeadingZeros = (value) => {
-  if (value === "" || value === null || value === undefined) return "";
-
-  // Convert to string
-  const stringValue = String(value);
-
-  // If it's just "0", keep it
-  if (stringValue === "0") return "0";
-
-  // Remove leading zeros
-  return stringValue.replace(/^0+(?=\d)/, "");
-};
-
 // View Modal Component
-const InvoiceViewModal = ({ invoice, customers, onClose, onEdit, onPDF }) => {
+const InvoiceViewModal = ({
+  invoice,
+  customers,
+  onClose,
+  onEdit,
+  onPDF,
+  onAddPayment,
+}) => {
   // Safe number formatting function
   const formatNumber = (value) => {
     if (value === null || value === undefined || isNaN(value)) return "0.00";
@@ -156,11 +484,15 @@ const InvoiceViewModal = ({ invoice, customers, onClose, onEdit, onPDF }) => {
 
   const grandTotal = afterShippingAndAdjustment + totalGST;
 
+  // Calculate amount paid and balance due
+  const amountPaid = Number(invoice.amount_paid) || 0;
+  const balanceDue = grandTotal - amountPaid;
+
   return (
     <div className="fixed inset-0 z-[9999] overflow-y-auto">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
+        className="fixed inset-0 bg-opacity-50 transition-opacity"
         onClick={onClose}
       />
 
@@ -170,7 +502,7 @@ const InvoiceViewModal = ({ invoice, customers, onClose, onEdit, onPDF }) => {
           {/* Modal Content */}
           <div className="relative w-full max-w-6xl bg-white rounded-lg shadow-xl overflow-hidden">
             {/* Header */}
-            <div className="px-6 py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+            <div className="px-6 py-4 bg-gradient-to-r from-blue-600 to-blue-500 text-white">
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
                   <FileText className="mr-3" size={24} />
@@ -194,6 +526,18 @@ const InvoiceViewModal = ({ invoice, customers, onClose, onEdit, onPDF }) => {
             <div className="px-6 py-4 max-h-[calc(100vh-200px)] overflow-y-auto">
               {/* Action Buttons */}
               <div className="flex justify-end gap-2 mb-4">
+                {balanceDue > 0 && (
+                  <button
+                    onClick={() => {
+                      onClose();
+                      onAddPayment(invoice);
+                    }}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+                  >
+                    <CreditCard size={16} />
+                    Record Payment
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     onClose();
@@ -249,12 +593,7 @@ const InvoiceViewModal = ({ invoice, customers, onClose, onEdit, onPDF }) => {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">GST Mode:</span>
-                      <span>
-                        {invoice.gst_mode ||
-                          (invoice.customer_state === "Kerala"
-                            ? "CGST+SGST"
-                            : "IGST")}
-                      </span>
+                      <span>{invoice.gst_mode || "CGST+SGST"}</span>
                     </div>
                     {invoice.sync_status && (
                       <div className="flex justify-between">
@@ -285,7 +624,8 @@ const InvoiceViewModal = ({ invoice, customers, onClose, onEdit, onPDF }) => {
                         Name
                       </span>
                       <p className="font-medium text-base">
-                        {getCustomerName(invoice.customer)}
+                        {invoice.customer_name ||
+                          getCustomerName(invoice.customer)}
                       </p>
                     </div>
 
@@ -706,9 +1046,84 @@ const InvoiceViewModal = ({ invoice, customers, onClose, onEdit, onPDF }) => {
                         ₹{formatNumber(grandTotal)}
                       </span>
                     </div>
+
+                    {/* Amount Paid & Balance Due */}
+                    {amountPaid > 0 && (
+                      <>
+                        <div className="flex justify-between pt-2 text-sm">
+                          <span className="text-gray-600">Amount Paid:</span>
+                          <span className="font-medium text-green-600">
+                            ₹{formatNumber(amountPaid)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between pt-2 border-t border-gray-300">
+                          <span className="font-medium text-gray-700">
+                            Balance Due:
+                          </span>
+                          <span className="font-bold text-red-600">
+                            ₹{formatNumber(balanceDue)}
+                          </span>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
+
+              {/* Payments History */}
+              {invoice.payments && invoice.payments.length > 0 && (
+                <div className="mb-6">
+                  <h4 className="font-semibold mb-3 flex items-center gap-2">
+                    <CreditCard size={18} className="text-green-600" />
+                    Payment History
+                  </h4>
+
+                  <div className="overflow-x-auto border rounded-lg">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-100">
+                        <tr>
+                          <th className="p-3 text-left">Date</th>
+                          <th className="p-3 text-left">Method</th>
+                          <th className="p-3 text-left">Reference</th>
+                          <th className="p-3 text-right">Amount</th>
+                        </tr>
+                      </thead>
+
+                      <tbody className="divide-y">
+                        {invoice.payments.map((p) => (
+                          <tr key={p.id} className="hover:bg-gray-50">
+                            <td className="p-3">{p.payment_date}</td>
+
+                            <td className="p-3">
+                              {p.payment_mode || p.method}
+                            </td>
+
+                            <td className="p-3">
+                              {p.reference_no || p.reference || "-"}
+                            </td>
+
+                            <td className="p-3 text-right font-semibold text-green-600">
+                              ₹{formatNumber(p.amount)}
+                            </td>
+
+                            <td className="p-3 text-center">
+                              <button
+                                onClick={() =>
+                                  onPDF(`/zoho/invoice-payments/${p.id}/pdf/`)
+                                }
+                                className="flex items-center justify-center gap-1 text-blue-600 hover:text-blue-800"
+                              >
+                                <FileText size={14} />
+                                View
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
 
               {/* Error Info - if any */}
               {invoice.last_error && (
@@ -791,6 +1206,9 @@ const initialInvoiceState = {
   taxable_amount: 0,
   gst_breakdown: {},
   grand_total: 0,
+  amount_paid: 0,
+  balance_due: 0,
+  payments: [],
 };
 
 const Invoice = () => {
@@ -820,42 +1238,22 @@ const Invoice = () => {
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [selectedInvoiceForView, setSelectedInvoiceForView] = useState(null);
 
+  // Payment modal states
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedInvoiceForPayment, setSelectedInvoiceForPayment] =
+    useState(null);
+  const [paymentForm, setPaymentForm] = useState({
+    payment_date: new Date().toISOString().split("T")[0],
+    amount: "",
+    method: "CASH",
+    reference: "",
+    notes: "",
+  });
+  const [paymentErrors, setPaymentErrors] = useState({});
+  const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
+
   // Validation states
   const [errors, setErrors] = useState({});
-
-  useEffect(() => {
-  if (location.state?.quotationData) {
-    const quote = location.state.quotationData;
-
-    setInvoiceData((prev) => ({
-      ...prev,
-
-      customer: quote.customer?.id || quote.customer,
-      invoice_date: new Date().toISOString().split("T")[0],
-      due_date: quote.expiry_date || "",
-
-      discount_type: quote.discount_type,
-      discount_value: quote.discount_value,
-      shipping_charge: quote.shipping_charge,
-      adjustment: quote.adjustment,
-
-      service_charge_type: quote.service_charge_type,
-      service_charge_value: quote.service_charge_value,
-
-      items: quote.items.map((item) => ({
-        item_id: item.item_id,
-        item_name: item.item_name,
-        description: item.description,
-        qty: item.quantity,
-        rate: item.rate,
-        gst_treatment: `GST_${item.gst_rate}`,
-        service_charge_type: "AMOUNT",
-        service_charge_value: 0,
-        service_charge_amount: 0,
-      })),
-    }));
-  }
-}, [location.state]);
 
   // Helper function to get customer name from ID
   const getCustomerName = (customerId) => {
@@ -900,6 +1298,28 @@ const Invoice = () => {
       fetchInvoices();
     }
   }, [isAuthenticated]);
+
+  // Initialize payment form when selectedInvoiceForPayment changes
+  useEffect(() => {
+    if (selectedInvoiceForPayment) {
+      const balanceDue = Number(
+        (
+          parseFloat(selectedInvoiceForPayment.grand_total || 0) -
+          parseFloat(selectedInvoiceForPayment.amount_paid || 0)
+        ).toFixed(2),
+      );
+
+      setPaymentForm({
+        payment_date: new Date().toISOString().split("T")[0],
+        amount: balanceDue.toFixed(2),
+        method: "CASH",
+        reference: "",
+        notes: "",
+      });
+
+      setPaymentErrors({});
+    }
+  }, [selectedInvoiceForPayment]);
 
   // Fetch customers from API
   const fetchCustomers = async () => {
@@ -971,94 +1391,8 @@ const Invoice = () => {
       const data = response.data;
       const invoicesList = Array.isArray(data) ? data : data?.results || [];
 
-      // Transform API data to frontend format
-      const transformed = invoicesList.map((inv) => {
-        const safeInv = inv || {};
-
-        // Determine assign type and name
-        let assign_type = null;
-        let assign_id = null;
-        let assign_name = null;
-        let assign_shop_type = null;
-
-        if (safeInv.assigned_shop) {
-          assign_type = "shop";
-          assign_id = safeInv.assigned_shop;
-          assign_name = safeInv.assigned_shop_name || "";
-          assign_shop_type = safeInv.assigned_shop_type || null;
-        } else if (safeInv.assigned_growtag) {
-          assign_type = "growtag";
-          assign_id = safeInv.assigned_growtag;
-          assign_name = safeInv.assigned_growtag_name || "";
-        }
-
-        // Safely transform lines
-        const lines = Array.isArray(safeInv.lines) ? safeInv.lines : [];
-        const items = lines.map((line) => {
-          const safeLine = line || {};
-
-          return {
-            id: safeLine.id || null,
-            item_id: safeLine.item || null,
-            item_name: safeLine.item_name || "",
-            qty: parseFloat(safeLine.qty) || 0,
-            rate: parseFloat(safeLine.rate) || 0,
-            description:
-              safeLine.description || safeLine.item_description || "",
-            service_charge_type: safeLine.service_charge_type || "AMOUNT",
-            service_charge_value:
-              parseFloat(safeLine.service_charge_value) || 0,
-            service_charge_amount:
-              parseFloat(safeLine.service_charge_amount) || 0,
-            gst_treatment: safeLine.gst_treatment || "GST_5",
-            line_amount: parseFloat(safeLine.line_amount) || 0,
-            taxable_amount: parseFloat(safeLine.taxable_amount) || 0,
-            line_tax: parseFloat(safeLine.line_tax) || 0,
-            line_total: parseFloat(safeLine.line_total) || 0,
-          };
-        });
-
-        return {
-          id: safeInv.id,
-          customer: safeInv.customer,
-          customer_phone: safeInv.customer_phone,
-          customer_email: safeInv.customer_email,
-          customer_address: safeInv.customer_address,
-          customer_state: safeInv.customer_state || "Kerala",
-          customer_city: safeInv.customer_city,
-          customer_pincode: safeInv.customer_pincode,
-          assign_type,
-          assign_id,
-          assign_name,
-          assign_shop_type,
-          invoice_number: safeInv.invoice_number,
-          status: safeInv.status,
-          invoice_date: safeInv.invoice_date,
-          due_date: safeInv.due_date,
-          discount_type: safeInv.discount_type || "PERCENT",
-          discount_value: parseFloat(safeInv.discount_value) || 0,
-          discount_amount: parseFloat(safeInv.discount_amount) || 0,
-          shipping_charge: parseFloat(safeInv.shipping_charge) || 0,
-          adjustment: parseFloat(safeInv.adjustment) || 0,
-          service_charge_type: safeInv.service_charge_type || "NONE",
-          service_charge_value: parseFloat(safeInv.service_charge_value) || 0,
-          service_charge_amount: parseFloat(safeInv.service_charge_amount) || 0,
-          terms_conditions: safeInv.terms_conditions || "",
-          notes: safeInv.notes || "",
-          lines: lines,
-          items: items,
-          sub_total: parseFloat(safeInv.sub_total) || 0,
-          service_charge_total: parseFloat(safeInv.service_charge_total) || 0,
-          taxable_amount: parseFloat(safeInv.taxable_amount) || 0,
-          gst_breakdown: safeInv.gst_breakdown || {},
-          grand_total: parseFloat(safeInv.grand_total) || 0,
-          supply_type: safeInv.supply_type || "INTRASTATE",
-          gst_mode: safeInv.gst_mode || "CGST+SGST",
-          pdf_url: safeInv.pdf_url,
-          sync_status: safeInv.sync_status,
-          last_error: safeInv.last_error,
-        };
-      });
+      // Transform each invoice using the helper
+      const transformed = invoicesList.map(transformInvoiceData);
 
       setInvoices(transformed);
     } catch (error) {
@@ -1069,6 +1403,144 @@ const Invoice = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Validate Payment Form
+  const validatePaymentForm = () => {
+    const newErrors = {};
+
+    if (!paymentForm.payment_date) {
+      newErrors.payment_date = "Payment date is required";
+    }
+
+    const balanceDue = Number(
+      (
+        parseFloat(selectedInvoiceForPayment.grand_total || 0) -
+        parseFloat(selectedInvoiceForPayment.amount_paid || 0)
+      ).toFixed(2),
+    );
+
+    const amount = parseFloat(paymentForm.amount) || 0;
+
+    if (!paymentForm.amount || amount <= 0) {
+      newErrors.amount = "Valid amount is required";
+    } else if (amount > balanceDue) {
+      newErrors.amount = `Amount cannot exceed balance due (₹${balanceDue.toFixed(2)})`;
+    }
+
+    if (!paymentForm.method) {
+      newErrors.method = "Payment method is required";
+    }
+
+    setPaymentErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  // Record Payment
+  const recordPayment = async () => {
+    if (!selectedInvoiceForPayment) {
+      toast.error("No invoice selected");
+      return;
+    }
+
+    if (!validatePaymentForm()) {
+      toast.error("Please fix payment errors");
+      return;
+    }
+
+    setIsSubmittingPayment(true);
+    const loadingToast = toast.loading("Recording payment...");
+
+    try {
+      const paymentData = {
+        invoice: selectedInvoiceForPayment.id,
+        amount: Number(paymentForm.amount),
+        payment_date: paymentForm.payment_date,
+        payment_mode: paymentForm.method,
+        reference_no: paymentForm.reference || `PAY-${Date.now()}`,
+        notes:
+          paymentForm.notes ||
+          `Payment recorded for invoice ${selectedInvoiceForPayment.invoice_number}`,
+      };
+
+      // Create payment
+      await axiosInstance.post("/zoho/invoice-payments/", paymentData);
+
+      // Refresh invoices to update balance and payment history
+      await fetchInvoices();
+
+      toast.success("Payment recorded successfully!", { id: loadingToast });
+      closePaymentModal();
+    } catch (error) {
+      console.error("Payment error:", error);
+
+      if (error.response) {
+        let errorMessage = "Failed to record payment";
+
+        if (error.response.status === 400) {
+          const errorData = error.response.data;
+          if (typeof errorData === "object") {
+            const errors = Object.entries(errorData)
+              .map(([key, value]) => `${key}: ${value}`)
+              .join(", ");
+            errorMessage = errors;
+          }
+        } else if (error.response.status === 404) {
+          errorMessage = "Payment API endpoint not found";
+        } else if (error.response.status === 500) {
+          errorMessage = "Server error. Please try again.";
+        }
+
+        toast.error(errorMessage, { id: loadingToast });
+
+        if (error.response.data) {
+          setPaymentErrors((prev) => ({
+            ...prev,
+            ...error.response.data,
+          }));
+        }
+      } else if (error.request) {
+        toast.error("No response from server. Check your connection.", {
+          id: loadingToast,
+        });
+      } else {
+        toast.error("Error: " + error.message, { id: loadingToast });
+      }
+    } finally {
+      setIsSubmittingPayment(false);
+    }
+  };
+
+  // Handle payment input change
+  const handlePaymentInputChange = (e) => {
+    const { name, value } = e.target;
+    setPaymentForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+    if (paymentErrors[name]) {
+      setPaymentErrors((prev) => ({ ...prev, [name]: "" }));
+    }
+  };
+
+  // Close payment modal
+  const closePaymentModal = () => {
+    setShowPaymentModal(false);
+    setSelectedInvoiceForPayment(null);
+    setPaymentErrors({});
+    setPaymentForm({
+      payment_date: new Date().toISOString().split("T")[0],
+      amount: "",
+      method: "CASH",
+      reference: "",
+      notes: "",
+    });
+  };
+
+  // Open payment modal
+  const openPaymentModal = (invoice) => {
+    setSelectedInvoiceForPayment(invoice);
+    setShowPaymentModal(true);
   };
 
   // Calculate totals for display during editing
@@ -1237,23 +1709,22 @@ const Invoice = () => {
     }
   }, [complaintData, customers]);
 
-  // Handle quotation data
   useEffect(() => {
     if (quotationData && customers.length > 0) {
       const customer = customers.find((c) => c.id === quotationData.customer);
-      const defaultGst = "GST_5";
 
-      // Transform quotation items
-      const items = (quotationData.items || []).map((item) => ({
-        item_id: item.item,
-        item_name: item.item_name,
-        qty: parseFloat(item.quantity),
-        rate: parseFloat(item.rate),
+      const quoteItems = quotationData.items || quotationData.lines || [];
+
+      const mappedItems = quoteItems.map((item) => ({
+        item_id: item.item || item.item_id,
+        item_name: item.item_name || "",
+        qty: parseFloat(item.qty || item.quantity) || 1,
+        rate: parseFloat(item.rate) || 0,
         description: item.description || "",
         service_charge_type: item.service_charge_type || "AMOUNT",
         service_charge_value: parseFloat(item.service_charge_value || 0),
         service_charge_amount: 0,
-        gst_treatment: item.gst_treatment || defaultGst,
+        gst_treatment: item.gst_treatment || `GST_${item.gst_rate || 5}`,
       }));
 
       setInvoiceData((prev) => ({
@@ -1265,28 +1736,42 @@ const Invoice = () => {
         customer_state: customer?.state || "Kerala",
         customer_city: customer?.area || customer?.city || "",
         customer_pincode: customer?.pincode || "",
-        invoice_number: `INV-${quotationData.quote_number?.split("-").pop() || String(invoices.length + 1).padStart(4, "0")}`,
-        invoice_date:
-          quotationData.quote_date || new Date().toISOString().split("T")[0],
+
+        invoice_number: generateInvoiceNumber(),
+        invoice_date: new Date().toISOString().split("T")[0],
         due_date: quotationData.expiry_date || "",
-        items: items,
+        status: "SENT",
+
+        items: mappedItems,
+
         discount_type: quotationData.discount_type || "PERCENT",
         discount_value: parseFloat(quotationData.discount_value || 0),
+
         shipping_charge: parseFloat(quotationData.shipping_charge || 0),
         adjustment: parseFloat(quotationData.adjustment || 0),
+
         service_charge_type: quotationData.service_charge_type || "NONE",
         service_charge_value: parseFloat(
           quotationData.service_charge_value || 0,
         ),
-        terms_conditions:
-          quotationData.terms_conditions || prev.terms_conditions,
+
+        terms_conditions: quotationData.terms_conditions || "",
         notes: quotationData.notes || "",
+
+        amount_paid: 0,
+        balance_due: 0,
+        payments: [],
       }));
 
       setCurrentScreen("form");
       setEditIndex(null);
+
+      toast.success("Quotation converted to invoice");
+
+      // ⭐ IMPORTANT FIX
+      navigate(location.pathname, { replace: true });
     }
-  }, [quotationData, customers, invoices.length]);
+  }, [quotationData, customers]);
 
   // Validate form
   const validateForm = () => {
@@ -1687,11 +2172,11 @@ const Invoice = () => {
       };
     } else if (field === "qty" || field === "rate") {
       // Handle leading zeros for number inputs
-      const formattedValue = removeLeadingZeros(value);
+      const formattedValue = removeLeadingZerosFromNumeric(value);
       updatedItems[index][field] =
         formattedValue === "" ? 0 : parseFloat(formattedValue) || 0;
     } else if (field === "service_charge_value") {
-      const formattedValue = removeLeadingZeros(value);
+      const formattedValue = removeLeadingZerosFromNumeric(value);
       updatedItems[index].service_charge_value =
         formattedValue === "" ? 0 : parseFloat(formattedValue) || 0;
 
@@ -1760,7 +2245,9 @@ const Invoice = () => {
     return invoices.filter(
       (inv) =>
         inv.invoice_number?.toLowerCase().includes(search) ||
-        (getCustomerName(inv.customer) || "").toLowerCase().includes(search) ||
+        (inv.customer_name || getCustomerName(inv.customer) || "")
+          .toLowerCase()
+          .includes(search) ||
         inv.status?.toLowerCase().includes(search),
     );
   }, [invoices, quickSearch, customers]);
@@ -1806,22 +2293,34 @@ const Invoice = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6 lg:p-8 font-sans">
-      {/* View Modal - FIXED: Conditionally render with proper state */}
-      {viewModalOpen && selectedInvoiceForView && (
+      {/* Payment Modal */}
+      {showPaymentModal && (
+        <PaymentModal
+          selectedInvoice={selectedInvoiceForPayment}
+          paymentForm={paymentForm}
+          paymentErrors={paymentErrors}
+          isSubmitting={isSubmittingPayment}
+          handlePaymentInputChange={handlePaymentInputChange}
+          recordPayment={recordPayment}
+          closePaymentModal={closePaymentModal}
+        />
+      )}
+
+      {/* View Modal */}
+      {viewModalOpen && (
         <InvoiceViewModal
           invoice={selectedInvoiceForView}
           customers={customers}
           onClose={() => {
-            console.log("Closing view modal");
             setViewModalOpen(false);
             setSelectedInvoiceForView(null);
           }}
           onEdit={() => {
-            console.log("Editing from view modal");
             setViewModalOpen(false);
             handleEdit(selectedInvoiceForView);
           }}
           onPDF={openPDF}
+          onAddPayment={openPaymentModal}
         />
       )}
 
@@ -1902,93 +2401,133 @@ const Invoice = () => {
                 {quickSearch ? "No invoices found" : "No invoices yet"}
               </div>
             ) : (
-              filteredInvoices.map((inv) => (
-                <div
-                  key={inv.id}
-                  className="bg-white rounded-lg shadow p-4 border"
-                >
-                  <div className="flex justify-between items-start mb-3">
-                    <div>
-                      <div className="text-blue-600 font-bold">
-                        {inv.invoice_number}
-                      </div>
-                      <div className="font-medium mt-1">
-                        {getCustomerName(inv.customer)}
-                      </div>
-                      {inv.assign_name && (
-                        <div className="flex items-center gap-1 text-xs text-gray-600 mt-1">
-                          {inv.assign_type === "shop" ? "🏪" : "🏷️"}
-                          {inv.assign_name}
+              filteredInvoices.map((inv) => {
+                const balanceDue = Number(
+                  (
+                    parseFloat(inv.grand_total || 0) -
+                    parseFloat(inv.amount_paid || 0)
+                  ).toFixed(2),
+                );
+                return (
+                  <div
+                    key={inv.id}
+                    className="bg-white rounded-lg shadow p-4 border"
+                  >
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <div className="text-blue-600 font-bold">
+                          {inv.invoice_number}
                         </div>
-                      )}
-                    </div>
-                    <span className={getStatusBadge(inv.status)}>
-                      {inv.status}
-                    </span>
-                  </div>
+                        <div className="font-medium mt-1">
+                          {inv.customer_name || getCustomerName(inv.customer)}
+                        </div>
+                        {inv.assign_name && (
+                          <div className="flex items-center gap-2 text-xs mt-1">
+                            {inv.assign_shop_type && (
+                              <span className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-[10px] font-semibold">
+                                {inv.assign_shop_type}
+                              </span>
+                            )}
 
-                  <div className="grid grid-cols-2 gap-2 text-sm mb-3">
-                    <div>
-                      <div className="text-gray-500">Date</div>
-                      <div>{inv.invoice_date}</div>
-                    </div>
-                    <div>
-                      <div className="text-gray-500">Due Date</div>
-                      <div>{inv.due_date || "N/A"}</div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between mb-3">
-                    <div
-                      className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full ${inv.customer_state === "Kerala" ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800"}`}
-                    >
-                      <MapPin size={12} />
-                      {inv.customer_state}
-                    </div>
-                    <div className="font-bold text-gray-800">
-                      ₹{format(inv.grand_total)}
-                    </div>
-                  </div>
-
-                  <div className="flex justify-between pt-3 border-t">
-                    <button
-                      onClick={() => handleView(inv)}
-                      className="p-2 text-blue-600 hover:bg-blue-50 rounded"
-                      title="View"
-                    >
-                      <Eye size={18} />
-                    </button>
-                    <button
-                      onClick={() => handleEdit(inv)}
-                      className="p-2 text-green-600 hover:bg-green-50 rounded"
-                      title="Edit"
-                    >
-                      <Edit size={18} />
-                    </button>
-                    {inv.pdf_url && (
-                      <button
-                        onClick={() => openPDF(inv.pdf_url, inv.id)}
-                        disabled={pdfId === inv.id}
-                        className="p-2 text-purple-600 hover:bg-purple-50 rounded disabled:opacity-50"
-                        title="View PDF"
-                      >
-                        {pdfId === inv.id ? (
-                          <Loader2 size={18} className="animate-spin" />
-                        ) : (
-                          <FileText size={18} />
+                            <span className="text-gray-700">
+                              {inv.assign_name}
+                            </span>
+                          </div>
                         )}
-                      </button>
+                      </div>
+                      <span className={getStatusBadge(inv.status)}>
+                        {inv.status}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-sm mb-3">
+                      <div>
+                        <div className="text-gray-500">Date</div>
+                        <div>{inv.invoice_date}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-500">Due Date</div>
+                        <div>{inv.due_date || "N/A"}</div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between mb-3">
+                      <div
+                        className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full ${inv.customer_state === "Kerala" ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800"}`}
+                      >
+                        <MapPin size={12} />
+                        {inv.customer_state}
+                      </div>
+                      <div className="font-bold text-gray-800">
+                        ₹{format(inv.grand_total)}
+                      </div>
+                    </div>
+
+                    {balanceDue > 0 ? (
+                      <div className="mb-3 text-xs flex justify-between">
+                        <span className="text-gray-600">Balance Due:</span>
+                        <span className="font-semibold text-red-600">
+                          ₹{format(balanceDue)}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="mb-3 text-xs flex justify-between">
+                        <span className="text-gray-600">Status:</span>
+                        <span className="font-semibold text-green-600">
+                          Paid
+                        </span>
+                      </div>
                     )}
-                    <button
-                      onClick={() => handleDelete(inv.id)}
-                      className="p-2 text-red-600 hover:bg-red-50 rounded"
-                      title="Delete"
-                    >
-                      <Trash2 size={18} />
-                    </button>
+
+                    <div className="flex justify-between pt-3 border-t">
+                      <button
+                        onClick={() => handleView(inv)}
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded"
+                        title="View"
+                      >
+                        <Eye size={18} />
+                      </button>
+                      <button
+                        onClick={() => handleEdit(inv)}
+                        className="p-2 text-green-600 hover:bg-green-50 rounded"
+                        title="Edit"
+                      >
+                        <Edit size={18} />
+                      </button>
+                      {balanceDue > 0.01 && (
+                        <button
+                          onClick={() => openPaymentModal(inv)}
+                          className="p-2 text-green-600 hover:bg-green-50 rounded"
+                          title="Record Payment"
+                        >
+                          <CreditCard size={18} />
+                        </button>
+                      )}
+                      {inv.pdf_url && (
+                        <button
+                          onClick={() => openPDF(inv.pdf_url, inv.id)}
+                          disabled={pdfId === inv.id}
+                          className="p-2 text-purple-600 hover:bg-purple-50 rounded disabled:opacity-50"
+                          title="View PDF"
+                        >
+                          {pdfId === inv.id ? (
+                            <Loader2 size={18} className="animate-spin" />
+                          ) : (
+                            <FileText size={18} />
+                          )}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleDelete(inv.id)}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded"
+                        title="Delete"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
 
@@ -2008,28 +2547,21 @@ const Invoice = () => {
                         onChange={toggleSelectAll}
                       />
                     </th>
-
                     <th className="px-6 py-3 text-center">Invoice #</th>
-
                     <th className="px-6 py-3 text-center">Customer</th>
-
                     <th className="px-6 py-3 text-center">Date</th>
-
                     <th className="px-6 py-3 text-center">Due Date</th>
-
                     <th className="px-6 py-3 text-center">Status</th>
-
                     <th className="px-6 py-3 text-center">Total</th>
-
+                    <th className="px-6 py-3 text-center">Payment</th>
                     <th className="px-6 py-3 text-center">Actions</th>
                   </tr>
                 </thead>
-
                 <tbody className="divide-y divide-gray-200">
                   {isLoading ? (
                     <tr>
                       <td
-                        colSpan="8"
+                        colSpan="9"
                         className="px-6 py-10 text-center text-gray-500"
                       >
                         <Loader2
@@ -2042,93 +2574,166 @@ const Invoice = () => {
                   ) : filteredInvoices.length === 0 ? (
                     <tr>
                       <td
-                        colSpan="8"
+                        colSpan="9"
                         className="px-6 py-10 text-center text-gray-500"
                       >
                         {quickSearch ? "No invoices found" : "No invoices yet"}
                       </td>
                     </tr>
                   ) : (
-                    filteredInvoices.map((inv) => (
-                      <tr key={inv.id} className="hover:bg-gray-50 transition">
-                        <td className="px-4 py-4 text-center">
-                          <input
-                            type="checkbox"
-                            checked={selectedInvoices.includes(inv.id)}
-                            onChange={() => toggleInvoiceSelection(inv.id)}
-                          />
-                        </td>
+                    filteredInvoices.map((inv) => {
+                      const balanceDue =
+                        parseFloat(inv.grand_total || 0) -
+                        parseFloat(inv.amount_paid || 0);
+                      return (
+                        <tr
+                          key={inv.id}
+                          className="hover:bg-gray-50 transition"
+                        >
+                          <td className="px-4 py-4 text-center">
+                            <input
+                              type="checkbox"
+                              checked={selectedInvoices.includes(inv.id)}
+                              onChange={() => toggleInvoiceSelection(inv.id)}
+                            />
+                          </td>
+                          <td className="px-6 py-4 font-semibold text-blue-600 text-center">
+                            {inv.invoice_number}
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            {inv.customer_name || getCustomerName(inv.customer)}
+                          </td>
+                          <td className="px-6 py-4 text-gray-600 text-center">
+                            {inv.invoice_date}
+                          </td>
+                          <td className="px-6 py-4 text-gray-600 text-center">
+                            {inv.due_date || "-"}
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            <span className={getStatusBadge(inv.status)}>
+                              {inv.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 font-bold text-gray-800 text-center">
+                            ₹{format(inv.grand_total)}
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            {(() => {
+                              const grandTotal = parseFloat(
+                                inv.grand_total || 0,
+                              );
+                              const amountPaid = parseFloat(
+                                inv.amount_paid || 0,
+                              );
+                              const balanceDue = grandTotal - amountPaid;
 
-                        <td className="px-6 py-4 font-semibold text-blue-600 text-center">
-                          {inv.invoice_number}
-                        </td>
+                              let paymentStatus = "UNPAID";
 
-                        <td className="px-6 py-4 text-center">
-                          {getCustomerName(inv.customer)}
-                        </td>
+                              if (amountPaid >= grandTotal)
+                                paymentStatus = "PAID";
+                              else if (amountPaid > 0)
+                                paymentStatus = "PARTIAL";
 
-                        <td className="px-6 py-4 text-gray-600 text-center">
-                          {inv.invoice_date}
-                        </td>
+                              return (
+                                <div className="flex flex-col items-center gap-1">
+                                  {paymentStatus === "PAID" && (
+                                    <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-semibold">
+                                      Paid
+                                    </span>
+                                  )}
 
-                        <td className="px-6 py-4 text-gray-600 text-center">
-                          {inv.due_date || "-"}
-                        </td>
+                                  {paymentStatus === "PARTIAL" && (
+                                    <span className="px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-semibold">
+                                      Partial
+                                    </span>
+                                  )}
 
-                        <td className="px-6 py-4 text-center">
-                          <span className={getStatusBadge(inv.status)}>
-                            {inv.status}
-                          </span>
-                        </td>
+                                  {paymentStatus === "UNPAID" && (
+                                    <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-semibold">
+                                      Unpaid
+                                    </span>
+                                  )}
 
-                        <td className="px-6 py-4 font-bold text-gray-800 text-center">
-                          ₹{format(inv.grand_total)}
-                        </td>
+                                  {/* Payment Receipt Buttons */}
+                                  {inv.payments?.length > 0 && (
+                                    <button
+                                      onClick={() => {
+                                        const latestPayment =
+                                          inv.payments[inv.payments.length - 1];
+                                        openPDF(
+                                          `/zoho/invoice-payments/${latestPayment.id}/pdf/`,
+                                        );
+                                      }}
+                                      className="flex items-center gap-1 text-xs text-blue-600 hover:underline"
+                                    >
+                                      <FileText size={12} />
+                                      Receipt
+                                    </button>
+                                  )}
 
-                        <td className="px-6 py-4">
-                          <div className="flex items-center justify-center gap-2">
-                            <button
-                              onClick={() => handleView(inv)}
-                              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
-                              title="View"
-                            >
-                              <Eye size={16} />
-                            </button>
-
-                            <button
-                              onClick={() => handleEdit(inv)}
-                              className="p-1.5 text-green-600 hover:bg-green-50 rounded"
-                              title="Edit"
-                            >
-                              <Edit size={16} />
-                            </button>
-
-                            {inv.pdf_url && (
+                                  {balanceDue > 0 && (
+                                    <span className="text-xs text-red-600 font-medium">
+                                      Balance: ₹{format(balanceDue)}
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center justify-center gap-2">
                               <button
-                                onClick={() => openPDF(inv.pdf_url, inv.id)}
-                                disabled={pdfId === inv.id}
-                                className="p-1.5 text-purple-600 hover:bg-purple-50 rounded disabled:opacity-50"
-                                title="View PDF"
+                                onClick={() => handleView(inv)}
+                                className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
+                                title="View"
                               >
-                                {pdfId === inv.id ? (
-                                  <Loader2 size={16} className="animate-spin" />
-                                ) : (
-                                  <FileText size={16} />
-                                )}
+                                <Eye size={16} />
                               </button>
-                            )}
-
-                            <button
-                              onClick={() => handleDelete(inv.id)}
-                              className="p-1.5 text-red-600 hover:bg-red-50 rounded"
-                              title="Delete"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+                              <button
+                                onClick={() => handleEdit(inv)}
+                                className="p-1.5 text-green-600 hover:bg-green-50 rounded"
+                                title="Edit"
+                              >
+                                <Edit size={16} />
+                              </button>
+                              {balanceDue > 0 && (
+                                <button
+                                  onClick={() => openPaymentModal(inv)}
+                                  className="p-1.5 text-green-600 hover:bg-green-50 rounded"
+                                  title="Record Payment"
+                                >
+                                  <CreditCard size={16} />
+                                </button>
+                              )}
+                              {inv.pdf_url && (
+                                <button
+                                  onClick={() => openPDF(inv.pdf_url, inv.id)}
+                                  disabled={pdfId === inv.id}
+                                  className="p-1.5 text-purple-600 hover:bg-purple-50 rounded disabled:opacity-50"
+                                  title="View PDF"
+                                >
+                                  {pdfId === inv.id ? (
+                                    <Loader2
+                                      size={16}
+                                      className="animate-spin"
+                                    />
+                                  ) : (
+                                    <FileText size={16} />
+                                  )}
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleDelete(inv.id)}
+                                className="p-1.5 text-red-600 hover:bg-red-50 rounded"
+                                title="Delete"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -2218,6 +2823,7 @@ const Invoice = () => {
                         invoiceData.assign_type === "shop"
                           ? shops.find((s) => s.id === id)
                           : growtags.find((g) => g.id === id);
+
                       setInvoiceData({
                         ...invoiceData,
                         assign_id: id,
@@ -2227,15 +2833,29 @@ const Invoice = () => {
                     className="w-2/3 px-3 py-2 border rounded-lg"
                   >
                     <option value="">None</option>
+
                     {invoiceData.assign_type === "shop"
-                      ? shops.map((shop) => (
-                          <option key={shop.id} value={shop.id}>
-                            {shop.shopname}
-                          </option>
-                        ))
+                      ? shops.map((shop) => {
+                          const shopType = shop.shop_type?.toLowerCase();
+
+                          const icon =
+                            shopType === "franchise"
+                              ? "🏬"
+                              : shopType === "other_shop"
+                                ? "🛍️"
+                                : "🏪";
+
+                          return (
+                            <option key={shop.id} value={shop.id}>
+                              {icon}{" "}
+                              {shop.shop_type?.replace("_", " ").toUpperCase()}{" "}
+                              — {shop.shopname}
+                            </option>
+                          );
+                        })
                       : growtags.map((gt) => (
                           <option key={gt.id} value={gt.id}>
-                            {gt.name}
+                            🏷️ Growtag — {gt.name}
                           </option>
                         ))}
                   </select>
@@ -2315,7 +2935,7 @@ const Invoice = () => {
 
             {/* Customer Details Display */}
             {invoiceData.customer && (
-              <div className="bg-gray-50 p-4 rounded-lg">
+              <div className="bg-gray-50 p-4 rounded-lg mb-6">
                 <h4 className="font-medium text-gray-700 mb-3">
                   Customer Information
                 </h4>
@@ -2409,15 +3029,11 @@ const Invoice = () => {
                 <table className="w-full border">
                   <thead className="bg-gray-100">
                     <tr>
-                      <th className="px-4 py-2 text-left text-sm">Item</th>
-                      <th className="px-4 py-2 text-center text-sm">Qty</th>
-                      <th className="px-4 py-2 text-center text-sm">
-                        Rate (₹)
-                      </th>
-                      <th className="px-4 py-2 text-center text-sm">Service</th>
-                      <th className="px-4 py-2 text-center text-sm">Tax %</th>
-                      <th className="px-4 py-2 text-right text-sm">Amount</th>
-                      <th className="px-4 py-2 text-center"></th>
+                      <th className="p-3 text-left">Date</th>
+                      <th className="p-3 text-left">Method</th>
+                      <th className="p-3 text-left">Reference</th>
+                      <th className="p-3 text-right">Amount</th>
+                      <th className="p-3 text-center">Receipt</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2681,7 +3297,7 @@ const Invoice = () => {
                         type="number"
                         value={invoiceData.discount_value || ""}
                         onChange={(e) => {
-                          const formattedValue = removeLeadingZeros(
+                          const formattedValue = removeLeadingZerosFromNumeric(
                             e.target.value,
                           );
                           setInvoiceData({
@@ -2723,7 +3339,7 @@ const Invoice = () => {
                         type="number"
                         value={invoiceData.shipping_charge || ""}
                         onChange={(e) => {
-                          const formattedValue = removeLeadingZeros(
+                          const formattedValue = removeLeadingZerosFromNumeric(
                             e.target.value,
                           );
                           setInvoiceData({
@@ -2758,7 +3374,7 @@ const Invoice = () => {
                         type="number"
                         value={invoiceData.adjustment || ""}
                         onChange={(e) => {
-                          const formattedValue = removeLeadingZeros(
+                          const formattedValue = removeLeadingZerosFromNumeric(
                             e.target.value,
                           );
                           setInvoiceData({

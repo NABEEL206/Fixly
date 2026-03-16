@@ -11,6 +11,11 @@ import {
 import toast from "react-hot-toast";
 import axiosInstance from "@/API/axiosInstance";
 
+// permission flag
+import { useAuth } from "@/auth/AuthContext";
+import { PERMISSIONS } from "@/config/permissions";
+import { canAccess } from "@/utils/canAccess";
+
 // API Endpoints
 const ASSIGNMENTS_API_URL = "/api/growtag-assignments/";
 const GROWTAGS_API_URL = "/api/growtags/";
@@ -305,6 +310,8 @@ const ShopSelectDropdown = ({
 // Main Component
 export default function AssignGrowTags() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const role = user?.role;
 
   // State Management
   const [shops, setShops] = useState([]);
@@ -466,7 +473,9 @@ export default function AssignGrowTags() {
                   await axiosInstance.delete(`${ASSIGNMENTS_API_URL}${id}/`);
                   toast.success("Grow Tag unassigned successfully ✅");
                   await fetchAllData();
+                  isUnassigning.current = false;
                 } catch (err) {
+                  isUnassigning.current = false;
                   if (!err.response) return;
 
                   if (err.response.status === 401) {
@@ -539,7 +548,11 @@ export default function AssignGrowTags() {
                   );
                   setSelectedIds([]);
                   await fetchAllData();
+                  await fetchAllData();
+
+                  isBulkUnassigning.current = false;
                 } catch (err) {
+                  isBulkUnassigning.current = false;
                   if (!err.response) return;
 
                   if (err.response.status === 401) {
@@ -649,12 +662,14 @@ export default function AssignGrowTags() {
           />
 
           <div className="flex items-end">
-            <button
-              onClick={handleAssign}
-              className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium"
-            >
-              Assign
-            </button>
+            {canAccess(role, PERMISSIONS.assignGrowtags.create) && (
+              <button
+                onClick={handleAssign}
+                className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              >
+                Assign
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -674,19 +689,21 @@ export default function AssignGrowTags() {
           />
         </div>
 
-        <button
-          onClick={handleBulk}
-          disabled={selectedIds.length === 0 || isBulkUnassigning.current}
-          className={`px-4 py-2 rounded-lg transition-colors font-medium ${
-            selectedIds.length > 0 && !isBulkUnassigning.current
-              ? "bg-red-600 text-white hover:bg-red-700"
-              : "bg-gray-300 text-gray-600 cursor-not-allowed"
-          }`}
-        >
-          {isBulkUnassigning.current
-            ? "Processing..."
-            : `Unassign Selected (${selectedIds.length})`}
-        </button>
+        {canAccess(role, PERMISSIONS.assignGrowtags.delete) && (
+          <button
+            onClick={handleBulk}
+            disabled={selectedIds.length === 0 || isBulkUnassigning.current}
+            className={`px-4 py-2 rounded-lg transition-colors font-medium ${
+              selectedIds.length > 0 && !isBulkUnassigning.current
+                ? "bg-red-600 text-white hover:bg-red-700"
+                : "bg-gray-300 text-gray-600 cursor-not-allowed"
+            }`}
+          >
+            {isBulkUnassigning.current
+              ? "Processing..."
+              : `Unassign Selected (${selectedIds.length})`}
+          </button>
+        )}
       </div>
 
       {/* Desktop Table */}
@@ -768,19 +785,21 @@ export default function AssignGrowTags() {
                     {new Date(a.assignedAt).toLocaleString()}
                   </td>
                   <td className="p-2">
-                    <button
-                      onClick={() => handleUnassign(a.id)}
-                      disabled={
-                        isUnassigning.current || isBulkUnassigning.current
-                      }
-                      className={`px-3 py-1 rounded-lg text-sm ${
-                        isUnassigning.current || isBulkUnassigning.current
-                          ? "bg-gray-400 cursor-not-allowed"
-                          : "bg-red-600 hover:bg-red-700 text-white"
-                      } transition-colors`}
-                    >
-                      {isUnassigning.current ? "Processing..." : "Unassign"}
-                    </button>
+                    {canAccess(role, PERMISSIONS.assignGrowtags.delete) && (
+                      <button
+                        onClick={() => handleUnassign(a.id)}
+                        disabled={
+                          isUnassigning.current || isBulkUnassigning.current
+                        }
+                        className={`px-3 py-1 rounded-lg text-sm ${
+                          isUnassigning.current || isBulkUnassigning.current
+                            ? "bg-gray-400 cursor-not-allowed"
+                            : "bg-red-600 hover:bg-red-700 text-white"
+                        }`}
+                      >
+                        {isUnassigning.current ? "Processing..." : "Unassign"}
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))

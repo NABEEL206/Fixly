@@ -62,7 +62,10 @@ export default function Sidebar({ isOpen, closeSidebar }) {
       {
         label: "sales",
         icon: <TrendingUp size={20} />,
-        children: [{ path: "/quotes", label: "Quotes" }],
+        children: [
+          { path: "/quotes", label: "Quotes" },
+          { path: "/invoice", label: "Invoice" },
+        ],
       },
       {
         label: "Purchase",
@@ -74,7 +77,6 @@ export default function Sidebar({ isOpen, closeSidebar }) {
           { path: "/bills", label: "Bills" },
         ],
       },
-      { path: "/invoice", label: "Invoice", icon: <Receipt size={20} /> },
       { path: "/reports", label: "Reports", icon: <BarChart3 size={20} /> },
     ],
 
@@ -92,6 +94,16 @@ export default function Sidebar({ isOpen, closeSidebar }) {
       },
       { path: "/customers", label: "Customers", icon: <Users2 size={20} /> },
       { path: "/shops", label: "Shops", icon: <Store size={20} /> },
+      { path: "/growtags", label: "Grow Tags", icon: <Users size={20} /> },
+
+      {
+        label: "sales",
+        icon: <TrendingUp size={20} />,
+        children: [
+          { path: "/quotes", label: "Quotes" },
+          { path: "/invoice", label: "Invoice" },
+        ],
+      },
       {
         label: "Purchase",
         icon: <DollarSign size={20} />,
@@ -100,7 +112,7 @@ export default function Sidebar({ isOpen, closeSidebar }) {
           { path: "/bills", label: "Bills" },
         ],
       },
-      { path: "/invoice", label: "Invoice", icon: <Receipt size={20} /> },
+      // { path: "/invoice", label: "Invoice", icon: <Receipt size={20} /> },
       { path: "/stock", label: "Stock", icon: <Boxes size={20} /> },
       { path: "/reports", label: "Reports", icon: <BarChart3 size={20} /> },
     ],
@@ -120,9 +132,15 @@ export default function Sidebar({ isOpen, closeSidebar }) {
       { path: "/customers", label: "Customers", icon: <Users2 size={20} /> },
       { path: "/shops", label: "Shops", icon: <Store size={20} /> },
       { path: "/growtags", label: "Grow Tags", icon: <Users size={20} /> },
-      { path: "/invoice", label: "Invoice", icon: <Receipt size={20} /> },
-      { path: "/reports", label: "Reports", icon: <BarChart3 size={20} /> },
       { path: "/stock", label: "Stock", icon: <Boxes size={20} /> },
+      {
+        label: "sales",
+        icon: <TrendingUp size={20} />,
+        children: [
+          { path: "/quotes", label: "Quotes" },
+          { path: "/invoice", label: "Invoice" },
+        ],
+      },
       {
         label: "Purchase",
         icon: <DollarSign size={20} />,
@@ -133,6 +151,7 @@ export default function Sidebar({ isOpen, closeSidebar }) {
           { path: "/bills", label: "Bills" },
         ],
       },
+      { path: "/reports", label: "Reports", icon: <BarChart3 size={20} /> },
     ],
 
     // OTHERSHOP - Other shops
@@ -150,9 +169,15 @@ export default function Sidebar({ isOpen, closeSidebar }) {
       { path: "/customers", label: "Customers", icon: <Users2 size={20} /> },
       { path: "/shops", label: "Shops", icon: <Store size={20} /> },
       { path: "/growtags", label: "Grow Tags", icon: <Users size={20} /> },
-      { path: "/invoice", label: "Invoice", icon: <Receipt size={20} /> },
-      { path: "/reports", label: "Reports", icon: <BarChart3 size={20} /> },
       { path: "/stock", label: "Stock", icon: <Boxes size={20} /> },
+      {
+        label: "sales",
+        icon: <TrendingUp size={20} />,
+        children: [
+          { path: "/quotes", label: "Quotes" },
+          { path: "/invoice", label: "Invoice" },
+        ],
+      },
       {
         label: "Purchase",
         icon: <DollarSign size={20} />,
@@ -163,6 +188,7 @@ export default function Sidebar({ isOpen, closeSidebar }) {
           { path: "/bills", label: "Bills" },
         ],
       },
+      { path: "/reports", label: "Reports", icon: <BarChart3 size={20} /> },
     ],
 
     // CUSTOMER - End users

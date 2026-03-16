@@ -28,12 +28,23 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import axiosInstance from "@/API/axiosInstance";
+import { useAuth } from "@/auth/AuthContext";
+import { PERMISSIONS } from "@/config/permissions";
+import { canAccess } from "@/utils/canAccess";
 
 // --- API Endpoints ---
 const CUSTOMER_API = "/api/customers/";
 
 // --- MAIN COMPONENT ---
 export default function CustomerTable() {
+  const { user } = useAuth();
+  const role = user?.role;
+
+  const canView = canAccess(role, PERMISSIONS.customers.view);
+  const canCreate = canAccess(role, PERMISSIONS.customers.create);
+  const canEdit = canAccess(role, PERMISSIONS.customers.edit);
+  const canDelete = canAccess(role, PERMISSIONS.customers.delete);
+
   const [customers, setCustomers] = useState([]);
   const [search, setSearch] = useState("");
   const [createdByFilter, setCreatedByFilter] = useState("");
@@ -50,6 +61,13 @@ export default function CustomerTable() {
   // View Modal State
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [selectedCustomerForView, setSelectedCustomerForView] = useState(null);
+  if (!canView) {
+    return (
+      <div className="p-10 text-center text-red-500 font-semibold">
+        You do not have permission to access customers.
+      </div>
+    );
+  }
 
   // Check authentication
   const checkAuth = () => {
@@ -808,14 +826,16 @@ export default function CustomerTable() {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={handleBulkDelete}
-              className="inline-flex items-center gap-2 text-sm font-medium text-red-700 bg-red-50 px-4 py-2 rounded-md 
-                      hover:bg-red-100 transition shadow-sm border border-red-200"
-            >
-              <Trash2 size={16} />
-              Delete Selected
-            </button>
+            {canDelete && (
+              <button
+                onClick={handleBulkDelete}
+                className="inline-flex items-center gap-2 text-sm font-medium text-red-700 bg-red-50 px-4 py-2 rounded-md 
+          hover:bg-red-100 transition shadow-sm border border-red-200"
+              >
+                <Trash2 size={16} />
+                Delete Selected
+              </button>
+            )}
             <button
               onClick={() => setSelectedRows(new Set())}
               className="text-sm text-gray-600 hover:text-gray-800 px-3 py-2"
@@ -1081,15 +1101,17 @@ export default function CustomerTable() {
                         </span>
                       </button>
 
-                      <button
-                        onClick={() =>
-                          deleteCustomer(cust.id, cust.customer_name)
-                        }
-                        className="inline-flex items-center text-xs font-medium text-red-700 hover:text-red-900 p-1.5 rounded hover:bg-red-50 transition"
-                        title="Delete Customer Record"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      {canDelete && (
+                        <button
+                          onClick={() =>
+                            deleteCustomer(cust.id, cust.customer_name)
+                          }
+                          className="inline-flex items-center text-xs font-medium text-red-700 hover:text-red-900 p-1.5 rounded hover:bg-red-50 transition"
+                          title="Delete Customer Record"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -1157,13 +1179,15 @@ export default function CustomerTable() {
                   </span>
                 </button>
 
-                <button
-                  onClick={() => deleteCustomer(cust.id, cust.customer_name)}
-                  className="bg-red-100 text-red-700 py-2 rounded-lg text-sm flex items-center justify-center gap-2"
-                >
-                  <Trash2 size={14} />
-                  Delete
-                </button>
+                {canDelete && (
+                  <button
+                    onClick={() => deleteCustomer(cust.id, cust.customer_name)}
+                    className="bg-red-100 text-red-700 py-2 rounded-lg text-sm flex items-center justify-center gap-2"
+                  >
+                    <Trash2 size={14} />
+                    Delete
+                  </button>
+                )}
               </div>
             </div>
           ))

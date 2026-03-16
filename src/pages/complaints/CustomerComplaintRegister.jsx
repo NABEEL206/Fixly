@@ -1,11 +1,14 @@
 import { BASE_URL } from "@/API/BaseURL";
 import React, { useState, useCallback, useEffect } from "react";
 import toast, { Toaster } from "react-hot-toast";
+import { PERMISSIONS } from "@/config/permissions";
+import { canAccess } from "@/utils/canAccess";
+import { useAuth } from "@/auth/AuthContext";
+import axiosInstance from "@/API/axiosInstance";
 
 // --- API Endpoints ---
 const COMPLAINT_API = `${BASE_URL}/api/complaints/`;
 const NEAREST_OPTIONS_API = `${BASE_URL}/api/complaints/nearest-options/`;
-
 
 // --- STATUS OPTIONS ---
 const STATUS_OPTIONS = ["Pending", "Assigned", "In Progress", "Resolved"];
@@ -27,6 +30,14 @@ const getStatusClasses = (status) => {
 };
 
 export default function CustomerComplaintRegister() {
+  const { user } = useAuth();
+  const role = user?.role;
+
+  const canView = canAccess(role, PERMISSIONS.customerComplaintSelf.view);
+  const canCreate = canAccess(role, PERMISSIONS.customerComplaintSelf.create);
+  const canEdit = canAccess(role, PERMISSIONS.customerComplaintSelf.edit);
+  const canDelete = canAccess(role, PERMISSIONS.customerComplaintSelf.delete);
+
   // 📝 CUSTOMER'S COMPLAINTS ONLY
   const [myComplaints, setMyComplaints] = useState([]);
 
@@ -115,6 +126,14 @@ export default function CustomerComplaintRegister() {
     "Puducherry",
   ];
 
+  if (!canView) {
+    return (
+      <div className="p-10 text-center text-red-500 font-semibold">
+        You do not have permission to access this page.
+      </div>
+    );
+  }
+
   // --- UTILITY FUNCTION: Reset Form States ---
   const resetFormStates = useCallback(() => {
     setName("");
@@ -185,27 +204,19 @@ export default function CustomerComplaintRegister() {
     }
 
     setIsFetchingData(true);
+
     try {
-      // Fetch all complaints and filter by email
-      const res = await fetch(COMPLAINT_API);
-      if (!res.ok)
-        throw new Error(`Failed to fetch complaints. Status: ${res.status}`);
+      // ✅ Fetch only complaints for this email
+      const res = await axiosInstance.get(`${COMPLAINT_API}?email=${email}`);
 
-      const allComplaints = await res.json();
-
-      // Filter complaints by customer's email
-      const myComplaints = allComplaints.filter(
-        (complaint) => complaint.email === email
-      );
+      const myComplaints = res.data;
 
       setMyComplaints(myComplaints || []);
-
-      // Store customer email for future filtering
       setCustomerEmail(email);
 
       if (myComplaints.length > 0) {
         toast.success(
-          `Found ${myComplaints.length} complaint(s) registered with ${email}`
+          `Found ${myComplaints.length} complaint(s) registered with ${email}`,
         );
       }
     } catch (error) {
@@ -242,14 +253,9 @@ export default function CustomerComplaintRegister() {
       url.searchParams.append("pincode", pcode);
       url.searchParams.append("area", selectedArea);
 
-      const res = await fetch(url.toString());
-      if (!res.ok) {
-        throw new Error(
-          `Failed to fetch nearest options. Status: ${res.status}`
-        );
-      }
+      const res = await axiosInstance.get(url.toString());
 
-      const data = await res.json();
+      const data = res.data;
       setFranchises(data.franchise || []);
       setOtherShops(data.othershop || []);
       setAvailableTags(data.growtag || []);
@@ -294,7 +300,7 @@ export default function CustomerComplaintRegister() {
     if (value.length === 6 && validatePincode(value)) {
       try {
         const res = await fetch(
-          `https://api.postalpincode.in/pincode/${value}`
+          `https://api.postalpincode.in/pincode/${value}`,
         );
         const data = await res.json();
 
@@ -308,7 +314,7 @@ export default function CustomerComplaintRegister() {
             "Pincode not found. Please select an area manually or verify.",
             {
               icon: "⚠️",
-            }
+            },
           );
           setPincodeError("Pincode not found or invalid.");
         }
@@ -341,7 +347,7 @@ export default function CustomerComplaintRegister() {
 
         const apiAssignment = editComplaint.assign_to || "";
         setAssignedType(
-          apiAssignment === "othershop" ? "other_shops" : apiAssignment
+          apiAssignment === "othershop" ? "other_shops" : apiAssignment,
         );
 
         let assignmentID = "";
@@ -365,7 +371,7 @@ export default function CustomerComplaintRegister() {
         if (editComplaint.pincode && editComplaint.pincode.length === 6) {
           try {
             const res = await fetch(
-              `https://api.postalpincode.in/pincode/${editComplaint.pincode}`
+              `https://api.postalpincode.in/pincode/${editComplaint.pincode}`,
             );
             const data = await res.json();
             if (data[0].Status === "Success") {
@@ -505,25 +511,17 @@ export default function CustomerComplaintRegister() {
     });
 
     try {
-      const res = await fetch(url, {
-        method: method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(complaintData),
-      });
+      const res =
+        method === "POST"
+          ? await axiosInstance.post(url, complaintData)
+          : await axiosInstance.put(url, complaintData);
 
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(
-          `API call failed: ${res.status} - ${JSON.stringify(errorData)}`
-        );
-      }
-
-      const resData = await res.json();
+      const resData = res.data;
 
       // ✅ Update myComplaints immediately after submission
       if (isEdit) {
         setMyComplaints((prev) =>
-          prev.map((c) => (c.id === editComplaint.id ? resData : c))
+          prev.map((c) => (c.id === editComplaint.id ? resData : c)),
         );
       } else {
         setMyComplaints((prev) => [...prev, resData]);
@@ -534,7 +532,7 @@ export default function CustomerComplaintRegister() {
         {
           id: submissionToast,
           position: "top-center",
-        }
+        },
       );
 
       setOpenForm(false);
@@ -555,31 +553,24 @@ export default function CustomerComplaintRegister() {
   const handleStatusUpdate = async (complaintId, newStatus) => {
     const originalComplaints = myComplaints;
     const originalStatus = originalComplaints.find(
-      (c) => c.id === complaintId
+      (c) => c.id === complaintId,
     )?.status;
 
     // optimistic UI
     setMyComplaints((prev) =>
-      prev.map((c) => (c.id === complaintId ? { ...c, status: newStatus } : c))
+      prev.map((c) => (c.id === complaintId ? { ...c, status: newStatus } : c)),
     );
 
     const statusToast = toast.loading(`Updating status to ${newStatus}...`);
 
     try {
-      const res = await fetch(`${COMPLAINT_API}${complaintId}/`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
+      await axiosInstance.patch(`${COMPLAINT_API}${complaintId}/`, {
+        status: newStatus,
       });
-
-      if (!res.ok) {
-        setMyComplaints(originalComplaints);
-        throw new Error(`Failed with status ${res.status}`);
-      }
 
       toast.success(
         `Status for Complaint #${complaintId} updated to: ${newStatus}`,
-        { id: statusToast }
+        { id: statusToast },
       );
     } catch (err) {
       console.error("Status Update Error:", err);
@@ -597,15 +588,7 @@ export default function CustomerComplaintRegister() {
     if (window.confirm("Are you sure you want to delete this complaint?")) {
       const deleteToast = toast.loading(`Deleting complaint #${id}...`);
       try {
-        const url = `${COMPLAINT_API}${id}/`;
-        const res = await fetch(url, {
-          method: "DELETE",
-        });
-
-        if (!res.ok) {
-          throw new Error(`Failed to delete complaint. Status: ${res.status}`);
-        }
-
+        await axiosInstance.delete(`${COMPLAINT_API}${id}/`);
         setMyComplaints(myComplaints.filter((c) => c.id !== id));
         toast.success(`Complaint #${id} deleted successfully.`, {
           id: deleteToast,
@@ -639,7 +622,7 @@ export default function CustomerComplaintRegister() {
     ]
       .join(" ")
       .toLowerCase()
-      .includes(search.toLowerCase())
+      .includes(search.toLowerCase()),
   );
 
   return (
@@ -647,26 +630,27 @@ export default function CustomerComplaintRegister() {
       {/* 🚨 NEW: Toaster Component */}
       <Toaster position="top-center" reverseOrder={false} />
 
-   <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-  {/* Title */}
-  <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">
-    My Complaints
-  </h1>
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        {/* Title */}
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">
+          My Complaints
+        </h1>
 
-  {/* Action Button */}
-  <button
-    onClick={() => {
-      setOpenForm(true);
-      setIsEdit(false);
-      setEditComplaint(null);
-      resetFormStates();
-    }}
-    className="w-full sm:w-auto bg-blue-600 text-white px-5 py-3 sm:py-2 rounded-xl shadow-md hover:bg-blue-700 transition-all text-sm sm:text-base font-semibold"
-  >
-    + Register New Complaint
-  </button>
-</div>
-
+        {/* Action Button */}
+        {canCreate && (
+          <button
+            onClick={() => {
+              setOpenForm(true);
+              setIsEdit(false);
+              setEditComplaint(null);
+              resetFormStates();
+            }}
+            className="w-full sm:w-auto bg-blue-600 text-white px-5 py-3 sm:py-2 rounded-xl shadow-md hover:bg-blue-700 transition-all text-sm sm:text-base font-semibold"
+          >
+            + Register New Complaint
+          </button>
+        )}
+      </div>
 
       {isFetchingData && (
         <div className="text-center text-blue-600 font-semibold mb-4">
@@ -993,9 +977,9 @@ export default function CustomerComplaintRegister() {
                   {/* Dynamic Assignment Dropdown (GrowTags) */}
                   {assignedType === "growtag" && !isFetchingNearest && (
                     <select
-                      value={selectedShopId}
+                      value={selectedGrowTagId}
                       onChange={(e) => {
-                        setSelectedShopId(e.target.value);
+                        setSelectedGrowTagId(e.target.value);
                         clearError("assignEntity");
                       }}
                       className={`w-full p-2 border rounded-lg
@@ -1105,7 +1089,7 @@ export default function CustomerComplaintRegister() {
                             handleStatusUpdate(c.id, e.target.value)
                           }
                           className={`w-full p-1 text-xs font-semibold rounded-full ${getStatusClasses(
-                            c.status
+                            c.status,
                           )}`}
                         >
                           {STATUS_OPTIONS.map((s) => (
@@ -1117,18 +1101,22 @@ export default function CustomerComplaintRegister() {
                       </td>
 
                       <td className="p-3 flex justify-center gap-2">
-                        <button
-                          onClick={() => handleEdit(c)}
-                          className="px-2 py-1 bg-yellow-500 text-white rounded text-xs"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(c.id)}
-                          className="px-2 py-1 bg-red-500 text-white rounded text-xs"
-                        >
-                          Delete
-                        </button>
+                        {canEdit && (
+                          <button
+                            onClick={() => handleEdit(c)}
+                            className="px-2 py-1 bg-yellow-500 text-white rounded text-xs"
+                          >
+                            Edit
+                          </button>
+                        )}
+                        {canDelete && (
+                          <button
+                            onClick={() => handleDelete(c.id)}
+                            className="px-2 py-1 bg-red-500 text-white rounded text-xs"
+                          >
+                            Delete
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -1149,7 +1137,7 @@ export default function CustomerComplaintRegister() {
                     </span>
                     <span
                       className={`px-3 py-1 text-xs rounded-full font-semibold ${getStatusClasses(
-                        c.status
+                        c.status,
                       )}`}
                     >
                       {c.status}
@@ -1192,7 +1180,7 @@ export default function CustomerComplaintRegister() {
                     value={c.status}
                     onChange={(e) => handleStatusUpdate(c.id, e.target.value)}
                     className={`w-full p-2 rounded-lg text-sm font-semibold ${getStatusClasses(
-                      c.status
+                      c.status,
                     )}`}
                   >
                     {STATUS_OPTIONS.map((s) => (
@@ -1203,18 +1191,22 @@ export default function CustomerComplaintRegister() {
                   </select>
 
                   <div className="flex gap-2 pt-2">
-                    <button
-                      onClick={() => handleEdit(c)}
-                      className="flex-1 bg-yellow-500 text-white py-2 rounded-lg"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(c.id)}
-                      className="flex-1 bg-red-500 text-white py-2 rounded-lg"
-                    >
-                      Delete
-                    </button>
+                    {canEdit && (
+                      <button
+                        onClick={() => handleEdit(c)}
+                        className="px-2 py-1 bg-yellow-500 text-white rounded text-xs"
+                      >
+                        Edit
+                      </button>
+                    )}
+                    {canDelete && (
+                      <button
+                        onClick={() => handleDelete(c.id)}
+                        className="px-2 py-1 bg-red-500 text-white rounded text-xs"
+                      >
+                        Delete
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}

@@ -24,6 +24,10 @@ import {
 import ComplaintRegistrationModal from "./ComplaintRegistrationModal";
 import toast from "react-hot-toast";
 import axiosInstance from "@/API/axiosInstance";
+// permission flag
+import { useAuth } from "@/auth/AuthContext";
+import { PERMISSIONS } from "@/config/permissions";
+import { canAccess } from "@/utils/canAccess";
 
 // ================= CONSTANTS =================
 const LEADS_API_URL = "/api/leads/";
@@ -64,6 +68,8 @@ const STATUS_OPTIONS = ["All", "New", "Complaint Registered"];
 // ================= MAIN COMPONENT =================
 const Leads = () => {
   // ---------- State Management ----------
+  const { user } = useAuth();
+  const role = user?.role;
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
@@ -395,14 +401,15 @@ const Leads = () => {
       console.error("Pincode fetch failed:", error);
       if (error.message !== "Failed to fetch") {
         toast.error("Unable to fetch location");
-      }y
+      }
+      y;
       setAreaOptions([]);
       setNewLeadData((prev) => ({ ...prev, state: "" }));
       setNewLeadErrors((prev) => ({
         ...prev,
         pincode: "Unable to fetch location. Please try again later.",
       }));
-    } finally {   
+    } finally {
       setLoadingArea(false);
     }
   };
@@ -841,12 +848,14 @@ const Leads = () => {
         {/* Filter Bar */}
         <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 p-4 bg-white rounded-lg shadow-sm border mb-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full">
-            <button
-              onClick={handleRegisterNewLead}
-              className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm shadow hover:bg-green-700 transition whitespace-nowrap"
-            >
-              <PlusCircle size={16} /> New Lead
-            </button>
+            {canAccess(role, PERMISSIONS.leads.create) && (
+              <button
+                onClick={handleRegisterNewLead}
+                className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm shadow hover:bg-green-700 transition whitespace-nowrap"
+              >
+                <PlusCircle size={16} /> New Lead
+              </button>
+            )}
 
             <div className="relative flex-grow md:max-w-sm">
               <input
@@ -878,14 +887,15 @@ const Leads = () => {
               </select>
             </div>
 
-            {selectedLeads.length > 0 && (
-              <button
-                onClick={handleBulkDelete}
-                className="bg-red-500 text-white px-3 py-2 rounded-lg flex items-center gap-2 text-sm shadow hover:bg-red-600 transition whitespace-nowrap"
-              >
-                <Trash2 size={16} /> Delete ({selectedLeads.length})
-              </button>
-            )}
+            {canAccess(role, PERMISSIONS.leads.delete) &&
+              selectedLeads.length > 0 && (
+                <button
+                  onClick={handleBulkDelete}
+                  className="bg-red-500 text-white px-3 py-2 rounded-lg flex items-center gap-2 text-sm shadow hover:bg-red-600 transition whitespace-nowrap"
+                >
+                  <Trash2 size={16} /> Delete ({selectedLeads.length})
+                </button>
+              )}
           </div>
         </div>
 
@@ -1035,13 +1045,14 @@ const Leads = () => {
                           </button>
 
                           {/* Edit Button */}
-                          <button
-                            onClick={() => handleEditLead(lead)}
-                            className="p-2 rounded-lg bg-yellow-50 text-yellow-600 hover:bg-yellow-100 transition-colors"
-                            title="Edit Lead"
-                          >
-                            <Edit size={18} />
-                          </button>
+                          {canAccess(role, PERMISSIONS.leads.edit) && (
+                            <button
+                              onClick={() => handleEditLead(lead)}
+                              className="p-2 rounded-lg bg-yellow-50 text-yellow-600 hover:bg-yellow-100 transition-colors"
+                            >
+                              <Edit size={18} />
+                            </button>
+                          )}
 
                           {/* View Button */}
                           <button
@@ -1053,13 +1064,16 @@ const Leads = () => {
                           </button>
 
                           {/* Delete Button */}
-                          <button
-                            onClick={() => handleDeleteLead(lead.id, lead.name)}
-                            className="p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
-                            title="Delete Lead"
-                          >
-                            <Trash2 size={18} />
-                          </button>
+                          {canAccess(role, PERMISSIONS.leads.delete) && (
+                            <button
+                              onClick={() =>
+                                handleDeleteLead(lead.id, lead.name)
+                              }
+                              className="p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -1159,13 +1173,15 @@ const Leads = () => {
                   </button>
 
                   {/* Edit Button */}
-                  <button
-                    onClick={() => handleEditLead(lead)}
-                    className="flex flex-col items-center justify-center p-2 bg-yellow-50 text-yellow-600 rounded-lg hover:bg-yellow-100"
-                  >
-                    <Edit size={20} />
-                    <span className="text-xs mt-1">Edit</span>
-                  </button>
+                  {canAccess(role, PERMISSIONS.leads.edit) && (
+                    <button
+                      onClick={() => handleEditLead(lead)}
+                      className="flex flex-col items-center justify-center p-2 bg-yellow-50 text-yellow-600 rounded-lg hover:bg-yellow-100"
+                    >
+                      <Edit size={20} />
+                      <span className="text-xs mt-1">Edit</span>
+                    </button>
+                  )}
 
                   {/* View Button */}
                   <button
@@ -1177,13 +1193,15 @@ const Leads = () => {
                   </button>
 
                   {/* Delete Button */}
-                  <button
-                    onClick={() => handleDeleteLead(lead.id, lead.name)}
-                    className="flex flex-col items-center justify-center p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100"
-                  >
-                    <Trash2 size={20} />
-                    <span className="text-xs mt-1">Delete</span>
-                  </button>
+                  {canAccess(role, PERMISSIONS.leads.delete) && (
+                    <button
+                      onClick={() => handleDeleteLead(lead.id, lead.name)}
+                      className="flex flex-col items-center justify-center p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100"
+                    >
+                      <Trash2 size={20} />
+                      <span className="text-xs mt-1">Delete</span>
+                    </button>
+                  )}
                 </div>
               </div>
             ))
@@ -1403,16 +1421,18 @@ const Leads = () => {
 
               {/* Modal Footer */}
               <div className="flex justify-end gap-3 p-6 border-t bg-gray-50">
-                <button
-                  onClick={() => {
-                    setViewModalOpen(false);
-                    handleEditLead(selectedLead);
-                  }}
-                  className="px-6 py-2.5 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors font-medium flex items-center gap-2"
-                >
-                  <Edit size={18} />
-                  Edit Lead
-                </button>
+                {canAccess(role, PERMISSIONS.leads.edit) && (
+                  <button
+                    onClick={() => {
+                      setViewModalOpen(false);
+                      handleEditLead(selectedLead);
+                    }}
+                    className="px-6 py-2.5 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors font-medium flex items-center gap-2"
+                  >
+                    <Edit size={18} />
+                    Edit Lead
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     setViewModalOpen(false);
@@ -1843,17 +1863,19 @@ const Leads = () => {
                     >
                       Cancel
                     </button>
-
-                    {leadModalMode !== "view" && (
-                      <LoadingButton
-                        type="button"
-                        loading={submitLoading}
-                        onClick={handleSaveNewLead}
-                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
-                      >
-                        {editingLeadId ? "Update Lead" : "Create Lead"}
-                      </LoadingButton>
-                    )}
+                    {leadModalMode !== "view" &&
+                      (editingLeadId
+                        ? canAccess(role, PERMISSIONS.leads.edit)
+                        : canAccess(role, PERMISSIONS.leads.create)) && (
+                        <LoadingButton
+                          type="button"
+                          loading={submitLoading}
+                          onClick={handleSaveNewLead}
+                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+                        >
+                          {editingLeadId ? "Update Lead" : "Create Lead"}
+                        </LoadingButton>
+                      )}
                   </div>
                 </div>
               </div>

@@ -23,6 +23,10 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import axiosInstance from "@/API/axiosInstance";
+// for permission flag
+import { useAuth } from "@/auth/AuthContext";
+import { PERMISSIONS } from "@/config/permissions";
+import { canAccess } from "@/utils/canAccess";
 
 // ----------------------------------------------------
 // Filter Panel Component - Same as Complaints Page
@@ -179,6 +183,8 @@ const GrowTagViewModal = ({ growTag, onClose, onEdit }) => {
   const [growTagDetails, setGrowTagDetails] = useState(null);
   const [activeTab, setActiveTab] = useState("info");
 
+  const { user } = useAuth();
+  const role = user?.role;
   useEffect(() => {
     if (growTag?.id) {
       fetchGrowTagDetails(growTag.id);
@@ -410,7 +416,9 @@ const GrowTagViewModal = ({ growTag, onClose, onEdit }) => {
                       <InfoCard
                         icon={Tag}
                         label="Assigned Shop"
-                        value={displayData.assigned_shop || "Not Assigned"}
+                        value={
+                          displayData.assigned_shop?.shopname || "Not Assigned"
+                        }
                       />
                       <div className="bg-gray-50 rounded-lg p-4 border border-gray-100">
                         <div className="flex items-start gap-3">
@@ -572,16 +580,18 @@ const GrowTagViewModal = ({ growTag, onClose, onEdit }) => {
           >
             Close
           </button>
-          <button
-            onClick={() => {
-              onClose();
-              onEdit(growTag);
-            }}
-            className="px-5 py-2.5 bg-teal-600 text-white rounded-lg font-medium hover:bg-teal-700 transition-colors flex items-center gap-2 shadow-lg shadow-teal-600/20"
-          >
-            <Edit size={18} />
-            Edit Grow Tag
-          </button>
+          {canAccess(role, PERMISSIONS.growtags.edit) && (
+            <button
+              onClick={() => {
+                onClose();
+                onEdit(growTag);
+              }}
+              className="px-5 py-2.5 bg-teal-600 text-white rounded-lg font-medium hover:bg-teal-700"
+            >
+              <Edit size={18} />
+              Edit Grow Tag
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -592,6 +602,9 @@ const GrowTagViewModal = ({ growTag, onClose, onEdit }) => {
 // Main GrowTags Component
 // ----------------------------------------------------
 export default function GrowTags() {
+  // permission glag
+  const { user } = useAuth();
+  const role = user?.role;
   const navigate = useNavigate();
 
   const [isEdit, setIsEdit] = useState(false);
@@ -1317,21 +1330,25 @@ export default function GrowTags() {
 
         {/* Action Buttons */}
         <div className="flex gap-3">
-          <button
-            onClick={() => navigate("/assign-growtags")}
-            className="bg-indigo-600 text-white px-6 py-2 rounded-lg shadow hover:bg-indigo-700 whitespace-nowrap"
-          >
-            Assign Grow Tags
-          </button>
-          <button
-            onClick={() => {
-              resetForm();
-              setShowFormModal(true);
-            }}
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg shadow hover:bg-blue-700 whitespace-nowrap"
-          >
-            + Add Grow Tag
-          </button>
+          {canAccess(role, PERMISSIONS.assignGrowtags.view) && (
+            <button
+              onClick={() => navigate("/assign-growtags")}
+              className="bg-indigo-600 text-white px-6 py-2 rounded-lg shadow hover:bg-indigo-700 whitespace-nowrap"
+            >
+              Assign Grow Tags
+            </button>
+          )}
+          {canAccess(role, PERMISSIONS.growtags.create) && (
+            <button
+              onClick={() => {
+                resetForm();
+                setShowFormModal(true);
+              }}
+              className="bg-blue-600 text-white px-6 py-2 rounded-lg shadow hover:bg-blue-700 whitespace-nowrap"
+            >
+              + Add Grow Tag
+            </button>
+          )}
         </div>
       </div>
 
@@ -1460,13 +1477,15 @@ export default function GrowTags() {
           <span className="text-sm text-red-700 font-medium">
             {selectedIds.length} grow tag(s) selected
           </span>
-          <button
-            onClick={handleBulkDelete}
-            className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-red-700"
-          >
-            <Trash2 size={16} />
-            Delete Selected
-          </button>
+          {canAccess(role, PERMISSIONS.growtags.delete) && (
+            <button
+              onClick={handleBulkDelete}
+              className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-red-700"
+            >
+              <Trash2 size={16} />
+              Delete Selected
+            </button>
+          )}
         </div>
       )}
 
@@ -1594,20 +1613,24 @@ export default function GrowTags() {
                         >
                           <Eye size={18} />
                         </button>
-                        <button
-                          onClick={() => handleEdit(u)}
-                          className="p-2 rounded-lg bg-yellow-50 text-yellow-600 hover:bg-yellow-100 transition-colors"
-                          title="Edit Grow Tag"
-                        >
-                          <Edit size={18} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(u.id)}
-                          className="p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
-                          title="Delete Grow Tag"
-                        >
-                          <Trash2 size={18} />
-                        </button>
+                        {canAccess(role, PERMISSIONS.growtags.edit) && (
+                          <button
+                            onClick={() => handleEdit(u)}
+                            className="p-2 rounded-lg bg-yellow-50 text-yellow-600 hover:bg-yellow-100 transition-colors"
+                            title="Edit Grow Tag"
+                          >
+                            <Edit size={18} />
+                          </button>
+                        )}
+                        {canAccess(role, PERMISSIONS.growtags.delete) && (
+                          <button
+                            onClick={() => handleDelete(u.id)}
+                            className="p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                            title="Delete Grow Tag"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

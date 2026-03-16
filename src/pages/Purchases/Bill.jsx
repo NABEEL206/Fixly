@@ -14,6 +14,7 @@ import {
   ChevronDown,
   ChevronUp,
   CreditCard,
+  FileText,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import axiosInstance from "@/API/axiosInstance";
@@ -762,7 +763,8 @@ const ViewBillModal = ({
                 <Edit size={16} className="mr-2" />
                 Edit Bill
               </button>
-              {formData.payment_status !== "PAID" &&
+              {formData.status === "OPEN" &&
+                formData.payment_status !== "PAID" &&
                 formData.balance_due > 0 && (
                   <button
                     onClick={onPayment}
@@ -2413,6 +2415,29 @@ const Bill = () => {
     setShowPaymentModal(true);
   };
 
+  const openBillPDF = async (billId) => {
+    const loadingToast = toast.loading("Loading PDF...");
+
+    try {
+      const response = await axiosInstance.get(
+        `/purchase-bills/${billId}/pdf/`,
+        {
+          responseType: "blob",
+        },
+      );
+
+      const file = new Blob([response.data], { type: "application/pdf" });
+      const fileURL = URL.createObjectURL(file);
+
+      window.open(fileURL, "_blank");
+
+      toast.dismiss(loadingToast);
+    } catch (error) {
+      console.error("PDF fetch error:", error);
+      toast.error("Failed to load PDF", { id: loadingToast });
+    }
+  };
+
   // Clear filters
   const clearFilters = () => {
     setSearchTerm("");
@@ -2750,6 +2775,14 @@ const Bill = () => {
                             )}
                           </button>
                           <button
+                            onClick={() => openBillPDF(bill.id)}
+                            disabled={isFetchingDetails}
+                            className="text-purple-600 hover:text-purple-800 p-1.5 hover:bg-purple-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="View PDF"
+                          >
+                            <FileText size={18} />
+                          </button>
+                          <button
                             onClick={() => deleteBill(bill.id)}
                             disabled={isFetchingDetails}
                             className="text-red-600 hover:text-red-800 p-1.5 hover:bg-red-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -2757,7 +2790,8 @@ const Bill = () => {
                           >
                             <Trash2 size={18} />
                           </button>
-                          {bill.payment_status !== "PAID" &&
+                          {bill.status === "OPEN" &&
+                            bill.payment_status !== "PAID" &&
                             bill.balance_due > 0 && (
                               <button
                                 onClick={() => openPaymentModal(bill)}

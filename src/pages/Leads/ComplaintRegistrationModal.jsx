@@ -3,11 +3,16 @@ import React, { useState, useCallback, useEffect } from "react";
 import toast from "react-hot-toast";
 import { Eye, EyeOff, Loader } from "lucide-react";
 import axiosInstance from "@/API/axiosInstance";
+import { useAuth } from "@/auth/AuthContext";
+import { PERMISSIONS } from "@/config/permissions";
+import { canAccess } from "@/utils/canAccess";
 
 // --- STATUS OPTIONS ---
 const STATUS_OPTIONS = ["Pending", "Assigned", "In Progress", "Resolved"];
 
 const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
+  const { user } = useAuth();
+  const role = user?.role;
   // Form states
   const [name, setName] = useState("");
   const [mobile, setMobile] = useState("");
@@ -1071,20 +1076,22 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
               >
                 Cancel
               </button>
-              <button
-                type="submit"
-                className="flex-1 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 font-medium flex items-center justify-center gap-2 disabled:opacity-70"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader className="animate-spin h-4 w-4" />
-                    Registering...
-                  </>
-                ) : (
-                  "Register Complaint"
-                )}
-              </button>
+              {canAccess(role, PERMISSIONS.complaints.create) && (
+                <button
+                  type="submit"
+                  className="flex-1 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 font-medium flex items-center justify-center gap-2 disabled:opacity-70"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader className="animate-spin h-4 w-4" />
+                      Registering...
+                    </>
+                  ) : (
+                    "Register Complaint"
+                  )}
+                </button>
+              )}
             </div>
           </form>
         )}
