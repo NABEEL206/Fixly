@@ -98,6 +98,8 @@ const PurchaseOrder = () => {
   const [filterCreatedBy, setFilterCreatedBy] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [shops, setShops] = useState([]);
+  const [growtags, setGrowtags] = useState([]);
 
   // Bulk selection states
   const [selectedPOs, setSelectedPOs] = useState([]);
@@ -132,6 +134,9 @@ const PurchaseOrder = () => {
     terms: "",
     notes: "",
     created_by: null,
+    assign_type: "shop",
+    assign_id: null,
+    assign_name: "",
   };
 
   const [formData, setFormData] = useState(initialFormState);
@@ -160,6 +165,8 @@ const PurchaseOrder = () => {
     fetchVendors();
     fetchItems();
     fetchPurchaseOrders();
+    fetchShops();
+    fetchGrowtags();
   }, []);
 
   // Reset selectedPOs when filtered PO list changes
@@ -216,6 +223,26 @@ const PurchaseOrder = () => {
       if (!error.response) return;
 
       toast.error("Failed to load items");
+    }
+  };
+
+  const fetchShops = async () => {
+    try {
+      const res = await axiosInstance.get("/api/shops/");
+      const data = res.data;
+      setShops(Array.isArray(data) ? data : data?.results || []);
+    } catch (err) {
+      console.error("Fetch shops error:", err);
+    }
+  };
+
+  const fetchGrowtags = async () => {
+    try {
+      const res = await axiosInstance.get("/api/growtags/");
+      const data = res.data;
+      setGrowtags(Array.isArray(data) ? data : data?.results || []);
+    } catch (err) {
+      console.error("Fetch growtags error:", err);
     }
   };
 
@@ -715,7 +742,7 @@ const PurchaseOrder = () => {
 
   // Transform form data to API format
   const transformToAPIFormat = (data) => {
-    return {
+    const apiData = {
       po_number: data.poNumber,
       vendor: data.vendorId,
       po_date: data.poDate,
@@ -736,6 +763,17 @@ const PurchaseOrder = () => {
       terms_and_conditions: data.terms || null,
       notes: data.notes || null,
     };
+
+    // ⭐ ADD THIS PART
+    if (data.assign_type === "shop" && data.assign_id) {
+      apiData.assigned_shop = data.assign_id;
+    }
+
+    if (data.assign_type === "growtag" && data.assign_id) {
+      apiData.assigned_growtag = data.assign_id;
+    }
+
+    return apiData;
   };
 
   // Create Purchase Order
@@ -2058,6 +2096,81 @@ const PurchaseOrder = () => {
                       </option>
                     ))}
                   </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Assign To
+                  </label>
+
+                  <div className="flex gap-2">
+                    {/* TYPE */}
+                    <select
+                      value={formData.assign_type}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          assign_type: e.target.value,
+                          assign_id: null,
+                          assign_name: "",
+                        })
+                      }
+                      className="w-1/3 px-3 py-2 border rounded-lg bg-gray-50"
+                    >
+                      <option value="shop">Shop</option>
+                      <option value="growtag">Growtag</option>
+                    </select>
+
+                    {/* LIST */}
+                    <select
+                      value={formData.assign_id || ""}
+                      onChange={(e) => {
+                        const id = e.target.value
+                          ? parseInt(e.target.value)
+                          : null;
+
+                        const item =
+                          formData.assign_type === "shop"
+                            ? shops.find((s) => s.id === id)
+                            : growtags.find((g) => g.id === id);
+
+                        setFormData({
+                          ...formData,
+                          assign_id: id,
+                          assign_name: item?.shopname || item?.name || "",
+                        });
+                      }}
+                      className="w-2/3 px-3 py-2 border rounded-lg"
+                    >
+                      <option value="">None</option>
+
+                      {formData.assign_type === "shop"
+                        ? shops.map((shop) => {
+                            const shopType = shop.shop_type?.toLowerCase();
+
+                            const icon =
+                              shopType === "franchise"
+                                ? "🏬"
+                                : shopType === "other_shop"
+                                  ? "🛍️"
+                                  : "🏪";
+
+                            return (
+                              <option key={shop.id} value={shop.id}>
+                                {icon}{" "}
+                                {shop.shop_type
+                                  ?.replace("_", " ")
+                                  .toUpperCase()}{" "}
+                                — {shop.shopname}
+                              </option>
+                            );
+                          })
+                        : growtags.map((gt) => (
+                            <option key={gt.id} value={gt.id}>
+                              🏷️ Growtag — {gt.name}
+                            </option>
+                          ))}
+                    </select>
+                  </div>
                 </div>
               </div>
             </div>

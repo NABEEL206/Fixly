@@ -132,6 +132,8 @@ export default function Sidebar({ isOpen, closeSidebar }) {
       { path: "/customers", label: "Customers", icon: <Users2 size={20} /> },
       { path: "/shops", label: "Shops", icon: <Store size={20} /> },
       { path: "/growtags", label: "Grow Tags", icon: <Users size={20} /> },
+            { path: "/items", label: "Items", icon: <Package size={20} /> },
+
       { path: "/stock", label: "Stock", icon: <Boxes size={20} /> },
       {
         label: "sales",

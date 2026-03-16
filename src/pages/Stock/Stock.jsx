@@ -12,8 +12,6 @@ import {
   Minus,
   AlertCircle,
   CheckCircle,
-  TrendingUp,
-  TrendingDown,
   Eye,
   ChevronDown,
   User,
@@ -60,14 +58,35 @@ const getItemEntityNameForTab = (item, activeTab) => {
   }
 };
 
-const getStockStatus = (quantity) => {
-  const qty = parseFloat(quantity) || 0;
-  if (qty > 10) {
-    return { label: "In Stock", bgColor: "bg-green-100", textColor: "text-green-800" };
-  } else if (qty > 0) {
-    return { label: "Low Stock", bgColor: "bg-yellow-100", textColor: "text-yellow-800" };
-  } else {
-    return { label: "Out of Stock", bgColor: "bg-red-100", textColor: "text-red-800" };
+const getStockStatus = (status) => {
+  switch (status) {
+    case "IN_STOCK":
+      return {
+        label: "In Stock",
+        bgColor: "bg-green-100",
+        textColor: "text-green-800",
+      };
+
+    case "LOW_STOCK":
+      return {
+        label: "Low Stock",
+        bgColor: "bg-yellow-100",
+        textColor: "text-yellow-800",
+      };
+
+    case "OUT_OF_STOCK":
+      return {
+        label: "Out of Stock",
+        bgColor: "bg-red-100",
+        textColor: "text-red-800",
+      };
+
+    default:
+      return {
+        label: "Unknown",
+        bgColor: "bg-gray-100",
+        textColor: "text-gray-800",
+      };
   }
 };
 
@@ -75,81 +94,91 @@ const getStockStatus = (quantity) => {
 const getUniqueFranchises = (data) => {
   const franchises = new Set();
   data
-    .filter(item => item.owner_type === 'shop' && item.shop_type === 'franchise')
-    .forEach(item => {
+    .filter(
+      (item) => item.owner_type === "shop" && item.shop_type === "franchise",
+    )
+    .forEach((item) => {
       if (item.shop_name) {
-        franchises.add(JSON.stringify({
-          value: item.shop?.toString(),
-          label: item.shop_name
-        }));
+        franchises.add(
+          JSON.stringify({
+            value: item.shop?.toString(),
+            label: item.shop_name,
+          }),
+        );
       }
     });
-  return Array.from(franchises).map(f => JSON.parse(f));
+  return Array.from(franchises).map((f) => JSON.parse(f));
 };
 
 // Get unique shops from API data
 const getUniqueShops = (data) => {
   const shops = new Set();
   data
-    .filter(item => item.owner_type === 'shop' && item.shop_type !== 'franchise')
-    .forEach(item => {
+    .filter(
+      (item) => item.owner_type === "shop" && item.shop_type !== "franchise",
+    )
+    .forEach((item) => {
       if (item.shop_name) {
-        shops.add(JSON.stringify({
-          value: item.shop?.toString(),
-          label: item.shop_name
-        }));
+        shops.add(
+          JSON.stringify({
+            value: item.shop?.toString(),
+            label: item.shop_name,
+          }),
+        );
       }
     });
-  return Array.from(shops).map(s => JSON.parse(s));
+  return Array.from(shops).map((s) => JSON.parse(s));
 };
 
 // Get unique grow tags from API data
 const getUniqueGrowTags = (data) => {
   const growTags = new Set();
   data
-    .filter(item => item.owner_type === 'grow_tag')
-    .forEach(item => {
+    .filter((item) => item.owner_type === "grow_tag")
+    .forEach((item) => {
       if (item.growtag) {
-        growTags.add(JSON.stringify({
-          value: item.growtag?.toString(),
-          label: item.growtag
-        }));
+        growTags.add(
+          JSON.stringify({
+            value: item.growtag?.toString(),
+            label: item.growtag,
+          }),
+        );
       }
     });
-  return Array.from(growTags).map(g => JSON.parse(g));
+  return Array.from(growTags).map((g) => JSON.parse(g));
 };
 
 // Get unique items from API data
 const getUniqueItems = (data) => {
   const items = new Set();
-  data.forEach(item => {
+  data.forEach((item) => {
     if (item.item_name) {
-      items.add(JSON.stringify({
-        value: item.item?.toString(),
-        label: item.item_name
-      }));
+      items.add(
+        JSON.stringify({
+          value: item.item?.toString(),
+          label: item.item_name,
+        }),
+      );
     }
   });
-  return Array.from(items).map(item => JSON.parse(item));
+  return Array.from(items).map((item) => JSON.parse(item));
 };
 
-// Categories
-const CATEGORIES = [
-  { id: "All", name: "All Categories" },
-  { id: "electronics", name: "Electronics" },
-  { id: "hardwares", name: "Hardwares" },
-  { id: "repair_parts", name: "Repair Parts" },
-  { id: "consumables", name: "Consumables" },
-];
-
 // Enhanced Dropdown Component
-const EnhancedDropdown = ({ options, selectedValue, onSelect, placeholder, icon: Icon }) => {
+const EnhancedDropdown = ({
+  options,
+  selectedValue,
+  onSelect,
+  placeholder,
+  icon: Icon,
+}) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const dropdownRef = useRef(null);
   const searchInputRef = useRef(null);
 
-  const selectedOption = options.find((opt) => opt.value === selectedValue) || options[0];
+  const selectedOption =
+    options.find((opt) => opt.value === selectedValue) || options[0];
 
   const filteredOptions = useMemo(() => {
     if (!searchValue) return options;
@@ -191,8 +220,13 @@ const EnhancedDropdown = ({ options, selectedValue, onSelect, placeholder, icon:
         className="flex items-center gap-2 border-2 p-2 rounded-lg text-sm bg-white cursor-pointer hover:border-blue-500 transition min-w-[200px] focus:outline-none focus:border-blue-500"
       >
         {Icon && <Icon size={16} className="text-gray-500" />}
-        <span className="flex-1 text-left truncate">{selectedOption?.label || placeholder}</span>
-        <ChevronDown size={16} className={`text-gray-500 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+        <span className="flex-1 text-left truncate">
+          {selectedOption?.label || placeholder}
+        </span>
+        <ChevronDown
+          size={16}
+          className={`text-gray-500 transition-transform ${isOpen ? "rotate-180" : ""}`}
+        />
       </button>
 
       {isOpen && (
@@ -207,7 +241,10 @@ const EnhancedDropdown = ({ options, selectedValue, onSelect, placeholder, icon:
                 placeholder={`Search ${placeholder.toLowerCase()}...`}
                 className="w-full p-2 pl-8 border rounded text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
               />
-              <Search size={14} className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" />
+              <Search
+                size={14}
+                className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none"
+              />
               {searchValue && (
                 <button
                   onClick={() => setSearchValue("")}
@@ -231,18 +268,79 @@ const EnhancedDropdown = ({ options, selectedValue, onSelect, placeholder, icon:
                     setSearchValue("");
                   }}
                   className={`w-full text-left px-4 py-2 hover:bg-blue-50 transition text-sm ${
-                    selectedValue === option.value ? "bg-blue-100 text-blue-700" : "text-gray-700"
+                    selectedValue === option.value
+                      ? "bg-blue-100 text-blue-700"
+                      : "text-gray-700"
                   }`}
                 >
                   {option.label}
                 </button>
               ))
             ) : (
-              <div className="px-4 py-3 text-sm text-gray-500 text-center">No results found</div>
+              <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                No results found
+              </div>
             )}
           </div>
         </div>
       )}
+    </div>
+  );
+};
+
+// StockStats Component - Defined outside TabNavigation
+const StockStats = ({ stockSummary }) => {
+  const { total_items, in_stock, low_stock, out_of_stock } = stockSummary;
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div className="bg-white rounded-xl shadow-sm border p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm text-gray-600">Total Items</p>
+            <p className="text-2xl font-bold text-gray-900">{total_items}</p>
+          </div>
+          <div className="p-3 bg-blue-100 rounded-lg">
+            <Package className="text-blue-600" size={24} />
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm border p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm text-gray-600">In Stock Items</p>
+            <p className="text-2xl font-bold text-green-600">{in_stock}</p>
+          </div>
+          <div className="p-3 bg-green-100 rounded-lg">
+            <CheckCircle className="text-green-600" size={24} />
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm border p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm text-gray-600">Low Stock Items</p>
+            <p className="text-2xl font-bold text-yellow-600">{low_stock}</p>
+          </div>
+          <div className="p-3 bg-yellow-100 rounded-lg">
+            <AlertCircle className="text-yellow-600" size={24} />
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm border p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm text-gray-600">Out of Stock</p>
+            <p className="text-2xl font-bold text-red-600">{out_of_stock}</p>
+          </div>
+          <div className="p-3 bg-red-100 rounded-lg">
+            <X className="text-red-600" size={24} />
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
@@ -253,8 +351,7 @@ const Stock = () => {
   const [loading, setLoading] = useState(false);
   const [selectedEntity, setSelectedEntity] = useState("all");
   const [selectedItem, setSelectedItem] = useState("all");
-  const [filterCategory, setFilterCategory] = useState("All");
-  
+
   const [adjustmentModal, setAdjustmentModal] = useState({
     isOpen: false,
     item: null,
@@ -263,32 +360,49 @@ const Stock = () => {
     reason: "",
   });
 
+  const [stockSummary, setStockSummary] = useState({
+    total_items: 0,
+    in_stock: 0,
+    low_stock: 0,
+    out_of_stock: 0,
+  });
+
   const [viewModal, setViewModal] = useState({
     isOpen: false,
     item: null,
   });
 
+  // fetch counts data
+  const fetchStockSummary = async () => {
+    try {
+      const response = await axiosInstance.get("/api/stocks/summary/");
+      setStockSummary(response.data);
+    } catch (error) {
+      console.error("Error fetching stock summary:", error);
+    }
+  };
+
   // Fetch stock data from API
   const fetchStockData = async () => {
     setLoading(true);
     try {
-      const response = await axiosInstance.get('/api/stocks/');
-      
+      const response = await axiosInstance.get("/api/stocks/");
+
       // Handle different response structures
       let data = response.data;
       if (data.results && Array.isArray(data.results)) {
         data = data.results;
       }
-      
+
       if (Array.isArray(data)) {
         setStockData(data);
       } else {
-        console.error('Unexpected data format:', data);
+        console.error("Unexpected data format:", data);
         setStockData([]);
       }
     } catch (error) {
-      console.error('Error fetching stock data:', error);
-      toast.error('Failed to fetch stock data');
+      console.error("Error fetching stock data:", error);
+      toast.error("Failed to fetch stock data");
       setStockData([]);
     } finally {
       setLoading(false);
@@ -297,25 +411,26 @@ const Stock = () => {
 
   useEffect(() => {
     fetchStockData();
+    fetchStockSummary();
   }, []);
 
   // Filter data based on active tab
   const tabData = useMemo(() => {
     if (!stockData.length) return [];
-    
+
     switch (activeTab) {
       case STOCK_TYPES.FRANCHISE:
-        return stockData.filter(item => 
-          item.owner_type === 'shop' && item.shop_type === 'franchise'
+        return stockData.filter(
+          (item) =>
+            item.owner_type === "shop" && item.shop_type === "franchise",
         );
       case STOCK_TYPES.OTHER_SHOP:
-        return stockData.filter(item => 
-          item.owner_type === 'shop' && item.shop_type !== 'franchise'
+        return stockData.filter(
+          (item) =>
+            item.owner_type === "shop" && item.shop_type !== "franchise",
         );
       case STOCK_TYPES.GROW_TAG:
-        return stockData.filter(item => 
-          item.owner_type === 'grow_tag'
-        );
+        return stockData.filter((item) => item.owner_type === "grow_tag");
       default:
         return [];
     }
@@ -323,8 +438,13 @@ const Stock = () => {
 
   // Get dynamic options based on active tab
   const entityOptions = useMemo(() => {
-    const options = [{ value: 'all', label: `All ${STOCK_TYPE_LABELS[activeTab].split(' ')[0]}s` }];
-    
+    const options = [
+      {
+        value: "all",
+        label: `All ${STOCK_TYPE_LABELS[activeTab].split(" ")[0]}s`,
+      },
+    ];
+
     switch (activeTab) {
       case STOCK_TYPES.FRANCHISE:
         return [...options, ...getUniqueFranchises(stockData)];
@@ -338,7 +458,7 @@ const Stock = () => {
   }, [stockData, activeTab]);
 
   const itemOptions = useMemo(() => {
-    return [{ value: 'all', label: 'All Items' }, ...getUniqueItems(tabData)];
+    return [{ value: "all", label: "All Items" }, ...getUniqueItems(tabData)];
   }, [tabData]);
 
   const getEntityIcon = () => {
@@ -368,13 +488,14 @@ const Stock = () => {
 
   const filteredStock = useMemo(() => {
     return tabData.filter((item) => {
-      const matchesCategory = filterCategory === "All" || item.category === filterCategory;
-      const matchesEntity = selectedEntity === "all" || getEntityId(item) === selectedEntity;
-      const matchesItem = selectedItem === "all" || item.item?.toString() === selectedItem;
-      
-      return matchesCategory && matchesEntity && matchesItem;
+      const matchesEntity =
+        selectedEntity === "all" || getEntityId(item) === selectedEntity;
+      const matchesItem =
+        selectedItem === "all" || item.item?.toString() === selectedItem;
+
+      return matchesEntity && matchesItem;
     });
-  }, [tabData, filterCategory, selectedEntity, selectedItem]);
+  }, [tabData, selectedEntity, selectedItem]);
 
   const handleAdjustStock = async () => {
     if (!adjustmentModal.item) return;
@@ -383,21 +504,24 @@ const Stock = () => {
 
     try {
       // Call your stock adjustment API endpoint
-      await axiosInstance.post('/api/stocks/adjust/', {
+      await axiosInstance.post("/api/stocks/adjust/", {
         stock_id: adjustmentModal.item.id,
         quantity: adjustmentModal.quantity,
         type: adjustmentModal.type,
-        reason: adjustmentModal.reason
+        reason: adjustmentModal.reason,
       });
 
       // Refresh stock data after adjustment
       await fetchStockData();
-      
+      await fetchStockSummary();
+
       toast.success("Stock adjusted successfully!", { id: toastId });
       closeAdjustmentModal();
     } catch (error) {
       console.error("Error adjusting stock:", error);
-      toast.error(error.response?.data?.message || "Failed to adjust stock", { id: toastId });
+      toast.error(error.response?.data?.message || "Failed to adjust stock", {
+        id: toastId,
+      });
     }
   };
 
@@ -406,7 +530,13 @@ const Stock = () => {
   };
 
   const closeAdjustmentModal = () => {
-    setAdjustmentModal({ isOpen: false, item: null, quantity: 0, type: "add", reason: "" });
+    setAdjustmentModal({
+      isOpen: false,
+      item: null,
+      quantity: 0,
+      type: "add",
+      reason: "",
+    });
   };
 
   const openViewModal = (item) => {
@@ -418,7 +548,10 @@ const Stock = () => {
   };
 
   const totalItems = useMemo(() => {
-    return filteredStock.reduce((total, item) => total + (parseFloat(item.qty_on_hand) || 0), 0);
+    return filteredStock.reduce(
+      (total, item) => total + (parseFloat(item.qty_on_hand) || 0),
+      0,
+    );
   }, [filteredStock]);
 
   const TabNavigation = () => {
@@ -448,7 +581,6 @@ const Stock = () => {
                   setActiveTab(type);
                   setSelectedEntity("all");
                   setSelectedItem("all");
-                  setFilterCategory("All");
                 }}
                 className={`flex items-center gap-2 px-6 py-4 text-sm font-medium transition whitespace-nowrap ${
                   isActive
@@ -458,78 +590,30 @@ const Stock = () => {
               >
                 {getTabIcon(type)}
                 <span>{STOCK_TYPE_LABELS[type]}</span>
-                <span className={`px-2 py-0.5 rounded-full text-xs ${isActive ? "bg-blue-200 text-blue-800" : "bg-gray-200 text-gray-600"}`}>
-                  {stockData.filter(item => {
-                    if (type === STOCK_TYPES.FRANCHISE) return item.owner_type === 'shop' && item.shop_type === 'franchise';
-                    if (type === STOCK_TYPES.OTHER_SHOP) return item.owner_type === 'shop' && item.shop_type !== 'franchise';
-                    if (type === STOCK_TYPES.GROW_TAG) return item.owner_type === 'grow_tag';
-                    return false;
-                  }).length}
+                <span
+                  className={`px-2 py-0.5 rounded-full text-xs ${isActive ? "bg-blue-200 text-blue-800" : "bg-gray-200 text-gray-600"}`}
+                >
+                  {
+                    stockData.filter((item) => {
+                      if (type === STOCK_TYPES.FRANCHISE)
+                        return (
+                          item.owner_type === "shop" &&
+                          item.shop_type === "franchise"
+                        );
+                      if (type === STOCK_TYPES.OTHER_SHOP)
+                        return (
+                          item.owner_type === "shop" &&
+                          item.shop_type !== "franchise"
+                        );
+                      if (type === STOCK_TYPES.GROW_TAG)
+                        return item.owner_type === "grow_tag";
+                      return false;
+                    }).length
+                  }
                 </span>
               </button>
             );
           })}
-        </div>
-      </div>
-    );
-  };
-
-  const StockStats = () => {
-    const inStock = filteredStock.filter((item) => parseFloat(item.qty_on_hand) > 10).length;
-    const lowStock = filteredStock.filter((item) => {
-      const qty = parseFloat(item.qty_on_hand);
-      return qty > 0 && qty <= 10;
-    }).length;
-    const outOfStock = filteredStock.filter((item) => parseFloat(item.qty_on_hand) === 0).length;
-
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white rounded-xl shadow-sm border p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Total Quantity</p>
-              <p className="text-2xl font-bold text-gray-900">{totalItems.toFixed(2)}</p>
-            </div>
-            <div className="p-3 bg-blue-100 rounded-lg">
-              <Package className="text-blue-600" size={24} />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">In Stock Items</p>
-              <p className="text-2xl font-bold text-green-600">{inStock}</p>
-            </div>
-            <div className="p-3 bg-green-100 rounded-lg">
-              <CheckCircle className="text-green-600" size={24} />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Low Stock Items</p>
-              <p className="text-2xl font-bold text-yellow-600">{lowStock}</p>
-            </div>
-            <div className="p-3 bg-yellow-100 rounded-lg">
-              <AlertCircle className="text-yellow-600" size={24} />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Out of Stock</p>
-              <p className="text-2xl font-bold text-red-600">{outOfStock}</p>
-            </div>
-            <div className="p-3 bg-red-100 rounded-lg">
-              <X className="text-red-600" size={24} />
-            </div>
-          </div>
         </div>
       </div>
     );
@@ -544,7 +628,9 @@ const Stock = () => {
             options={entityOptions}
             selectedValue={selectedEntity}
             onSelect={setSelectedEntity}
-            placeholder={STOCK_TYPE_LABELS[activeTab].split(' ')[0].toLowerCase()}
+            placeholder={STOCK_TYPE_LABELS[activeTab]
+              .split(" ")[0]
+              .toLowerCase()}
             icon={getEntityIcon()}
           />
 
@@ -556,17 +642,6 @@ const Stock = () => {
             placeholder="items"
             icon={Package}
           />
-
-          {/* Category Filter */}
-          <div className="flex items-center gap-2">
-            <Filter size={16} className="text-gray-500" />
-            <EnhancedDropdown
-              options={CATEGORIES.map((cat) => ({ value: cat.id, label: cat.name }))}
-              selectedValue={filterCategory}
-              onSelect={setFilterCategory}
-              placeholder="categories"
-            />
-          </div>
         </div>
       </div>
     );
@@ -587,74 +662,111 @@ const Stock = () => {
     return (
       <div className="bg-white rounded-xl shadow-lg border overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full text-center">
             <thead>
               <tr className="bg-gray-50 border-b">
-                <th className="py-4 px-4 text-left text-sm font-semibold text-gray-700">Item</th>
-                <th className="py-4 px-4 text-left text-sm font-semibold text-gray-700">SKU</th>
-                <th className="py-4 px-4 text-left text-sm font-semibold text-gray-700">{getEntityHeaderForTab(activeTab)}</th>
-                <th className="py-4 px-4 text-left text-sm font-semibold text-gray-700">Type</th>
-                <th className="py-4 px-4 text-left text-sm font-semibold text-gray-700">Qty On Hand</th>
-                <th className="py-4 px-4 text-left text-sm font-semibold text-gray-700">Reorder Level</th>
-                <th className="py-4 px-4 text-left text-sm font-semibold text-gray-700">Status</th>
-                <th className="py-4 px-4 text-left text-sm font-semibold text-gray-700">Last Updated</th>
-                <th className="py-4 px-4 text-center text-sm font-semibold text-gray-700">Actions</th>
+                <th className="py-4 px-4 text-sm font-semibold text-gray-700">
+                  Item
+                </th>
+                <th className="py-4 px-4 text-sm font-semibold text-gray-700">
+                  SKU
+                </th>
+                <th className="py-4 px-4 text-sm font-semibold text-gray-700">
+                  {getEntityHeaderForTab(activeTab)}
+                </th>
+                <th className="py-4 px-4 text-sm font-semibold text-gray-700">
+                  Type
+                </th>
+                <th className="py-4 px-4 text-sm font-semibold text-gray-700">
+                  Qty On Hand
+                </th>
+
+                <th className="py-4 px-4 text-sm font-semibold text-gray-700">
+                  Status
+                </th>
+                <th className="py-4 px-4 text-sm font-semibold text-gray-700">
+                  Last Updated
+                </th>
+                <th className="py-4 px-4 text-sm font-semibold text-gray-700">
+                  Actions
+                </th>
               </tr>
             </thead>
+
             <tbody>
               {filteredStock.length === 0 ? (
                 <tr>
-                  <td colSpan="9" className="text-center py-12">
+                  <td colSpan="8" className="text-center py-12">
                     <div className="flex flex-col items-center justify-center">
                       <Package size={48} className="text-gray-400 mb-3" />
-                      <p className="text-gray-600 text-lg font-medium">No stock items found</p>
-                      <p className="text-gray-500 text-sm mt-1">Try adjusting your filters</p>
+                      <p className="text-gray-600 text-lg font-medium">
+                        No stock items found
+                      </p>
+                      <p className="text-gray-500 text-sm mt-1">
+                        Try adjusting your filters
+                      </p>
                     </div>
                   </td>
                 </tr>
               ) : (
                 filteredStock.map((item) => {
-                  const status = getStockStatus(item.qty_on_hand);
+                  const status = getStockStatus(item.stock_status);
                   const qty = parseFloat(item.qty_on_hand) || 0;
-                  const reorderLevel = parseFloat(item.reorder_level) || 0;
 
                   return (
-                    <tr key={item.id} className="border-b hover:bg-gray-50 transition">
+                    <tr
+                      key={item.id}
+                      className="border-b hover:bg-gray-50 transition"
+                    >
                       <td className="py-4 px-4">
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center justify-center gap-3">
                           <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
                             <Package size={20} className="text-gray-400" />
                           </div>
-                          <span className="font-medium text-gray-900">{item.item_name || "N/A"}</span>
+                          <span className="font-medium text-gray-900">
+                            {item.item_name || "N/A"}
+                          </span>
                         </div>
                       </td>
+
                       <td className="py-4 px-4">
-                        <span className="text-sm text-gray-600">{item.item_sku || "N/A"}</span>
+                        <span className="text-sm text-gray-600">
+                          {item.item_sku || "N/A"}
+                        </span>
                       </td>
+
                       <td className="py-4 px-4">
-                        <span className="text-sm text-gray-700">{getItemEntityNameForTab(item, activeTab)}</span>
+                        <span className="text-sm text-gray-700">
+                          {getItemEntityNameForTab(item, activeTab)}
+                        </span>
                       </td>
+
                       <td className="py-4 px-4">
                         <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-medium">
                           {item.shop_type || "N/A"}
                         </span>
                       </td>
+
                       <td className="py-4 px-4">
-                        <span className="text-lg font-bold text-gray-900">{qty.toFixed(2)}</span>
+                        <span className="text-lg font-bold text-gray-900">
+                          {qty.toFixed(2)}
+                        </span>
                       </td>
+
                       <td className="py-4 px-4">
-                        <span className="text-sm text-gray-600">{reorderLevel.toFixed(2)}</span>
-                      </td>
-                      <td className="py-4 px-4">
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${status.bgColor} ${status.textColor}`}>
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-medium ${status.bgColor} ${status.textColor}`}
+                        >
                           {status.label}
                         </span>
                       </td>
+
                       <td className="py-4 px-4">
                         <span className="text-sm text-gray-600">
                           {new Date(item.updated_at).toLocaleDateString()}
                         </span>
                       </td>
+
                       <td className="py-4 px-4">
                         <div className="flex items-center justify-center gap-2">
                           <button
@@ -664,6 +776,7 @@ const Stock = () => {
                           >
                             <Eye size={16} />
                           </button>
+
                           <button
                             onClick={() => openAdjustmentModal(item, "add")}
                             className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition"
@@ -671,6 +784,7 @@ const Stock = () => {
                           >
                             <Plus size={16} />
                           </button>
+
                           <button
                             onClick={() => openAdjustmentModal(item, "remove")}
                             className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
@@ -708,23 +822,34 @@ const Stock = () => {
         {filteredStock.length === 0 ? (
           <div className="text-center py-10">
             <Package size={48} className="mx-auto mb-3 text-gray-400" />
-            <p className="text-gray-600 text-lg font-medium">No stock items found</p>
-            <p className="text-gray-500 text-sm mt-1">Try adjusting your filters</p>
+            <p className="text-gray-600 text-lg font-medium">
+              No stock items found
+            </p>
+            <p className="text-gray-500 text-sm mt-1">
+              Try adjusting your filters
+            </p>
           </div>
         ) : (
           filteredStock.map((item) => {
-            const status = getStockStatus(item.qty_on_hand);
+            const status = getStockStatus(item.stock_status);
             const qty = parseFloat(item.qty_on_hand) || 0;
 
             return (
-              <div key={item.id} className="bg-white rounded-xl shadow border p-4 space-y-4">
+              <div
+                key={item.id}
+                className="bg-white rounded-xl shadow border p-4 space-y-4"
+              >
                 <div className="flex items-start gap-3">
                   <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center">
                     <Package size={24} className="text-gray-400" />
                   </div>
                   <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900">{item.item_name || "N/A"}</h3>
-                    <p className="text-xs text-gray-500 mt-1">SKU: {item.item_sku || "N/A"}</p>
+                    <h3 className="font-semibold text-gray-900">
+                      {item.item_name || "N/A"}
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-1">
+                      SKU: {item.item_sku || "N/A"}
+                    </p>
                     <div className="mt-2">
                       <span className="inline-block px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs">
                         {item.shop_type || "N/A"}
@@ -735,20 +860,25 @@ const Stock = () => {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <p className="text-xs text-gray-500">{getEntityHeaderForTab(activeTab)}</p>
-                    <p className="text-sm text-gray-700 font-medium">{getItemEntityNameForTab(item, activeTab)}</p>
+                    <p className="text-xs text-gray-500">
+                      {getEntityHeaderForTab(activeTab)}
+                    </p>
+                    <p className="text-sm text-gray-700 font-medium">
+                      {getItemEntityNameForTab(item, activeTab)}
+                    </p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-500">Quantity</p>
-                    <p className="text-xl font-bold text-gray-900">{qty.toFixed(2)}</p>
+                    <p className="text-xl font-bold text-gray-900">
+                      {qty.toFixed(2)}
+                    </p>
                   </div>
-                  <div>
-                    <p className="text-xs text-gray-500">Reorder Level</p>
-                    <p className="text-sm font-medium text-gray-900">{parseFloat(item.reorder_level || 0).toFixed(2)}</p>
-                  </div>
+
                   <div>
                     <p className="text-xs text-gray-500">Status</p>
-                    <span className={`inline-block mt-1 px-3 py-1 rounded-full text-xs font-medium ${status.bgColor} ${status.textColor}`}>
+                    <span
+                      className={`inline-block mt-1 px-3 py-1 rounded-full text-xs font-medium ${status.bgColor} ${status.textColor}`}
+                    >
                       {status.label}
                     </span>
                   </div>
@@ -787,18 +917,31 @@ const Stock = () => {
 
     const isAdd = adjustmentModal.type === "add";
     const currentStock = parseFloat(adjustmentModal.item.qty_on_hand) || 0;
-    const newStock = isAdd ? currentStock + adjustmentModal.quantity : Math.max(0, currentStock - adjustmentModal.quantity);
+    const newStock = isAdd
+      ? currentStock + adjustmentModal.quantity
+      : Math.max(0, currentStock - adjustmentModal.quantity);
 
     return (
       <div className="fixed inset-0  bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-xl shadow-2xl max-w-md w-full">
-          <div className={`p-4 border-b ${isAdd ? "bg-green-50" : "bg-red-50"}`}>
+          <div
+            className={`p-4 border-b ${isAdd ? "bg-green-50" : "bg-red-50"}`}
+          >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                {isAdd ? <Plus className="text-green-600" size={24} /> : <Minus className="text-red-600" size={24} />}
-                <h2 className="text-lg font-semibold text-gray-900">{isAdd ? "Add" : "Remove"} Stock</h2>
+                {isAdd ? (
+                  <Plus className="text-green-600" size={24} />
+                ) : (
+                  <Minus className="text-red-600" size={24} />
+                )}
+                <h2 className="text-lg font-semibold text-gray-900">
+                  {isAdd ? "Add" : "Remove"} Stock
+                </h2>
               </div>
-              <button onClick={closeAdjustmentModal} className="text-gray-500 hover:text-gray-700">
+              <button
+                onClick={closeAdjustmentModal}
+                className="text-gray-500 hover:text-gray-700"
+              >
                 <X size={20} />
               </button>
             </div>
@@ -806,22 +949,34 @@ const Stock = () => {
 
           <div className="p-6 space-y-4">
             <div className="bg-gray-50 rounded-lg p-3">
-              <p className="text-sm font-medium text-gray-900">{adjustmentModal.item.item_name}</p>
+              <p className="text-sm font-medium text-gray-900">
+                {adjustmentModal.item.item_name}
+              </p>
               <p className="text-xs text-gray-500 mt-1">
-                SKU: {adjustmentModal.item.item_sku || "N/A"} | {getItemEntityNameForTab(adjustmentModal.item, activeTab)}
+                SKU: {adjustmentModal.item.item_sku || "N/A"} |{" "}
+                {getItemEntityNameForTab(adjustmentModal.item, activeTab)}
               </p>
             </div>
 
             <div className="flex items-center justify-between py-2">
               <span className="text-sm text-gray-600">Current Stock:</span>
-              <span className="text-lg font-bold text-gray-900">{currentStock.toFixed(2)} units</span>
+              <span className="text-lg font-bold text-gray-900">
+                {currentStock.toFixed(2)} units
+              </span>
             </div>
 
             <div>
-              <label className="text-sm font-medium text-gray-700 mb-2 block">Quantity to {isAdd ? "Add" : "Remove"}</label>
+              <label className="text-sm font-medium text-gray-700 mb-2 block">
+                Quantity to {isAdd ? "Add" : "Remove"}
+              </label>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setAdjustmentModal((prev) => ({ ...prev, quantity: Math.max(0, prev.quantity - 1) }))}
+                  onClick={() =>
+                    setAdjustmentModal((prev) => ({
+                      ...prev,
+                      quantity: Math.max(0, prev.quantity - 1),
+                    }))
+                  }
                   className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg"
                 >
                   <Minus size={16} />
@@ -831,12 +986,22 @@ const Stock = () => {
                   min="0"
                   step="0.01"
                   value={adjustmentModal.quantity}
-                  onChange={(e) => setAdjustmentModal((prev) => ({ ...prev, quantity: Math.max(0, parseFloat(e.target.value) || 0) }))}
+                  onChange={(e) =>
+                    setAdjustmentModal((prev) => ({
+                      ...prev,
+                      quantity: Math.max(0, parseFloat(e.target.value) || 0),
+                    }))
+                  }
                   className="flex-1 border-2 p-2 rounded-lg text-center text-lg font-semibold focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                   autoFocus
                 />
                 <button
-                  onClick={() => setAdjustmentModal((prev) => ({ ...prev, quantity: prev.quantity + 1 }))}
+                  onClick={() =>
+                    setAdjustmentModal((prev) => ({
+                      ...prev,
+                      quantity: prev.quantity + 1,
+                    }))
+                  }
                   className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg"
                 >
                   <Plus size={16} />
@@ -844,18 +1009,33 @@ const Stock = () => {
               </div>
             </div>
 
-            <div className={`p-3 rounded-lg ${isAdd ? "bg-green-50" : "bg-red-50"}`}>
+            <div
+              className={`p-3 rounded-lg ${isAdd ? "bg-green-50" : "bg-red-50"}`}
+            >
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-700">New Stock:</span>
-                <span className={`text-xl font-bold ${isAdd ? "text-green-600" : "text-red-600"}`}>{newStock.toFixed(2)} units</span>
+                <span className="text-sm font-medium text-gray-700">
+                  New Stock:
+                </span>
+                <span
+                  className={`text-xl font-bold ${isAdd ? "text-green-600" : "text-red-600"}`}
+                >
+                  {newStock.toFixed(2)} units
+                </span>
               </div>
             </div>
 
             <div>
-              <label className="text-sm font-medium text-gray-700 mb-2 block">Reason for Adjustment</label>
+              <label className="text-sm font-medium text-gray-700 mb-2 block">
+                Reason for Adjustment
+              </label>
               <textarea
                 value={adjustmentModal.reason}
-                onChange={(e) => setAdjustmentModal((prev) => ({ ...prev, reason: e.target.value }))}
+                onChange={(e) =>
+                  setAdjustmentModal((prev) => ({
+                    ...prev,
+                    reason: e.target.value,
+                  }))
+                }
                 placeholder="Enter reason for stock adjustment..."
                 className="w-full border-2 p-3 rounded-lg text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                 rows="3"
@@ -874,7 +1054,9 @@ const Stock = () => {
               onClick={handleAdjustStock}
               disabled={adjustmentModal.quantity === 0}
               className={`flex-1 px-4 py-2 text-white rounded-lg transition font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${
-                isAdd ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"
+                isAdd
+                  ? "bg-green-600 hover:bg-green-700"
+                  : "bg-red-600 hover:bg-red-700"
               }`}
             >
               <Save size={16} />
@@ -890,12 +1072,11 @@ const Stock = () => {
     if (!viewModal.isOpen || !viewModal.item) return null;
 
     const item = viewModal.item;
-    const status = getStockStatus(item.qty_on_hand);
+    const status = getStockStatus(item.stock_status);
     const qty = parseFloat(item.qty_on_hand) || 0;
-    const reorderLevel = parseFloat(item.reorder_level) || 0;
 
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
           <div className="p-4 border-b bg-blue-50 sticky top-0">
             <div className="flex items-center justify-between">
@@ -903,7 +1084,10 @@ const Stock = () => {
                 <Eye size={20} className="text-blue-600" />
                 Stock Details
               </h2>
-              <button onClick={closeViewModal} className="text-gray-500 hover:text-gray-700">
+              <button
+                onClick={closeViewModal}
+                className="text-gray-500 hover:text-gray-700"
+              >
                 <X size={20} />
               </button>
             </div>
@@ -915,13 +1099,19 @@ const Stock = () => {
                 <Package size={32} className="text-gray-400" />
               </div>
               <div className="flex-1">
-                <h3 className="text-xl font-bold text-gray-900">{item.item_name || "N/A"}</h3>
-                <p className="text-sm text-gray-500 mt-1">SKU: {item.item_sku || "N/A"}</p>
+                <h3 className="text-xl font-bold text-gray-900">
+                  {item.item_name || "N/A"}
+                </h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  SKU: {item.item_sku || "N/A"}
+                </p>
                 <div className="flex items-center gap-2 mt-2">
                   <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded text-xs font-medium">
                     {item.shop_type || "N/A"}
                   </span>
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${status.bgColor} ${status.textColor}`}>
+                  <span
+                    className={`px-3 py-1 rounded-full text-xs font-medium ${status.bgColor} ${status.textColor}`}
+                  >
                     {status.label}
                   </span>
                 </div>
@@ -929,19 +1119,27 @@ const Stock = () => {
             </div>
 
             <div className="bg-gray-50 rounded-lg p-4">
-              <h4 className="font-semibold text-gray-900 mb-2">Entity Information</h4>
+              <h4 className="font-semibold text-gray-900 mb-2">
+                Entity Information
+              </h4>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-gray-600">Entity Type</p>
-                  <p className="text-sm font-medium text-gray-900">{STOCK_TYPE_LABELS[activeTab]}</p>
+                  <p className="text-sm font-medium text-gray-900">
+                    {STOCK_TYPE_LABELS[activeTab]}
+                  </p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Entity Name</p>
-                  <p className="text-sm font-medium text-gray-900">{getItemEntityNameForTab(item, activeTab)}</p>
+                  <p className="text-sm font-medium text-gray-900">
+                    {getItemEntityNameForTab(item, activeTab)}
+                  </p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Owner Type</p>
-                  <p className="text-sm font-medium text-gray-900">{item.owner_type || "N/A"}</p>
+                  <p className="text-sm font-medium text-gray-900">
+                    {item.owner_type || "N/A"}
+                  </p>
                 </div>
               </div>
             </div>
@@ -950,19 +1148,16 @@ const Stock = () => {
               <div className="bg-gray-50 rounded-lg p-4">
                 <p className="text-sm text-gray-600">Quantity on Hand</p>
                 <p className="text-2xl font-bold text-gray-900 mt-1">
-                  {qty.toFixed(2)} <span className="text-sm text-gray-500">units</span>
-                </p>
-              </div>
-              <div className="bg-gray-50 rounded-lg p-4">
-                <p className="text-sm text-gray-600">Reorder Level</p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">
-                  {reorderLevel.toFixed(2)} <span className="text-sm text-gray-500">units</span>
+                  {qty.toFixed(2)}{" "}
+                  <span className="text-sm text-gray-500">units</span>
                 </p>
               </div>
             </div>
 
             <div className="border-t pt-4">
-              <h4 className="font-semibold text-gray-900 mb-3">Additional Information</h4>
+              <h4 className="font-semibold text-gray-900 mb-3">
+                Additional Information
+              </h4>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between py-2 border-b">
                   <span className="text-gray-600">Stock ID:</span>
@@ -970,11 +1165,15 @@ const Stock = () => {
                 </div>
                 <div className="flex justify-between py-2 border-b">
                   <span className="text-gray-600">Item ID:</span>
-                  <span className="font-medium text-gray-900">{item.item || "N/A"}</span>
+                  <span className="font-medium text-gray-900">
+                    {item.item || "N/A"}
+                  </span>
                 </div>
                 <div className="flex justify-between py-2 border-b">
                   <span className="text-gray-600">Shop ID:</span>
-                  <span className="font-medium text-gray-900">{item.shop || "N/A"}</span>
+                  <span className="font-medium text-gray-900">
+                    {item.shop || "N/A"}
+                  </span>
                 </div>
                 <div className="flex justify-between py-2 border-b">
                   <span className="text-gray-600">Last Updated:</span>
@@ -1022,16 +1221,20 @@ const Stock = () => {
               <Package size={24} />
             </div>
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-blue-700">Stock Management</h1>
-              <p className="text-sm md:text-base text-gray-600 mt-1">Monitor and adjust stock across all locations</p>
+              <h1 className="text-2xl md:text-3xl font-bold text-blue-700">
+                Stock Management
+              </h1>
+              <p className="text-sm md:text-base text-gray-600 mt-1">
+                Monitor and adjust stock across all locations
+              </p>
             </div>
           </div>
         </div>
 
         <TabNavigation />
-        <StockStats />
+        <StockStats stockSummary={stockSummary} />
         <FilterBar />
-        
+
         <div className="hidden md:block">
           <StockTable />
         </div>

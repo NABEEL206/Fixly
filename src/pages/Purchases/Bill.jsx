@@ -119,7 +119,7 @@ const PaymentModal = ({
   if (!selectedBill) return null;
 
   return (
-    <div className="fixed inset-0  bg-opacity-50 flex items-center justify-center p-4 z-[60]">
+    <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center p-4 z-[60]">
       <div className="bg-white rounded-xl w-full max-w-md shadow-2xl">
         {/* Modal Header */}
         <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-green-50 to-emerald-50">
@@ -325,7 +325,7 @@ const ViewBillModal = ({
   onPayment,
 }) => {
   return (
-    <div className="fixed inset-0  bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+    <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
       <div className="bg-white rounded-xl w-full max-w-5xl shadow-2xl my-8">
         {/* Modal Header */}
         <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50">
@@ -397,6 +397,62 @@ const ViewBillModal = ({
               </span>
             </div>
           </div>
+
+          {/* ===== NEW: Assigned Shop Information ===== */}
+          {(formData.assigned_shop || formData.assigned_shop_name) && (
+            <div className="mb-6">
+              <h5 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide flex items-center">
+                <Building size={16} className="mr-2" />
+                Assigned To
+              </h5>
+              <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg p-4 border border-purple-100">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 mb-1">
+                      Shop Name
+                    </p>
+                    <p className="text-sm text-gray-900 font-medium">
+                      {formData.assigned_shop_name || "N/A"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 mb-1">
+                      Shop Type
+                    </p>
+                    <span className="px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded-full">
+                      {formData.assigned_shop_type || "N/A"}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 mb-1">
+                      Shop ID
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      {formData.assigned_shop || "N/A"}
+                    </p>
+                  </div>
+                </div>
+                {formData.assigned_shop_type === "franchise" && (
+                  <div className="mt-3 pt-3 border-t border-purple-200">
+                    <p className="text-xs text-purple-600 flex items-center">
+                      <svg
+                        className="w-4 h-4 mr-1"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                      This is a franchise shop
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Owner Information */}
           <div className="mb-6">
@@ -830,6 +886,9 @@ const Bill = () => {
     owner_type: "shop",
     shop: null,
     growtag: null,
+    assigned_shop: null, // NEW
+    assigned_shop_name: "", // NEW
+    assigned_shop_type: "", // NEW
     status: "DRAFT",
     vendor: null,
     bill_number: "",
@@ -1143,7 +1202,7 @@ const Bill = () => {
     }
   };
 
-  // Fetch single bill details
+  // Fetch single bill details - UPDATED to include assigned shop fields
   const fetchBillDetails = async (id) => {
     try {
       // Check cache first
@@ -1189,6 +1248,9 @@ const Bill = () => {
         owner_type: bill?.owner_type || "shop",
         shop: bill?.shop || null,
         growtag: bill?.growtag || null,
+        assigned_shop: bill?.assigned_shop || null, // NEW
+        assigned_shop_name: bill?.assigned_shop_name || "", // NEW
+        assigned_shop_type: bill?.assigned_shop_type || "", // NEW
         status: bill?.status || "DRAFT",
         vendor: bill?.vendor || null,
         bill_number: bill?.bill_number || "",
@@ -1235,7 +1297,7 @@ const Bill = () => {
     }
   };
 
-  // Fetch bills from API
+  // Fetch bills from API - UPDATED to include assigned shop fields
   const fetchBills = async () => {
     setIsLoading(true);
 
@@ -1277,6 +1339,9 @@ const Bill = () => {
           owner_type: bill?.owner_type || "shop",
           shop: bill?.shop || null,
           growtag: bill?.growtag || null,
+          assigned_shop: bill?.assigned_shop || null, // NEW
+          assigned_shop_name: bill?.assigned_shop_name || "", // NEW
+          assigned_shop_type: bill?.assigned_shop_type || "", // NEW
           status: bill?.status || "DRAFT",
           vendor: bill?.vendor || null,
           bill_number: bill?.bill_number || "",
@@ -1902,7 +1967,6 @@ const Bill = () => {
         );
       }
     } finally {
-      // ✅ THIS FIXES THE STUCK LOADING
       setIsSubmitting(false);
     }
   };
@@ -1913,6 +1977,7 @@ const Bill = () => {
       owner_type: data.owner_type,
       shop: data.owner_type === "shop" ? data.shop : null,
       growtag: data.owner_type === "growtag" ? data.growtag : null,
+
       status: data.status,
       vendor: data.vendor,
       bill_number: data.bill_number,
@@ -1920,33 +1985,16 @@ const Bill = () => {
       bill_date: data.bill_date,
       due_date: data.due_date,
       payment_status: data.payment_status,
-      // Vendor snapshot fields
-      vendor_name: data.vendor_name,
-      vendor_email: data.vendor_email,
-      vendor_phone: data.vendor_phone,
-      vendor_gstin: data.vendor_gstin || "",
-      vendor_address: data.vendor_address,
-      // Shipping/Billing
-      ship_to: data.ship_to || "",
-      bill_to: data.bill_to,
-      // Items
-      items: data.items.map((item) => ({
-        item: item.item,
-        name: item.name,
-        description: item.description || "",
-        account: item.account || "Cost of Goods Sold",
-        qty: item.qty,
-        rate: item.rate,
-        tax_percent: item.tax_percent,
-        discount_percent: item.discount_percent,
-      })),
-      // Totals
-      tds_percent: data.tds_percent,
-      shipping_charges: data.shipping_charges,
-      adjustment: data.adjustment,
-      notes: data.notes || "",
-      terms_and_conditions: data.terms_and_conditions || "",
     };
+
+    // ✅ add assignment logic here
+    if (data.assign_type === "shop" && data.assign_id) {
+      apiData.assigned_shop = data.assign_id;
+    }
+
+    if (data.assign_type === "growtag" && data.assign_id) {
+      apiData.assigned_growtag = data.assign_id;
+    }
 
     return apiData;
   };
@@ -2002,6 +2050,9 @@ const Bill = () => {
         owner_type: newBill?.owner_type || "shop",
         shop: newBill?.shop || null,
         growtag: newBill?.growtag || null,
+        assigned_shop: newBill?.assigned_shop || null, // NEW
+        assigned_shop_name: newBill?.assigned_shop_name || "", // NEW
+        assigned_shop_type: newBill?.assigned_shop_type || "", // NEW
         status: newBill?.status || "DRAFT",
         vendor: newBill?.vendor || null,
         bill_number: newBill?.bill_number || "",
@@ -2136,6 +2187,9 @@ const Bill = () => {
         owner_type: updatedBill?.owner_type || "shop",
         shop: updatedBill?.shop || null,
         growtag: updatedBill?.growtag || null,
+        assigned_shop: updatedBill?.assigned_shop || null, // NEW
+        assigned_shop_name: updatedBill?.assigned_shop_name || "", // NEW
+        assigned_shop_type: updatedBill?.assigned_shop_type || "", // NEW
         status: updatedBill?.status || "DRAFT",
         vendor: updatedBill?.vendor || null,
         bill_number: updatedBill?.bill_number || "",
@@ -2457,6 +2511,10 @@ const Bill = () => {
       (bill.status?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
       (bill.payment_status?.toLowerCase() || "").includes(
         searchTerm.toLowerCase(),
+      ) ||
+      (bill.assigned_shop_name?.toLowerCase() || "").includes(
+        // NEW: Search by assigned shop
+        searchTerm.toLowerCase(),
       );
 
     const matchesStatus = !filterStatus || bill.status === filterStatus;
@@ -2581,7 +2639,7 @@ const Bill = () => {
                 />
                 <input
                   type="text"
-                  placeholder="Search by Bill Number, Vendor, Status..."
+                  placeholder="Search by Bill Number, Vendor, Assigned Shop, Status..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   disabled={isLoading}
@@ -2658,6 +2716,9 @@ const Bill = () => {
                     Vendor
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Assigned To {/* NEW: Assigned To column */}
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Bill Date
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -2684,7 +2745,7 @@ const Bill = () => {
                 {isLoading ? (
                   <tr>
                     <td
-                      colSpan="10"
+                      colSpan="11"
                       className="px-6 py-8 text-center text-gray-500"
                     >
                       <div className="flex items-center justify-center gap-2">
@@ -2696,7 +2757,7 @@ const Bill = () => {
                 ) : filteredBills.length === 0 ? (
                   <tr>
                     <td
-                      colSpan="10"
+                      colSpan="11"
                       className="px-6 py-8 text-center text-gray-500"
                     >
                       No bills found. Create your first one!
@@ -2721,6 +2782,25 @@ const Bill = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {bill.vendor_name || "N/A"}
+                      </td>
+                      {/* NEW: Assigned To column data */}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {bill.assigned_shop_name ? (
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">
+                              {bill.assigned_shop_name}
+                            </p>
+                            {bill.assigned_shop_type && (
+                              <span className="text-xs text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">
+                                {bill.assigned_shop_type}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-400">
+                            Not assigned
+                          </span>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {bill.bill_date}
@@ -2996,10 +3076,10 @@ const Bill = () => {
                         errors.shop ? "border-red-500" : "border-gray-300"
                       }`}
                     >
-                      <option value="">-- Select Shop --</option>
                       {shops.map((shop) => (
                         <option key={shop.id} value={shop.id}>
-                          {shop.shopname}
+                          {shop.shop_type === "franchise" ? "🏪" : "🏬"}{" "}
+                          {shop.shopname} ({shop.shop_type})
                         </option>
                       ))}
                     </select>

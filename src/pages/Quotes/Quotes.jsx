@@ -947,10 +947,6 @@ const Quotes = () => {
 
   const handleConvertToInvoice = async (quotation) => {
     try {
-      await axiosInstance.patch(`/zoho/quotations/${quotation.id}/`, {
-        status: "CONVERTED",
-      });
-
       const response = await axiosInstance.get(
         `/zoho/quotations/${quotation.id}/`,
       );
@@ -958,11 +954,14 @@ const Quotes = () => {
       const detailedQuote = response.data;
 
       navigate("/invoice", {
-        state: { quotationData: detailedQuote },
+        state: {
+          quotationData: detailedQuote,
+          quotationId: quotation.id,
+        },
       });
     } catch (error) {
       console.error("Convert error:", error);
-      toast.error("Failed to convert quotation");
+      toast.error("Failed to load quotation");
     }
   };
 

@@ -1216,6 +1216,7 @@ const Invoice = () => {
   const location = useLocation();
   const complaintData = location.state?.complaintData;
   const quotationData = location.state?.quotationData;
+  const [quotationId, setQuotationId] = useState(null);
 
   const [currentScreen, setCurrentScreen] = useState("list");
   const [editIndex, setEditIndex] = useState(null);
@@ -1287,6 +1288,12 @@ const Invoice = () => {
       toast.error("Please log in to view invoices");
     }
   }, []);
+
+  useEffect(() => {
+    if (location.state?.quotationId) {
+      setQuotationId(location.state.quotationId);
+    }
+  }, [location.state]);
 
   // Fetch data on mount
   useEffect(() => {
@@ -1369,18 +1376,16 @@ const Invoice = () => {
 
   // Generate invoice number
   const generateInvoiceNumber = () => {
-    const lastInvoice = invoices[0];
-    let lastNumber = 0;
+    if (!invoices || invoices.length === 0) return "INV-0001";
 
-    if (lastInvoice && lastInvoice.invoice_number) {
-      const match = lastInvoice.invoice_number.match(/INV-(\d+)/);
-      if (match) {
-        lastNumber = parseInt(match[1]);
-      }
-    }
+    const max = Math.max(
+      ...invoices.map((inv) => {
+        const match = inv.invoice_number?.match(/INV-(\d+)/);
+        return match ? parseInt(match[1], 10) : 0;
+      }),
+    );
 
-    const newNumber = (lastNumber + 1).toString().padStart(4, "0");
-    return `INV-${newNumber}`;
+    return `INV-${String(max + 1).padStart(4, "0")}`;
   };
 
   // Fetch invoices from API
@@ -1694,8 +1699,11 @@ const Invoice = () => {
   useEffect(() => {
     if (complaintData && customers.length > 0) {
       const customer = customers.find((c) => c.id === complaintData.customer);
+
       setInvoiceData((prev) => ({
         ...prev,
+        invoice_number: generateInvoiceNumber(),
+        invoice_date: new Date().toISOString().split("T")[0],
         customer: customer?.id || null,
         customer_phone: customer?.customer_phone || "",
         customer_email: customer?.email || "",
@@ -1703,14 +1711,23 @@ const Invoice = () => {
         customer_state: customer?.state || "Kerala",
         customer_city: customer?.area || customer?.city || "",
         customer_pincode: customer?.pincode || "",
+
+        // ⭐ ADD THIS
+        invoice_number: generateInvoiceNumber(),
+        invoice_date: new Date().toISOString().split("T")[0],
+        status: "SENT",
       }));
+
       setCurrentScreen("form");
       setEditIndex(null);
+
+      // ⭐ Prevent duplicate prefill
+      navigate(location.pathname, { replace: true });
     }
   }, [complaintData, customers]);
 
   useEffect(() => {
-    if (quotationData && customers.length > 0) {
+    if (quotationData && customers.length > 0 && invoices.length > 0) {
       const customer = customers.find((c) => c.id === quotationData.customer);
 
       const quoteItems = quotationData.items || quotationData.lines || [];
@@ -1768,10 +1785,9 @@ const Invoice = () => {
 
       toast.success("Quotation converted to invoice");
 
-      // ⭐ IMPORTANT FIX
       navigate(location.pathname, { replace: true });
     }
-  }, [quotationData, customers]);
+  }, [quotationData, customers, invoices]); // ⭐ FIX
 
   // Validate form
   const validateForm = () => {
@@ -1923,7 +1939,13 @@ const Invoice = () => {
           apiData,
         );
       } else {
-        await axiosInstance.post("/zoho/local-invoices/", apiData);
+        const res = await axiosInstance.post("/zoho/local-invoices/", apiData);
+
+        if (quotationId) {
+          await axiosInstance.patch(`/zoho/quotations/${quotationId}/`, {
+            status: "CONVERTED",
+          });
+        }
       }
 
       toast.success(
@@ -2348,6 +2370,11 @@ const Invoice = () => {
               )}
               <button
                 onClick={() => {
+                  if (!invoices.length) {
+                    toast.error("Invoices still loading...");
+                    return;
+                  }
+
                   setInvoiceData({
                     ...initialInvoiceState,
                     invoice_number: generateInvoiceNumber(),
@@ -2365,6 +2392,7 @@ const Invoice = () => {
                       },
                     ],
                   });
+
                   setCurrentScreen("form");
                 }}
                 className="w-full sm:w-auto bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2"
@@ -3029,11 +3057,33 @@ const Invoice = () => {
                 <table className="w-full border">
                   <thead className="bg-gray-100">
                     <tr>
-                      <th className="p-3 text-left">Date</th>
-                      <th className="p-3 text-left">Method</th>
-                      <th className="p-3 text-left">Reference</th>
-                      <th className="p-3 text-right">Amount</th>
-                      <th className="p-3 text-center">Receipt</th>
+                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600">
+                        Item
+                      </th>
+
+                      <th className="px-4 py-2 text-center text-xs font-semibold text-gray-600">
+                        Qty
+                      </th>
+
+                      <th className="px-4 py-2 text-center text-xs font-semibold text-gray-600">
+                        Rate (₹)
+                      </th>
+
+                      <th className="px-4 py-2 text-center text-xs font-semibold text-gray-600">
+                        Service Charge
+                      </th>
+
+                      <th className="px-4 py-2 text-center text-xs font-semibold text-gray-600">
+                        GST %
+                      </th>
+
+                      <th className="px-4 py-2 text-right text-xs font-semibold text-gray-600">
+                        Amount
+                      </th>
+
+                      <th className="px-4 py-2 text-center text-xs font-semibold text-gray-600">
+                        Action
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
