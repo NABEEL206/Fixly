@@ -1709,6 +1709,7 @@ export default function GrowTags() {
                 </div>
 
                 <div className="grid grid-cols-3 gap-2 pt-3">
+                  {/* VIEW */}
                   <button
                     onClick={() => handleView(u)}
                     className="flex flex-col items-center justify-center p-3 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
@@ -1716,20 +1717,28 @@ export default function GrowTags() {
                     <Eye size={20} />
                     <span className="text-xs mt-1 font-medium">View</span>
                   </button>
-                  <button
-                    onClick={() => handleEdit(u)}
-                    className="flex flex-col items-center justify-center p-3 bg-yellow-50 text-yellow-600 rounded-lg hover:bg-yellow-100 transition-colors"
-                  >
-                    <Edit size={20} />
-                    <span className="text-xs mt-1 font-medium">Edit</span>
-                  </button>
-                  <button
-                    onClick={() => handleDelete(u.id)}
-                    className="flex flex-col items-center justify-center p-3 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
-                  >
-                    <Trash2 size={20} />
-                    <span className="text-xs mt-1 font-medium">Delete</span>
-                  </button>
+
+                  {/* EDIT */}
+                  {canAccess(role, PERMISSIONS.growtags.edit) && (
+                    <button
+                      onClick={() => handleEdit(u)}
+                      className="flex flex-col items-center justify-center p-3 bg-yellow-50 text-yellow-600 rounded-lg hover:bg-yellow-100 transition-colors"
+                    >
+                      <Edit size={20} />
+                      <span className="text-xs mt-1 font-medium">Edit</span>
+                    </button>
+                  )}
+
+                  {/* DELETE */}
+                  {canAccess(role, PERMISSIONS.growtags.delete) && (
+                    <button
+                      onClick={() => handleDelete(u.id)}
+                      className="flex flex-col items-center justify-center p-3 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
+                    >
+                      <Trash2 size={20} />
+                      <span className="text-xs mt-1 font-medium">Delete</span>
+                    </button>
+                  )}
                 </div>
               </div>
             ))
@@ -1744,17 +1753,19 @@ export default function GrowTags() {
                   ? "Try adjusting your search or filter criteria"
                   : "Get started by adding a new grow tag"}
               </p>
-              {!searchQuery && filterType === "all" && (
-                <button
-                  onClick={() => {
-                    resetForm();
-                    setShowFormModal(true);
-                  }}
-                  className="bg-blue-600 text-white px-6 py-2.5 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-                >
-                  + Add Your First Grow Tag
-                </button>
-              )}
+              {!searchQuery &&
+                filterType === "all" &&
+                canAccess(role, PERMISSIONS.growtags.create) && (
+                  <button
+                    onClick={() => {
+                      resetForm();
+                      setShowFormModal(true);
+                    }}
+                    className="bg-blue-600 text-white px-6 py-2.5 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                  >
+                    + Add Your First Grow Tag
+                  </button>
+                )}
             </div>
           )}
         </div>

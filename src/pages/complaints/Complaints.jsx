@@ -635,6 +635,7 @@ export default function Complaints() {
       );
       return;
     }
+
     if (
       !validateEmail(email) ||
       !validateMobile(mobile) ||
@@ -643,28 +644,32 @@ export default function Complaints() {
       toast.error("Please correct the highlighted form errors.");
       return;
     }
+
     if (!area) {
       toast.error("Please select an Area after entering the Pincode.");
       return;
     }
 
-    // Map frontend assignedType to API value
-    let assignTypeAPI = assignedType;
-    let fkFieldName = null;
-    let assignedID = "";
+    // Check if nearest options are loaded
+    if (assignedType === "franchise" && franchises.length === 0) {
+      toast.error(
+        "No franchise shops available for this area. Please try another area or pincode.",
+      );
+      return;
+    }
 
-    if (assignedType === "franchise") {
-      assignedID = selectedShopId;
-      fkFieldName = "assigned_shop";
-      assignTypeAPI = "franchise";
-    } else if (assignedType === "other_shops") {
-      assignedID = selectedShopId;
-      fkFieldName = "assigned_shop";
-      assignTypeAPI = "othershop";
-    } else if (assignedType === "growtag") {
-      assignedID = selectedGrowTagId;
-      fkFieldName = "assigned_Growtags";
-      assignTypeAPI = "growtag";
+    if (assignedType === "other_shops" && otherShops.length === 0) {
+      toast.error(
+        "No other shops available for this area. Please try another area or pincode.",
+      );
+      return;
+    }
+
+    if (assignedType === "growtag" && availableTags.length === 0) {
+      toast.error(
+        "No grow tags available for this area. Please try another area or pincode.",
+      );
+      return;
     }
 
     // Prepare complaint data
@@ -679,8 +684,20 @@ export default function Complaints() {
       pincode,
       area,
       status,
-      assign_to: assignTypeAPI,
     };
+
+    // Handle assignment based on type
+    if (assignedType === "franchise") {
+      complaintData.assign_to = "franchise";
+      complaintData.assigned_shop = parseInt(selectedShopId, 10);
+      // Don't include other assignment fields
+    } else if (assignedType === "other_shops") {
+      complaintData.assign_to = "othershop"; // Note: API expects "othershop" not "other_shops"
+      complaintData.assigned_shop = parseInt(selectedShopId, 10);
+    } else if (assignedType === "growtag") {
+      complaintData.assign_to = "growtag";
+      complaintData.assigned_Growtags = parseInt(selectedGrowTagId, 10);
+    }
 
     // Handle customer and password based on context
     if (!isEdit) {
@@ -699,9 +716,6 @@ export default function Complaints() {
       }
       // Never include password during edit
     }
-
-    if (fkFieldName && assignedID)
-      complaintData[fkFieldName] = parseInt(assignedID, 10);
 
     console.log("Submitting complaint data:", complaintData);
 
@@ -758,6 +772,15 @@ export default function Complaints() {
               ? validationErrors[key].join(", ")
               : validationErrors[key];
             errorMessages.push(`${key}: ${messages}`);
+
+            // Special handling for assignment errors
+            if (
+              key.includes("assign") ||
+              key.includes("shop") ||
+              key.includes("growtag")
+            ) {
+              setAssignError(true);
+            }
           });
           errorMessage = errorMessages.join(" | ");
 
@@ -771,6 +794,9 @@ export default function Complaints() {
                 phone_model: "model",
                 issue_details: "issue",
                 address: "addressLine",
+                assigned_shop: "assignment",
+                assigned_Growtags: "assignment",
+                assign_to: "assignment",
               };
               const formField = fieldMap[key] || key;
               acc[formField] = Array.isArray(validationErrors[key])

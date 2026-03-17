@@ -123,9 +123,9 @@ export const PERMISSIONS = {
   },
 
   quotes: {
-    view: [ROLES.ADMIN],
-    create: [ROLES.ADMIN],
-    edit: [ROLES.ADMIN],
+    view: [ROLES.ADMIN, ROLES.FRANCHISE, ROLES.OTHERSHOP],
+    create: [ROLES.ADMIN, ROLES.FRANCHISE, ROLES.OTHERSHOP],
+    edit: [ROLES.ADMIN, ROLES.FRANCHISE, ROLES.OTHERSHOP],
     delete: [ROLES.ADMIN],
   },
 

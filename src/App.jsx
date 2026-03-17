@@ -167,7 +167,7 @@ export default function App() {
           <Route
             path="/items"
             element={
-              <ProtectedRoute allowedRoles={["ADMIN"]}>
+              <ProtectedRoute allowedRoles={["ADMIN","FRANCHISE", "OTHERSHOP", "GROWTAG"]}>
                 <Items />
               </ProtectedRoute>
             }
@@ -239,7 +239,7 @@ export default function App() {
           <Route
            path="/quotes"
            element={
-            <ProtectedRoute allowedRoles={["ADMIN"]}>
+            <ProtectedRoute allowedRoles={["ADMIN","FRANCHISE", "OTHERSHOP"]}>
               <Quotes/>
             </ProtectedRoute>
            }

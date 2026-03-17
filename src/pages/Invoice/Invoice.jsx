@@ -1726,7 +1726,7 @@ const Invoice = () => {
       // ⭐ Prevent duplicate prefill
       navigate(location.pathname, { replace: true });
     }
-  }, [complaintData, customers]);
+  }, [complaintData, customers, invoices]);
 
   useEffect(() => {
     if (quotationData && customers.length > 0 && invoices.length > 0) {

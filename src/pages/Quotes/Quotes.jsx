@@ -21,6 +21,9 @@ import {
 import toast from "react-hot-toast";
 import axiosInstance from "@/API/axiosInstance";
 import { useNavigate } from "react-router-dom";
+import { PERMISSIONS } from "@/config/permissions";
+import { canAccess } from "@/utils/canAccess";
+import { useAuth } from "@/auth/AuthContext";
 
 const STATUS_OPTIONS = [
   { value: "DRAFT", label: "Draft" },
@@ -147,6 +150,20 @@ const Quotes = () => {
     grand_total: 0,
     status: "DRAFT",
   });
+  const { user } = useAuth();
+  const role = user?.role;
+
+  const canView = canAccess(role, PERMISSIONS.quotes.view);
+  const canCreate = canAccess(role, PERMISSIONS.quotes.create);
+  const canEdit = canAccess(role, PERMISSIONS.quotes.edit);
+  const canDelete = canAccess(role, PERMISSIONS.quotes.delete);
+  if (!canView) {
+    return (
+      <div className="p-10 text-center text-red-500 font-semibold">
+        You do not have permission to access Quotations
+      </div>
+    );
+  }
 
   // Determine tax treatment based on place of supply vs company state
   const getTaxTreatment = (placeOfSupply) => {
@@ -756,12 +773,24 @@ const Quotes = () => {
   };
 
   const handleSaveQuotation = async () => {
+    // 🔐 PERMISSION CHECK
+    if (formMode === "add" && !canCreate) {
+      toast.error("No permission to create quotation");
+      return;
+    }
+
+    if (formMode === "edit" && !canEdit) {
+      toast.error("No permission to update quotation");
+      return;
+    }
+
     if (!validateForm()) {
       toast.error("Please fill all required fields");
       return;
     }
 
     setIsSubmitting(true);
+
     const loadingToast = toast.loading(
       formMode === "add" ? "Creating quotation..." : "Updating quotation...",
     );
@@ -825,13 +854,20 @@ const Quotes = () => {
 
       if (!error.response) return;
 
-      toast.error(error.response?.data?.detail || "Error saving quotation");
+      toast.error(error.response?.data?.detail || "Error saving quotation", {
+        id: loadingToast,
+      });
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleDeleteQuotation = (id) => {
+    if (!canDelete) {
+      toast.error("No permission to delete");
+      return;
+    }
+
     toast(
       (t) => (
         <div className="flex flex-col gap-3">
@@ -839,13 +875,15 @@ const Quotes = () => {
             Delete Quotation?
           </p>
           <p className="text-xs text-gray-500">This action cannot be undone.</p>
+
           <div className="flex justify-end gap-2">
             <button
               onClick={() => toast.dismiss(t.id)}
-              className="px-3 py-1.5 bg-gray-200 rounded-md text-sm hover:bg-gray-300 transition-colors"
+              className="px-3 py-1.5 bg-gray-200 rounded-md text-sm hover:bg-gray-300"
             >
               Cancel
             </button>
+
             <button
               onClick={async () => {
                 toast.dismiss(t.id);
@@ -853,8 +891,6 @@ const Quotes = () => {
 
                 try {
                   await axiosInstance.delete(`/zoho/quotations/${id}/`);
-
-                  // refresh list from API
                   await fetchQuotations();
 
                   toast.success("Quotation deleted successfully", {
@@ -865,10 +901,12 @@ const Quotes = () => {
 
                   if (!error.response) return;
 
-                  toast.error("Error deleting quotation", { id: loadingToast });
+                  toast.error("Error deleting quotation", {
+                    id: loadingToast,
+                  });
                 }
               }}
-              className="px-3 py-1.5 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 transition-colors"
+              className="px-3 py-1.5 bg-red-600 text-white rounded-md text-sm hover:bg-red-700"
             >
               Delete
             </button>
@@ -880,6 +918,11 @@ const Quotes = () => {
   };
 
   const handleBulkDelete = () => {
+    if (!canDelete) {
+      toast.error("No permission for bulk delete");
+      return;
+    }
+
     if (selectedQuotes.length === 0) {
       toast.error("No quotations selected");
       return;
@@ -896,7 +939,7 @@ const Quotes = () => {
           <div className="flex justify-end gap-2">
             <button
               onClick={() => toast.dismiss(t.id)}
-              className="px-3 py-1.5 bg-gray-200 rounded-md text-sm hover:bg-gray-300 transition-colors"
+              className="px-3 py-1.5 bg-gray-200 rounded-md text-sm hover:bg-gray-300"
             >
               Cancel
             </button>
@@ -934,7 +977,7 @@ const Quotes = () => {
                   });
                 }
               }}
-              className="px-3 py-1.5 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 transition-colors"
+              className="px-3 py-1.5 bg-red-600 text-white rounded-md text-sm hover:bg-red-700"
             >
               Delete
             </button>
@@ -991,6 +1034,11 @@ const Quotes = () => {
   };
 
   const handleNewQuotation = () => {
+    if (!canCreate) {
+      toast.error("No permission to create quotation");
+      return;
+    }
+
     setFormMode("add");
     resetForm();
     generateQuoteNumber();
@@ -998,6 +1046,11 @@ const Quotes = () => {
   };
 
   const handleEditQuotation = async (quotation) => {
+    if (!canEdit) {
+      toast.error("No permission to edit quotation");
+      return;
+    }
+
     setFormMode("edit");
     setIsFetchingDetails(true);
 
@@ -1012,6 +1065,11 @@ const Quotes = () => {
   };
 
   const handleViewQuotation = async (quotation) => {
+    if (!canView) {
+      toast.error("No permission to view");
+      return;
+    }
+
     setFormMode("view");
     setIsFetchingDetails(true);
 
@@ -1139,26 +1197,30 @@ const Quotes = () => {
           <div className="mb-6">
             <div className="flex justify-between items-center">
               <h1 className="text-3xl font-bold text-gray-800">Quotations</h1>
-              <div className="flex gap-3">
-                {selectedQuotes.length > 0 && (
-                  <button
-                    onClick={handleBulkDelete}
-                    disabled={loading || isFetchingDetails}
-                    className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Trash2 size={20} />
-                    Delete Selected ({selectedQuotes.length})
-                  </button>
-                )}
-                <button
-                  onClick={handleNewQuotation}
-                  disabled={loading || isFetchingDetails}
-                  className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Plus size={20} />
-                  New Quotation
-                </button>
-              </div>
+
+              {(canCreate || (canDelete && selectedQuotes.length > 0)) && (
+                <div className="flex gap-3">
+                  {/* BULK DELETE */}
+                  {canDelete && selectedQuotes.length > 0 && (
+                    <button
+                      onClick={handleBulkDelete}
+                      className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 text-sm font-medium"
+                    >
+                      Delete Selected ({selectedQuotes.length})
+                    </button>
+                  )}
+
+                  {/* CREATE */}
+                  {canCreate && (
+                    <button
+                      onClick={handleNewQuotation}
+                      className="bg-blue-600 text-white px-5 py-2.5 rounded-lg hover:bg-blue-700 transition text-sm font-medium"
+                    >
+                      + New Quotation
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -1216,15 +1278,17 @@ const Quotes = () => {
               <table className="w-full">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-4 py-3 text-left">
-                      <input
-                        type="checkbox"
-                        checked={selectAll}
-                        onChange={handleSelectAll}
-                        disabled={loading || currentItems.length === 0}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
-                      />
-                    </th>
+                    {canDelete && (
+                      <th className="px-4 py-3 text-left">
+                        <input
+                          type="checkbox"
+                          checked={selectAll}
+                          onChange={handleSelectAll}
+                          disabled={loading || currentItems.length === 0}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
+                        />
+                      </th>
+                    )}
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Date
                     </th>
@@ -1318,40 +1382,54 @@ const Quotes = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
                           <div className="flex gap-2">
-                            <button
-                              onClick={() => handleViewQuotation(quotation)}
-                              className="text-blue-600 hover:text-blue-800 p-1.5 hover:bg-blue-50 rounded"
-                            >
-                              <Eye size={18} />
-                            </button>
+                            {/* VIEW */}
+                            {canView && (
+                              <button
+                                onClick={() => handleViewQuotation(quotation)}
+                                className="text-blue-600 hover:text-blue-800 p-1.5 hover:bg-blue-50 rounded"
+                              >
+                                <Eye size={18} />
+                              </button>
+                            )}
 
-                            <button
-                              onClick={() => handleEditQuotation(quotation)}
-                              className="text-green-600 hover:text-green-800 p-1.5 hover:bg-green-50 rounded"
-                            >
-                              <Edit size={18} />
-                            </button>
+                            {/* EDIT */}
+                            {canEdit && (
+                              <button
+                                onClick={() => handleEditQuotation(quotation)}
+                                className="text-green-600 hover:text-green-800 p-1.5 hover:bg-green-50 rounded"
+                              >
+                                <Edit size={18} />
+                              </button>
+                            )}
 
-                            <button
-                              onClick={() => handleDownloadPDF(quotation.id)}
-                              className="text-indigo-600 hover:text-indigo-800 p-1.5 hover:bg-indigo-50 rounded"
-                            >
-                              <FileText size={18} />
-                            </button>
+                            {/* PDF */}
+                            {canView && (
+                              <button
+                                onClick={() => handleDownloadPDF(quotation.id)}
+                                className="text-indigo-600 hover:text-indigo-800 p-1.5 hover:bg-indigo-50 rounded"
+                              >
+                                <FileText size={18} />
+                              </button>
+                            )}
 
-                            <button
-                              onClick={() =>
-                                handleDeleteQuotation(quotation.id)
-                              }
-                              className="text-red-600 hover:text-red-800 p-1.5 hover:bg-red-50 rounded"
-                            >
-                              <Trash2 size={18} />
-                            </button>
+                            {/* DELETE → ADMIN ONLY */}
+                            {canDelete && (
+                              <button
+                                onClick={() =>
+                                  handleDeleteQuotation(quotation.id)
+                                }
+                                className="text-red-600 hover:text-red-800 p-1.5 hover:bg-red-50 rounded"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            )}
+
+                            {/* CONVERT */}
                             {quotation.status === "CONVERTED" ? (
                               <span className="px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded-full">
                                 Converted
                               </span>
-                            ) : quotation.status === "ACCEPTED" ? (
+                            ) : quotation.status === "ACCEPTED" && canCreate ? (
                               <button
                                 onClick={() =>
                                   handleConvertToInvoice(quotation)
@@ -2261,7 +2339,7 @@ const Quotes = () => {
           {/* Form Footer */}
           <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-between items-center">
             <div>
-              {formMode === "view" && (
+              {formMode === "view" && canEdit && (
                 <button
                   onClick={() => setFormMode("edit")}
                   disabled={isSubmitting}

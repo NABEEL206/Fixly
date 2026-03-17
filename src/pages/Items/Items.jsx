@@ -23,6 +23,31 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import axiosInstance from "@/API/axiosInstance";
+import { PERMISSIONS } from "@/config/permissions";
+import { canAccess } from "@/utils/canAccess";
+import { useAuth } from "@/auth/AuthContext";
+// 🔐 FIX AUTH HEADER (ADD THIS HERE)
+const getCorrectAuthHeader = () => {
+  const token = localStorage.getItem("access_token");
+  const tokenType = localStorage.getItem("token_type");
+
+  if (!token) return null;
+
+  return `${tokenType === "Token" ? "Token" : "Bearer"} ${token}`;
+};
+
+// 🔁 WRAPPER FOR REQUESTS (ADD THIS HERE)
+const authRequest = (config = {}) => {
+  const authHeader = getCorrectAuthHeader();
+
+  return {
+    ...config,
+    headers: {
+      ...(config.headers || {}),
+      ...(authHeader && { Authorization: authHeader }),
+    },
+  };
+};
 
 // ==================== CONSTANTS ====================
 const ITEMS_API_URL = "/zoho/local-items/";
@@ -165,13 +190,28 @@ export default function Items() {
     preferred_vendor: "",
     is_active: true,
   });
+  const { user } = useAuth();
+  const role = user?.role;
+
+  const canView = canAccess(role, PERMISSIONS.items.view);
+  const canCreate = canAccess(role, PERMISSIONS.items.create);
+  const canEdit = canAccess(role, PERMISSIONS.items.edit);
+  const canDelete = canAccess(role, PERMISSIONS.items.delete);
+
+  if (!canView) {
+    return (
+      <div className="p-10 text-center text-red-500 font-semibold">
+        You do not have permission to access Items
+      </div>
+    );
+  }
 
   // ==================== DATA FETCHING ====================
   const fetchItems = async () => {
     setLoading(true);
 
     try {
-      const response = await axiosInstance.get(ITEMS_API_URL);
+      const response = await axiosInstance.get(ITEMS_API_URL, authRequest());
       const itemsData = response.data?.results || response.data || [];
       setItems(itemsData);
     } catch (error) {
@@ -390,6 +430,10 @@ export default function Items() {
   // ==================== FORM SUBMISSION ====================
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!canCreate && !canEdit) {
+      toast.error("You don't have permission");
+      return;
+    }
 
     const validationErrors = validateForm();
     if (Object.keys(validationErrors).length > 0) {
@@ -433,13 +477,21 @@ export default function Items() {
       const url = ITEMS_API_URL;
 
       if (isEdit && editId) {
-        response = await axiosInstance.patch(`${url}${editId}/`, formData, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
+        response = await axiosInstance.patch(
+          `${url}${editId}/`,
+          formData,
+          authRequest({
+            headers: { "Content-Type": "multipart/form-data" },
+          }),
+        );
       } else {
-        response = await axiosInstance.post(url, formData, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
+        response = await axiosInstance.post(
+          url,
+          formData,
+          authRequest({
+            headers: { "Content-Type": "multipart/form-data" },
+          }),
+        );
       }
 
       if (response.data) {
@@ -553,6 +605,10 @@ export default function Items() {
   };
 
   const handleDelete = (id, itemName) => {
+    if (!canDelete) {
+      toast.error("No permission to delete");
+      return;
+    }
     toast(
       (t) => (
         <div className="flex flex-col gap-3">
@@ -572,7 +628,10 @@ export default function Items() {
                 toast.dismiss(t.id);
                 const toastId = toast.loading(`Deleting "${itemName}"...`);
                 try {
-                  await axiosInstance.delete(`${ITEMS_API_URL}${id}/`);
+                  await axiosInstance.delete(
+                    `${ITEMS_API_URL}${id}/`,
+                    authRequest(),
+                  );
                   setItems((prev) => prev.filter((item) => item.id !== id));
                   setSelectedItems((prev) =>
                     prev.filter((itemId) => itemId !== id),
@@ -614,6 +673,11 @@ export default function Items() {
   };
 
   const handleBulkDelete = () => {
+    if (!canDelete) {
+      toast.error("No permission to delete");
+      return;
+    }
+
     if (selectedItems.length === 0) {
       toast.error("Please select at least one item to delete.");
       return;
@@ -643,7 +707,10 @@ export default function Items() {
                 try {
                   const results = await Promise.allSettled(
                     selectedItems.map((id) =>
-                      axiosInstance.delete(`${ITEMS_API_URL}${id}/`),
+                      axiosInstance.delete(
+                        `${ITEMS_API_URL}${id}/`,
+                        authRequest(),
+                      ),
                     ),
                   );
 
@@ -703,6 +770,7 @@ export default function Items() {
       const response = await axiosInstance.post(
         `${ITEMS_API_URL}${id}/sync-to-zoho/`,
         {},
+        authRequest(),
       );
 
       if (response.data.success) {
@@ -790,21 +858,30 @@ export default function Items() {
   // ==================== ACTION BUTTONS ====================
   const ActionButtons = ({ item }) => (
     <div className="flex items-center gap-2">
-      <button
-        onClick={() => handleView(item)}
-        className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
-        title="View Details"
-      >
-        <Eye size={18} />
-      </button>
-      <button
-        onClick={() => handleEdit(item)}
-        className="p-2 rounded-lg bg-yellow-50 text-yellow-600 hover:bg-yellow-100 transition-colors"
-        title="Edit Item"
-      >
-        <Edit3 size={18} />
-      </button>
-      {!item.zoho_item_id && (
+      {/* VIEW */}
+      {canView && (
+        <button
+          onClick={() => handleView(item)}
+          className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
+          title="View Details"
+        >
+          <Eye size={18} />
+        </button>
+      )}
+
+      {/* EDIT */}
+      {canEdit && (
+        <button
+          onClick={() => handleEdit(item)}
+          className="p-2 rounded-lg bg-yellow-50 text-yellow-600 hover:bg-yellow-100 transition-colors"
+          title="Edit Item"
+        >
+          <Edit3 size={18} />
+        </button>
+      )}
+
+      {/* SYNC */}
+      {canEdit && !item.zoho_item_id && (
         <button
           onClick={() => handleSyncToZoho(item.id)}
           disabled={syncStatus[item.id] === "syncing"}
@@ -822,13 +899,17 @@ export default function Items() {
           )}
         </button>
       )}
-      <button
-        onClick={() => handleDelete(item.id, item.name)}
-        className="p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
-        title="Delete Item"
-      >
-        <Trash2 size={18} />
-      </button>
+
+      {/* DELETE */}
+      {canDelete && (
+        <button
+          onClick={() => handleDelete(item.id, item.name)}
+          className="p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+          title="Delete Item"
+        >
+          <Trash2 size={18} />
+        </button>
+      )}
     </div>
   );
 
@@ -836,7 +917,7 @@ export default function Items() {
   const ItemsTable = () => (
     <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
       {/* Bulk Delete Bar */}
-      {selectedItems.length > 0 && (
+      {selectedItems.length > 0 && canDelete && (
         <div className="px-6 py-4 bg-red-50 border-b border-red-200 flex items-center justify-between">
           <span className="text-sm font-medium text-red-700">
             {selectedItems.length} item{selectedItems.length > 1 ? "s" : ""}{" "}
@@ -916,7 +997,7 @@ export default function Items() {
                         Clear all filters
                       </button>
                     )}
-                    {items.length === 0 && (
+                    {items.length === 0 && canCreate && (
                       <button
                         onClick={() => setCurrentPage("form")}
                         className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700"
@@ -1803,13 +1884,15 @@ export default function Items() {
 
           <div className="flex items-center gap-3">
             <SearchInput value={searchTerm} onChange={setSearchTerm} />
-            <button
-              onClick={() => setCurrentPage("form")}
-              className="px-5 py-2.5 bg-blue-600 text-white rounded-lg flex items-center gap-2 text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm whitespace-nowrap"
-            >
-              <PlusCircle size={18} />
-              Add New Item
-            </button>
+            {canCreate && (
+              <button
+                onClick={() => setCurrentPage("form")}
+                className="px-5 py-2.5 bg-blue-600 text-white rounded-lg flex items-center gap-2 text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm whitespace-nowrap"
+              >
+                <PlusCircle size={18} />
+                Add New Item
+              </button>
+            )}
           </div>
         </div>
 

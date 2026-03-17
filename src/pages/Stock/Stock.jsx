@@ -17,6 +17,9 @@ import {
   User,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { PERMISSIONS } from "@/config/permissions";
+import { canAccess } from "@/utils/canAccess";
+import { useAuth } from "@/auth/AuthContext";
 
 // Stock Location Types
 const STOCK_TYPES = {
@@ -29,6 +32,25 @@ const STOCK_TYPE_LABELS = {
   franchise: "Franchise Stock",
   other_shop: "Other Shop Stock",
   grow_tag: "Grow Tag Stock",
+};
+
+// Toast helper
+const showError = (error, defaultMessage = "An error occurred") => {
+  return error.response?.data?.message || defaultMessage;
+};
+
+// Reusable filter helper
+const filterByTab = (item, tabType) => {
+  switch (tabType) {
+    case STOCK_TYPES.FRANCHISE:
+      return item.owner_type === "shop" && item.shop_type === "franchise";
+    case STOCK_TYPES.OTHER_SHOP:
+      return item.owner_type === "shop" && item.shop_type !== "franchise";
+    case STOCK_TYPES.GROW_TAG:
+      return item.owner_type === "grow_tag";
+    default:
+      return false;
+  }
 };
 
 // Helper functions for entity names and headers
@@ -66,21 +88,18 @@ const getStockStatus = (status) => {
         bgColor: "bg-green-100",
         textColor: "text-green-800",
       };
-
     case "LOW_STOCK":
       return {
         label: "Low Stock",
         bgColor: "bg-yellow-100",
         textColor: "text-yellow-800",
       };
-
     case "OUT_OF_STOCK":
       return {
         label: "Out of Stock",
         bgColor: "bg-red-100",
         textColor: "text-red-800",
       };
-
     default:
       return {
         label: "Unknown",
@@ -88,64 +107,6 @@ const getStockStatus = (status) => {
         textColor: "text-gray-800",
       };
   }
-};
-
-// Get unique franchises from API data
-const getUniqueFranchises = (data) => {
-  const franchises = new Set();
-  data
-    .filter(
-      (item) => item.owner_type === "shop" && item.shop_type === "franchise",
-    )
-    .forEach((item) => {
-      if (item.shop_name) {
-        franchises.add(
-          JSON.stringify({
-            value: item.shop?.toString(),
-            label: item.shop_name,
-          }),
-        );
-      }
-    });
-  return Array.from(franchises).map((f) => JSON.parse(f));
-};
-
-// Get unique shops from API data
-const getUniqueShops = (data) => {
-  const shops = new Set();
-  data
-    .filter(
-      (item) => item.owner_type === "shop" && item.shop_type !== "franchise",
-    )
-    .forEach((item) => {
-      if (item.shop_name) {
-        shops.add(
-          JSON.stringify({
-            value: item.shop?.toString(),
-            label: item.shop_name,
-          }),
-        );
-      }
-    });
-  return Array.from(shops).map((s) => JSON.parse(s));
-};
-
-// Get unique grow tags from API data
-const getUniqueGrowTags = (data) => {
-  const growTags = new Set();
-  data
-    .filter((item) => item.owner_type === "grow_tag")
-    .forEach((item) => {
-      if (item.growtag) {
-        growTags.add(
-          JSON.stringify({
-            value: item.growtag?.toString(),
-            label: item.growtag,
-          }),
-        );
-      }
-    });
-  return Array.from(growTags).map((g) => JSON.parse(g));
 };
 
 // Get unique items from API data
@@ -162,6 +123,42 @@ const getUniqueItems = (data) => {
     }
   });
   return Array.from(items).map((item) => JSON.parse(item));
+};
+
+// Unified function to get unique entities based on tab type
+const getUniqueEntities = (data, tabType) => {
+  const entities = new Set();
+
+  data
+    .filter((item) => filterByTab(item, tabType))
+    .forEach((item) => {
+      let entityValue, entityLabel;
+
+      switch (tabType) {
+        case STOCK_TYPES.FRANCHISE:
+        case STOCK_TYPES.OTHER_SHOP:
+          entityValue = item.shop?.toString();
+          entityLabel = item.shop_name;
+          break;
+        case STOCK_TYPES.GROW_TAG:
+          entityValue = item.growtag?.toString();
+          entityLabel = item.growtag;
+          break;
+        default:
+          return;
+      }
+
+      if (entityLabel) {
+        entities.add(
+          JSON.stringify({
+            value: entityValue,
+            label: entityLabel,
+          }),
+        );
+      }
+    });
+
+  return Array.from(entities).map((e) => JSON.parse(e));
 };
 
 // Enhanced Dropdown Component
@@ -288,7 +285,7 @@ const EnhancedDropdown = ({
   );
 };
 
-// StockStats Component - Defined outside TabNavigation
+// StockStats Component
 const StockStats = ({ stockSummary }) => {
   const { total_items, in_stock, low_stock, out_of_stock } = stockSummary;
 
@@ -372,10 +369,35 @@ const Stock = () => {
     item: null,
   });
 
+  const { user } = useAuth();
+  const role = user?.role;
+
+  const canView = canAccess(role, PERMISSIONS.stock.view);
+  const canCreate = canAccess(role, PERMISSIONS.stock.create);
+  const canEdit = canAccess(role, PERMISSIONS.stock.edit);
+  if (!canView) {
+    return (
+      <div className="p-10 text-center text-red-500 font-semibold">
+        You do not have permission to access Stock
+      </div>
+    );
+  }
+
   // fetch counts data
   const fetchStockSummary = async () => {
     try {
-      const response = await axiosInstance.get("/api/stocks/summary/");
+      const groupMap = {
+        franchise: "franchise",
+        other_shop: "othershop",
+        grow_tag: "growtag",
+      };
+
+      const group = groupMap[activeTab];
+
+      const response = await axiosInstance.get(
+        `/api/stocks/summary/?group=${group}`,
+      );
+
       setStockSummary(response.data);
     } catch (error) {
       console.error("Error fetching stock summary:", error);
@@ -402,7 +424,6 @@ const Stock = () => {
       }
     } catch (error) {
       console.error("Error fetching stock data:", error);
-      toast.error("Failed to fetch stock data");
       setStockData([]);
     } finally {
       setLoading(false);
@@ -411,50 +432,26 @@ const Stock = () => {
 
   useEffect(() => {
     fetchStockData();
-    fetchStockSummary();
   }, []);
+
+  useEffect(() => {
+    fetchStockSummary();
+  }, [activeTab]);
 
   // Filter data based on active tab
   const tabData = useMemo(() => {
-    if (!stockData.length) return [];
-
-    switch (activeTab) {
-      case STOCK_TYPES.FRANCHISE:
-        return stockData.filter(
-          (item) =>
-            item.owner_type === "shop" && item.shop_type === "franchise",
-        );
-      case STOCK_TYPES.OTHER_SHOP:
-        return stockData.filter(
-          (item) =>
-            item.owner_type === "shop" && item.shop_type !== "franchise",
-        );
-      case STOCK_TYPES.GROW_TAG:
-        return stockData.filter((item) => item.owner_type === "grow_tag");
-      default:
-        return [];
-    }
+    return stockData.filter((item) => filterByTab(item, activeTab));
   }, [stockData, activeTab]);
 
   // Get dynamic options based on active tab
   const entityOptions = useMemo(() => {
-    const options = [
+    return [
       {
         value: "all",
         label: `All ${STOCK_TYPE_LABELS[activeTab].split(" ")[0]}s`,
       },
+      ...getUniqueEntities(stockData, activeTab),
     ];
-
-    switch (activeTab) {
-      case STOCK_TYPES.FRANCHISE:
-        return [...options, ...getUniqueFranchises(stockData)];
-      case STOCK_TYPES.OTHER_SHOP:
-        return [...options, ...getUniqueShops(stockData)];
-      case STOCK_TYPES.GROW_TAG:
-        return [...options, ...getUniqueGrowTags(stockData)];
-      default:
-        return options;
-    }
   }, [stockData, activeTab]);
 
   const itemOptions = useMemo(() => {
@@ -498,20 +495,40 @@ const Stock = () => {
   }, [tabData, selectedEntity, selectedItem]);
 
   const handleAdjustStock = async () => {
+    if (!canEdit) {
+      toast.error("No permission to update stock");
+      return;
+    }
+
     if (!adjustmentModal.item) return;
 
     const toastId = toast.loading("Adjusting stock...");
 
     try {
-      // Call your stock adjustment API endpoint
-      await axiosInstance.post("/api/stocks/adjust/", {
-        stock_id: adjustmentModal.item.id,
-        quantity: adjustmentModal.quantity,
-        type: adjustmentModal.type,
-        reason: adjustmentModal.reason,
-      });
+      const item = adjustmentModal.item;
 
-      // Refresh stock data after adjustment
+      let payload = {
+        owner_type: item.owner_type,
+        item: item.item,
+        action: adjustmentModal.type === "add" ? "add" : "remove",
+        quantity: Number(adjustmentModal.quantity).toFixed(2),
+      };
+
+      // Only add shop IF exists
+      if (item.owner_type === "shop" && item.shop) {
+        payload.shop = item.shop;
+      }
+
+      // Only add growtag IF exists
+      if (item.owner_type === "grow_tag" && item.growtag) {
+        payload.growtag = item.growtag;
+      }
+
+      // IMPORTANT: correct field name (space!)
+      payload["reorder level"] = item.reorder_level || "5.00";
+
+      await axiosInstance.post("/api/stocks/adjust/", payload);
+
       await fetchStockData();
       await fetchStockSummary();
 
@@ -519,13 +536,16 @@ const Stock = () => {
       closeAdjustmentModal();
     } catch (error) {
       console.error("Error adjusting stock:", error);
-      toast.error(error.response?.data?.message || "Failed to adjust stock", {
-        id: toastId,
-      });
+      toast.error(showError(error, "Failed to adjust stock"), { id: toastId });
     }
   };
 
   const openAdjustmentModal = (item, type = "add") => {
+    if (!canEdit) {
+      toast.error("No permission to modify stock");
+      return;
+    }
+
     setAdjustmentModal({ isOpen: true, item, quantity: 0, type, reason: "" });
   };
 
@@ -593,23 +613,7 @@ const Stock = () => {
                 <span
                   className={`px-2 py-0.5 rounded-full text-xs ${isActive ? "bg-blue-200 text-blue-800" : "bg-gray-200 text-gray-600"}`}
                 >
-                  {
-                    stockData.filter((item) => {
-                      if (type === STOCK_TYPES.FRANCHISE)
-                        return (
-                          item.owner_type === "shop" &&
-                          item.shop_type === "franchise"
-                        );
-                      if (type === STOCK_TYPES.OTHER_SHOP)
-                        return (
-                          item.owner_type === "shop" &&
-                          item.shop_type !== "franchise"
-                        );
-                      if (type === STOCK_TYPES.GROW_TAG)
-                        return item.owner_type === "grow_tag";
-                      return false;
-                    }).length
-                  }
+                  {stockData.filter((item) => filterByTab(item, type)).length}
                 </span>
               </button>
             );
@@ -769,29 +773,40 @@ const Stock = () => {
 
                       <td className="py-4 px-4">
                         <div className="flex items-center justify-center gap-2">
-                          <button
-                            onClick={() => openViewModal(item)}
-                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                            title="View Details"
-                          >
-                            <Eye size={16} />
-                          </button>
+                          {/* VIEW */}
+                          {canView && (
+                            <button
+                              onClick={() => openViewModal(item)}
+                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                              title="View Details"
+                            >
+                              <Eye size={16} />
+                            </button>
+                          )}
 
-                          <button
-                            onClick={() => openAdjustmentModal(item, "add")}
-                            className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition"
-                            title="Add Stock"
-                          >
-                            <Plus size={16} />
-                          </button>
+                          {/* ADD STOCK */}
+                          {canEdit && (
+                            <button
+                              onClick={() => openAdjustmentModal(item, "add")}
+                              className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition"
+                              title="Add Stock"
+                            >
+                              <Plus size={16} />
+                            </button>
+                          )}
 
-                          <button
-                            onClick={() => openAdjustmentModal(item, "remove")}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
-                            title="Remove Stock"
-                          >
-                            <Minus size={16} />
-                          </button>
+                          {/* REMOVE STOCK */}
+                          {canEdit && (
+                            <button
+                              onClick={() =>
+                                openAdjustmentModal(item, "remove")
+                              }
+                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
+                              title="Remove Stock"
+                            >
+                              <Minus size={16} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -885,24 +900,35 @@ const Stock = () => {
                 </div>
 
                 <div className="flex gap-2 pt-2 border-t">
-                  <button
-                    onClick={() => openViewModal(item)}
-                    className="flex-1 bg-blue-50 text-blue-700 py-2 rounded-lg text-sm hover:bg-blue-100 transition font-medium flex items-center justify-center gap-1"
-                  >
-                    <Eye size={14} /> View
-                  </button>
-                  <button
-                    onClick={() => openAdjustmentModal(item, "add")}
-                    className="flex-1 bg-green-50 text-green-700 py-2 rounded-lg text-sm hover:bg-green-100 transition font-medium flex items-center justify-center gap-1"
-                  >
-                    <Plus size={14} /> Add
-                  </button>
-                  <button
-                    onClick={() => openAdjustmentModal(item, "remove")}
-                    className="flex-1 bg-red-50 text-red-700 py-2 rounded-lg text-sm hover:bg-red-100 transition font-medium flex items-center justify-center gap-1"
-                  >
-                    <Minus size={14} /> Remove
-                  </button>
+                  {/* VIEW */}
+                  {canView && (
+                    <button
+                      onClick={() => openViewModal(item)}
+                      className="flex-1 bg-blue-50 text-blue-700 py-2 rounded-lg text-sm hover:bg-blue-100 transition font-medium flex items-center justify-center gap-1"
+                    >
+                      <Eye size={14} /> View
+                    </button>
+                  )}
+
+                  {/* ADD STOCK */}
+                  {canEdit && (
+                    <button
+                      onClick={() => openAdjustmentModal(item, "add")}
+                      className="flex-1 bg-green-50 text-green-700 py-2 rounded-lg text-sm hover:bg-green-100 transition font-medium flex items-center justify-center gap-1"
+                    >
+                      <Plus size={14} /> Add
+                    </button>
+                  )}
+
+                  {/* REMOVE STOCK */}
+                  {canEdit && (
+                    <button
+                      onClick={() => openAdjustmentModal(item, "remove")}
+                      className="flex-1 bg-red-50 text-red-700 py-2 rounded-lg text-sm hover:bg-red-100 transition font-medium flex items-center justify-center gap-1"
+                    >
+                      <Minus size={14} /> Remove
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -922,7 +948,7 @@ const Stock = () => {
       : Math.max(0, currentStock - adjustmentModal.quantity);
 
     return (
-      <div className="fixed inset-0  bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-xl shadow-2xl max-w-md w-full">
           <div
             className={`p-4 border-b ${isAdd ? "bg-green-50" : "bg-red-50"}`}
@@ -1052,7 +1078,7 @@ const Stock = () => {
             </button>
             <button
               onClick={handleAdjustStock}
-              disabled={adjustmentModal.quantity === 0}
+              disabled={!canEdit || adjustmentModal.quantity === 0}
               className={`flex-1 px-4 py-2 text-white rounded-lg transition font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${
                 isAdd
                   ? "bg-green-600 hover:bg-green-700"
