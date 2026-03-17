@@ -120,7 +120,9 @@ const PurchaseOrder = () => {
     vendorPhone: "",
     vendorAddress: "",
     poDate: new Date().toISOString().split("T")[0],
-    expectedDeliveryDate: "",
+    expectedDeliveryDate: new Date(new Date().setDate(new Date().getDate() + 7))
+      .toISOString()
+      .split("T")[0],
     shipTo: "",
     billTo: "",
     status: "DRAFT",
@@ -484,6 +486,13 @@ const PurchaseOrder = () => {
 
     if (!formData.poNumber.trim()) {
       newErrors.poNumber = "PO Number is required";
+    }
+    const duplicatePO = purchaseOrders.find(
+      (po) => po.poNumber === formData.poNumber && po.id !== formData.id,
+    );
+
+    if (duplicatePO) {
+      newErrors.poNumber = "PO Number already exists";
     }
 
     if (!formData.vendorName.trim()) {
@@ -2049,7 +2058,20 @@ const PurchaseOrder = () => {
                     type="date"
                     name="poDate"
                     value={formData.poDate}
-                    onChange={handleInputChange}
+                    onChange={(e) => {
+                      const newDate = e.target.value;
+
+                      const deliveryDate = new Date(newDate);
+                      deliveryDate.setDate(deliveryDate.getDate() + 7);
+
+                      setFormData({
+                        ...formData,
+                        poDate: newDate,
+                        expectedDeliveryDate: deliveryDate
+                          .toISOString()
+                          .split("T")[0],
+                      });
+                    }}
                     disabled={isSubmitting}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
@@ -2063,6 +2085,7 @@ const PurchaseOrder = () => {
                   <input
                     type="date"
                     name="expectedDeliveryDate"
+                    min={formData.poDate}
                     value={formData.expectedDeliveryDate}
                     onChange={handleInputChange}
                     disabled={isSubmitting}

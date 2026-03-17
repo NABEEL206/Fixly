@@ -1973,7 +1973,7 @@ const Bill = () => {
 
   // Transform form data to API format
   const transformToAPIFormat = (data) => {
-    const apiData = {
+    return {
       owner_type: data.owner_type,
       shop: data.owner_type === "shop" ? data.shop : null,
       growtag: data.owner_type === "growtag" ? data.growtag : null,
@@ -1985,18 +1985,39 @@ const Bill = () => {
       bill_date: data.bill_date,
       due_date: data.due_date,
       payment_status: data.payment_status,
+
+      vendor_name: data.vendor_name,
+      vendor_email: data.vendor_email,
+      vendor_phone: data.vendor_phone,
+      vendor_gstin: data.vendor_gstin,
+      vendor_address: data.vendor_address,
+
+      ship_to: data.ship_to,
+      bill_to: data.bill_to,
+
+      items: data.items.map((item) => ({
+        item: item.item,
+        name: item.name,
+        description: item.description,
+        account: item.account,
+        qty: item.qty,
+        rate: item.rate,
+        tax_percent: item.tax_percent,
+        discount_percent: item.discount_percent,
+      })),
+
+      subtotal: data.subtotal,
+      total_discount: data.total_discount,
+      total_tax: data.total_tax,
+      tds_percent: data.tds_percent,
+      shipping_charges: data.shipping_charges,
+      adjustment: data.adjustment,
+      total: data.total,
+      amount_paid: data.amount_paid,
+
+      notes: data.notes,
+      terms_and_conditions: data.terms_and_conditions,
     };
-
-    // ✅ add assignment logic here
-    if (data.assign_type === "shop" && data.assign_id) {
-      apiData.assigned_shop = data.assign_id;
-    }
-
-    if (data.assign_type === "growtag" && data.assign_id) {
-      apiData.assigned_growtag = data.assign_id;
-    }
-
-    return apiData;
   };
 
   // Create Bill
@@ -2715,9 +2736,7 @@ const Bill = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Vendor
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Assigned To {/* NEW: Assigned To column */}
-                  </th>
+
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Bill Date
                   </th>
@@ -2782,25 +2801,6 @@ const Bill = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {bill.vendor_name || "N/A"}
-                      </td>
-                      {/* NEW: Assigned To column data */}
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {bill.assigned_shop_name ? (
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">
-                              {bill.assigned_shop_name}
-                            </p>
-                            {bill.assigned_shop_type && (
-                              <span className="text-xs text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">
-                                {bill.assigned_shop_type}
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-sm text-gray-400">
-                            Not assigned
-                          </span>
-                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {bill.bill_date}
@@ -3012,6 +3012,7 @@ const Bill = () => {
                     type="date"
                     name="due_date"
                     value={formData.due_date}
+                    min={formData.bill_date}
                     onChange={handleInputChange}
                     disabled={isSubmitting}
                     className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed ${
@@ -3071,11 +3072,10 @@ const Bill = () => {
                             : null,
                         }))
                       }
-                      disabled={isSubmitting}
-                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed ${
-                        errors.shop ? "border-red-500" : "border-gray-300"
-                      }`}
+                      className="w-full px-3 py-2 border rounded-lg"
                     >
+                      <option value="">-- Select Shop --</option>
+
                       {shops.map((shop) => (
                         <option key={shop.id} value={shop.id}>
                           {shop.shop_type === "franchise" ? "🏪" : "🏬"}{" "}

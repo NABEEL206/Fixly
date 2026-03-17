@@ -1045,14 +1045,15 @@ const Leads = () => {
                           </button>
 
                           {/* Edit Button */}
-                          {canAccess(role, PERMISSIONS.leads.edit) && (
-                            <button
-                              onClick={() => handleEditLead(lead)}
-                              className="p-2 rounded-lg bg-yellow-50 text-yellow-600 hover:bg-yellow-100 transition-colors"
-                            >
-                              <Edit size={18} />
-                            </button>
-                          )}
+                          {canAccess(role, PERMISSIONS.leads.edit) &&
+                            lead.status !== "Complaint Registered" && (
+                              <button
+                                onClick={() => handleEditLead(lead)}
+                                className="p-2 rounded-lg bg-yellow-50 text-yellow-600 hover:bg-yellow-100 transition-colors"
+                              >
+                                <Edit size={18} />
+                              </button>
+                            )}
 
                           {/* View Button */}
                           <button
@@ -1173,15 +1174,16 @@ const Leads = () => {
                   </button>
 
                   {/* Edit Button */}
-                  {canAccess(role, PERMISSIONS.leads.edit) && (
-                    <button
-                      onClick={() => handleEditLead(lead)}
-                      className="flex flex-col items-center justify-center p-2 bg-yellow-50 text-yellow-600 rounded-lg hover:bg-yellow-100"
-                    >
-                      <Edit size={20} />
-                      <span className="text-xs mt-1">Edit</span>
-                    </button>
-                  )}
+                  {canAccess(role, PERMISSIONS.leads.edit) &&
+                    lead.status !== "Complaint Registered" && (
+                      <button
+                        onClick={() => handleEditLead(lead)}
+                        className="flex flex-col items-center justify-center p-2 bg-yellow-50 text-yellow-600 rounded-lg hover:bg-yellow-100"
+                      >
+                        <Edit size={20} />
+                        <span className="text-xs mt-1">Edit</span>
+                      </button>
+                    )}
 
                   {/* View Button */}
                   <button
@@ -1421,41 +1423,31 @@ const Leads = () => {
 
               {/* Modal Footer */}
               <div className="flex justify-end gap-3 p-6 border-t bg-gray-50">
-                {canAccess(role, PERMISSIONS.leads.edit) && (
+                {canAccess(role, PERMISSIONS.leads.edit) &&
+                  selectedLead.status !== "Complaint Registered" && (
+                    <button
+                      onClick={() => {
+                        setViewModalOpen(false);
+                        handleEditLead(selectedLead);
+                      }}
+                      className="px-6 py-2.5 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors font-medium flex items-center gap-2"
+                    >
+                      <Edit size={18} />
+                      Edit Lead
+                    </button>
+                  )}
+                {selectedLead.status !== "Complaint Registered" && (
                   <button
                     onClick={() => {
                       setViewModalOpen(false);
-                      handleEditLead(selectedLead);
+                      handleViewOrRegisterComplaint(selectedLead);
                     }}
-                    className="px-6 py-2.5 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors font-medium flex items-center gap-2"
+                    className="px-6 py-2.5 bg-red-600 text-white hover:bg-red-700 rounded-lg transition-colors font-medium flex items-center gap-2"
                   >
-                    <Edit size={18} />
-                    Edit Lead
+                    <AlertCircle size={18} />
+                    Register Complaint
                   </button>
                 )}
-                <button
-                  onClick={() => {
-                    setViewModalOpen(false);
-                    handleViewOrRegisterComplaint(selectedLead);
-                  }}
-                  className={`px-6 py-2.5 rounded-lg transition-colors font-medium flex items-center gap-2 ${
-                    selectedLead.status === "Complaint Registered"
-                      ? "bg-green-600 text-white hover:bg-green-700"
-                      : "bg-red-600 text-white hover:bg-red-700"
-                  }`}
-                >
-                  {selectedLead.status === "Complaint Registered" ? (
-                    <>
-                      <CheckCircle size={18} />
-                      View Complaint
-                    </>
-                  ) : (
-                    <>
-                      <AlertCircle size={18} />
-                      Register Complaint
-                    </>
-                  )}
-                </button>
                 <button
                   onClick={() => setViewModalOpen(false)}
                   className="px-6 py-2.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
@@ -1469,7 +1461,7 @@ const Leads = () => {
 
         {/* Lead Registration/Edit Modal */}
         {showNewLeadModal && (
-          <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-50 p-4">
+          <div className="fixed inset-0  flex justify-center items-center z-50 p-4">
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
               <div className="flex justify-between items-center p-4 border-b bg-green-50">
                 <h2 className="text-xl font-bold text-green-700 flex items-center gap-2">

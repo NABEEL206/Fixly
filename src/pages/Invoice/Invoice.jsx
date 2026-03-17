@@ -1171,7 +1171,9 @@ const initialInvoiceState = {
   invoice_number: "",
   status: "DRAFT",
   invoice_date: new Date().toISOString().split("T")[0],
-  due_date: "",
+  due_date: new Date(new Date().setDate(new Date().getDate() + 7))
+    .toISOString()
+    .split("T")[0],
 
   discount_type: "PERCENT",
   discount_value: 0,
@@ -1376,16 +1378,16 @@ const Invoice = () => {
 
   // Generate invoice number
   const generateInvoiceNumber = () => {
-    if (!invoices || invoices.length === 0) return "INV-0001";
-
-    const max = Math.max(
-      ...invoices.map((inv) => {
+    const numbers = invoices
+      .map((inv) => {
         const match = inv.invoice_number?.match(/INV-(\d+)/);
-        return match ? parseInt(match[1], 10) : 0;
-      }),
-    );
+        return match ? parseInt(match[1]) : 0;
+      })
+      .filter(Boolean);
 
-    return `INV-${String(max + 1).padStart(4, "0")}`;
+    const next = numbers.length ? Math.max(...numbers) + 1 : 1;
+
+    return `INV-${String(next).padStart(4, "0")}`;
   };
 
   // Fetch invoices from API
@@ -1792,6 +1794,15 @@ const Invoice = () => {
   // Validate form
   const validateForm = () => {
     const newErrors = {};
+    const duplicate = invoices.find(
+      (inv) =>
+        inv.invoice_number === invoiceData.invoice_number &&
+        inv.id !== invoiceData.id,
+    );
+
+    if (duplicate) {
+      newErrors.invoice_number = "Invoice number already exists";
+    }
 
     if (!invoiceData.customer) {
       newErrors.customer = "Customer is required";
@@ -2935,12 +2946,18 @@ const Invoice = () => {
                 <input
                   type="date"
                   value={invoiceData.invoice_date}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    const newDate = e.target.value;
+
+                    const dueDate = new Date(newDate);
+                    dueDate.setDate(dueDate.getDate() + 7);
+
                     setInvoiceData({
                       ...invoiceData,
-                      invoice_date: e.target.value,
-                    })
-                  }
+                      invoice_date: newDate,
+                      due_date: dueDate.toISOString().split("T")[0],
+                    });
+                  }}
                   className={`w-full px-3 py-2 border rounded-lg ${errors.invoice_date ? "border-red-500" : "border-gray-300"}`}
                 />
               </div>
@@ -3159,7 +3176,7 @@ const Invoice = () => {
                             )}
                           </td>
                           <td className="px-4 py-2">
-                            <div className="flex items-center border rounded-lg overflow-hidden w-[110px] bg-white">
+                            <div className="flex items-center border rounded-lg overflow-hidden w-[200px] bg-white">
                               <input
                                 type="number"
                                 value={item.service_charge_value || ""}
@@ -3170,21 +3187,11 @@ const Invoice = () => {
                                     e.target.value,
                                   )
                                 }
-                                onBlur={(e) => {
-                                  const numValue =
-                                    parseFloat(e.target.value) || 0;
-                                  if (numValue !== item.service_charge_value) {
-                                    updateItem(
-                                      index,
-                                      "service_charge_value",
-                                      numValue,
-                                    );
-                                  }
-                                }}
                                 min="0"
-                                placeholder="0"
-                                className="w-full px-2 py-1.5 text-sm text-right outline-none"
+                                placeholder="Service charge"
+                                className="w-[130px] px-3 py-1.5 text-sm text-right outline-none"
                               />
+
                               <select
                                 value={item.service_charge_type}
                                 onChange={(e) =>
@@ -3194,7 +3201,7 @@ const Invoice = () => {
                                     e.target.value,
                                   )
                                 }
-                                className="px-2 py-1.5 text-sm bg-gray-100 border-l outline-none cursor-pointer"
+                                className="w-[70px] px-2 py-1.5 text-sm bg-gray-100 border-l outline-none cursor-pointer"
                               >
                                 <option value="AMOUNT">₹</option>
                                 <option value="PERCENTAGE">%</option>
