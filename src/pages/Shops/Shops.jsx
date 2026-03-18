@@ -773,7 +773,7 @@ const ViewModal = ({ shop, onClose }) => {
                         >
                           <div className="flex flex-wrap items-center gap-2 mb-3">
                             <span className="text-xs font-mono bg-gray-100 text-gray-600 px-2 py-1 rounded border border-gray-200">
-                              {complaint.complaint_id}
+                              #{complaint.id}
                             </span>
                             <span
                               className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusClasses(complaint.status)}`}
@@ -1313,7 +1313,6 @@ export default function Shops() {
       setOpenForm(false);
     } catch (err) {
       console.error("Create error:", err);
-      
 
       if (err.response?.status === 401 || err.response?.status === 403) {
         toast.dismiss(toastId);

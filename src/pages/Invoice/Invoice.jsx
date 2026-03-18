@@ -32,6 +32,9 @@ import {
   CreditCard,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { PERMISSIONS } from "@/config/permissions";
+import { canAccess } from "@/utils/canAccess";
+import { useAuth } from "@/auth/AuthContext";
 
 // Helper function
 const format = (num) => Number(num || 0).toFixed(2);
@@ -526,32 +529,36 @@ const InvoiceViewModal = ({
             <div className="px-6 py-4 max-h-[calc(100vh-200px)] overflow-y-auto">
               {/* Action Buttons */}
               <div className="flex justify-end gap-2 mb-4">
-                {balanceDue > 0 && (
+                {canEdit && balanceDue > 0 && (
                   <button
                     onClick={() => {
                       onClose();
                       onAddPayment(invoice);
                     }}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+                    className="flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm"
                   >
                     <CreditCard size={16} />
                     Record Payment
                   </button>
                 )}
-                <button
-                  onClick={() => {
-                    onClose();
-                    onEdit();
-                  }}
-                  className="flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
-                >
-                  <Edit size={16} />
-                  Edit
-                </button>
+
+                {canEdit && (
+                  <button
+                    onClick={() => {
+                      onClose();
+                      onEdit();
+                    }}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm"
+                  >
+                    <Edit size={16} />
+                    Edit
+                  </button>
+                )}
+
                 {invoice.pdf_url && (
                   <button
                     onClick={() => onPDF(invoice.pdf_url)}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                    className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm"
                   >
                     <Eye size={16} />
                     View PDF
@@ -745,83 +752,149 @@ const InvoiceViewModal = ({
                   Items
                 </h4>
                 <div className="overflow-x-auto border rounded-lg">
-                  <table className="w-full">
+                  <table className="w-full text-sm text-center border-collapse">
                     <thead className="bg-gray-100">
                       <tr>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-600">
+                        <th className="px-3 py-3 text-left font-semibold text-gray-700 w-[25%]">
                           Item
                         </th>
-                        <th className="px-4 py-2 text-center text-xs font-medium text-gray-600">
+
+                        <th className="px-3 py-3 font-semibold text-gray-700 w-[10%]">
                           Qty
                         </th>
-                        <th className="px-4 py-2 text-center text-xs font-medium text-gray-600">
+
+                        <th className="px-3 py-3 font-semibold text-gray-700 w-[12%]">
                           Rate (₹)
                         </th>
-                        <th className="px-4 py-2 text-center text-xs font-medium text-gray-600">
+
+                        <th className="px-3 py-3 font-semibold text-gray-700 w-[15%]">
                           Service
                         </th>
-                        <th className="px-4 py-2 text-center text-xs font-medium text-gray-600">
+
+                        <th className="px-3 py-3 font-semibold text-gray-700 w-[12%]">
                           GST %
                         </th>
-                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-600">
+
+                        <th className="px-3 py-3 font-semibold text-gray-700 w-[15%] text-right">
                           Amount (₹)
+                        </th>
+
+                        <th className="px-3 py-3 font-semibold text-gray-700 w-[10%]">
+                          Action
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {invoice.items?.map((item, index) => {
-                        const itemQty = Number(item?.qty) || 0;
-                        const itemRate = Number(item?.rate) || 0;
-                        const itemServiceAmount =
-                          Number(item?.service_charge_amount) || 0;
-                        const itemAmount =
-                          itemQty * itemRate + itemServiceAmount;
+
+                    <tbody>
+                      {invoiceData.items.map((item, index) => {
+                        const qty = parseFloat(item.qty) || 0;
+                        const rate = parseFloat(item.rate) || 0;
+                        const service =
+                          parseFloat(item.service_charge_amount) || 0;
+                        const amount = qty * rate + service;
 
                         return (
-                          <React.Fragment key={index}>
-                            <tr className="hover:bg-gray-50">
-                              <td className="px-4 py-3 text-sm">
-                                <div className="font-medium">
-                                  {item.item_name}
-                                </div>
-                                {(item.description ||
-                                  item.item_description) && (
-                                  <div className="text-xs text-gray-500 mt-1 italic">
-                                    {item.description || item.item_description}
-                                  </div>
-                                )}
-                              </td>
-                              <td className="px-4 py-3 text-sm text-center">
-                                {itemQty}
-                              </td>
-                              <td className="px-4 py-3 text-sm text-center">
-                                ₹{formatNumber(itemRate)}
-                              </td>
-                              <td className="px-4 py-3 text-sm text-center">
-                                {itemServiceAmount > 0 ? (
-                                  <span className="text-purple-600 font-medium">
-                                    ₹{formatNumber(itemServiceAmount)}
-                                    {item.service_charge_type ===
-                                      "PERCENTAGE" &&
-                                      ` (${Number(item.service_charge_value) || 0}%)`}
-                                  </span>
-                                ) : (
-                                  "-"
-                                )}
-                              </td>
-                              <td className="px-4 py-3 text-sm text-center">
-                                <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded">
-                                  {item.gst_treatment
-                                    ?.replace("GST_", "")
-                                    .replace("_", ".")}
-                                  %
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 text-sm text-right font-medium">
-                                ₹{formatNumber(itemAmount)}
-                              </td>
-                            </tr>
-                          </React.Fragment>
+                          <tr
+                            key={index}
+                            className="border-t hover:bg-gray-50 transition"
+                          >
+                            {/* ITEM */}
+                            <td className="px-3 py-2 text-left">
+                              <input
+                                type="text"
+                                value={item.item_name}
+                                onChange={(e) =>
+                                  handleItemChange(
+                                    index,
+                                    "item_name",
+                                    e.target.value,
+                                  )
+                                }
+                                className="w-full border rounded px-2 py-1"
+                                placeholder="Item name"
+                              />
+                            </td>
+
+                            {/* QTY */}
+                            <td className="px-3 py-2">
+                              <input
+                                type="number"
+                                value={item.qty}
+                                onChange={(e) =>
+                                  handleItemChange(index, "qty", e.target.value)
+                                }
+                                className="w-full border rounded px-2 py-1 text-center"
+                              />
+                            </td>
+
+                            {/* RATE */}
+                            <td className="px-3 py-2">
+                              <input
+                                type="number"
+                                value={item.rate}
+                                onChange={(e) =>
+                                  handleItemChange(
+                                    index,
+                                    "rate",
+                                    e.target.value,
+                                  )
+                                }
+                                className="w-full border rounded px-2 py-1 text-center"
+                              />
+                            </td>
+
+                            {/* SERVICE */}
+                            <td className="px-3 py-2">
+                              <input
+                                type="number"
+                                value={item.service_charge_value}
+                                onChange={(e) =>
+                                  handleItemChange(
+                                    index,
+                                    "service_charge_value",
+                                    e.target.value,
+                                  )
+                                }
+                                className="w-full border rounded px-2 py-1 text-center"
+                              />
+                            </td>
+
+                            {/* GST */}
+                            <td className="px-3 py-2">
+                              <select
+                                value={item.gst_treatment}
+                                onChange={(e) =>
+                                  handleItemChange(
+                                    index,
+                                    "gst_treatment",
+                                    e.target.value,
+                                  )
+                                }
+                                className="w-full border rounded px-2 py-1"
+                              >
+                                {gstOptions.map((gst) => (
+                                  <option key={gst.value} value={gst.value}>
+                                    {gst.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+
+                            {/* AMOUNT */}
+                            <td className="px-3 py-2 text-right font-semibold text-gray-800">
+                              ₹{amount.toFixed(2)}
+                            </td>
+
+                            {/* ACTION */}
+                            <td className="px-3 py-2">
+                              <button
+                                onClick={() => removeItem(index)}
+                                className="text-red-600 hover:text-red-800"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </td>
+                          </tr>
                         );
                       })}
                     </tbody>
@@ -1254,6 +1327,20 @@ const Invoice = () => {
   });
   const [paymentErrors, setPaymentErrors] = useState({});
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
+  const { user } = useAuth();
+  const role = user?.role;
+
+  const canView = canAccess(role, PERMISSIONS.invoice.view);
+  const canCreate = canAccess(role, PERMISSIONS.invoice.create);
+  const canEdit = canAccess(role, PERMISSIONS.invoice.edit);
+  const canDelete = canAccess(role, PERMISSIONS.invoice.delete);
+  if (!canView) {
+    return (
+      <div className="p-10 text-center text-red-500 font-semibold">
+        You do not have permission to access Invoice
+      </div>
+    );
+  }
 
   // Validation states
   const [errors, setErrors] = useState({});
@@ -1924,6 +2011,10 @@ const Invoice = () => {
 
   // Save invoice
   const saveInvoice = async () => {
+    if (!canCreate && !canEdit) {
+      toast.error("No permission to save invoice");
+      return;
+    }
     if (!validateForm()) {
       toast.error("Please fix validation errors");
       return;
@@ -2009,6 +2100,15 @@ const Invoice = () => {
 
   // Bulk delete invoices
   const bulkDeleteInvoices = async () => {
+    if (!canDelete) {
+      toast.error("No permission");
+      return;
+    }
+
+    if (selectedInvoices.length === 0) {
+      toast.error("No invoices selected");
+      return;
+    }
     if (selectedInvoices.length === 0) {
       toast.error("No invoices selected");
       return;
@@ -2071,11 +2171,16 @@ const Invoice = () => {
 
   // Edit invoice
   const handleEdit = (invoice) => {
+    if (!canEdit) {
+      toast.error("No permission to edit");
+      return;
+    }
+
     const customer = customers.find((c) => c.id === invoice.customer);
 
     setInvoiceData({
-      ...initialInvoiceState, // start from default structure
-      ...invoice, // then apply invoice values
+      ...initialInvoiceState,
+      ...invoice,
       items: invoice.items?.length ? invoice.items : initialInvoiceState.items,
 
       customer_phone: invoice.customer_phone || customer?.customer_phone || "",
@@ -2094,6 +2199,11 @@ const Invoice = () => {
   };
 
   const handleDelete = (id) => {
+    if (!canDelete) {
+      toast.error("No permission to delete");
+      return;
+    }
+
     toast(
       (t) => (
         <div className="flex flex-col gap-3">
@@ -2101,13 +2211,15 @@ const Invoice = () => {
             Delete this invoice?
           </p>
           <p className="text-xs text-gray-500">This action cannot be undone.</p>
+
           <div className="flex justify-end gap-2">
             <button
               onClick={() => toast.dismiss(t.id)}
-              className="px-3 py-1.5 bg-gray-200 rounded-md text-sm hover:bg-gray-300 transition-colors"
+              className="px-3 py-1.5 bg-gray-200 rounded-md text-sm"
             >
               Cancel
             </button>
+
             <button
               onClick={async () => {
                 toast.dismiss(t.id);
@@ -2116,15 +2228,17 @@ const Invoice = () => {
                 try {
                   await axiosInstance.delete(`/zoho/local-invoices/${id}/`);
                   await fetchInvoices();
+
                   toast.success("Invoice deleted successfully", {
                     id: loadingToast,
                   });
                 } catch (error) {
-                  console.error("Delete invoice error:", error);
-                  toast.error("Error deleting invoice", { id: loadingToast });
+                  toast.error("Error deleting invoice", {
+                    id: loadingToast,
+                  });
                 }
               }}
-              className="px-3 py-1.5 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 transition-colors"
+              className="px-3 py-1.5 bg-red-600 text-white rounded-md text-sm"
             >
               Delete
             </button>
@@ -2573,35 +2687,42 @@ const Invoice = () => {
           {/* Desktop Table */}
           <div className="hidden sm:block bg-white rounded-lg shadow overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
+              <table className="min-w-full text-sm border-collapse">
+                {/* HEADER */}
                 <thead className="bg-gray-100 text-gray-600 uppercase text-xs">
                   <tr>
-                    <th className="px-4 py-3 text-center">
-                      <input
-                        type="checkbox"
-                        checked={
-                          filteredInvoices.length > 0 &&
-                          selectedInvoices.length === filteredInvoices.length
-                        }
-                        onChange={toggleSelectAll}
-                      />
-                    </th>
-                    <th className="px-6 py-3 text-center">Invoice #</th>
-                    <th className="px-6 py-3 text-center">Customer</th>
-                    <th className="px-6 py-3 text-center">Date</th>
-                    <th className="px-6 py-3 text-center">Due Date</th>
-                    <th className="px-6 py-3 text-center">Status</th>
-                    <th className="px-6 py-3 text-center">Total</th>
-                    <th className="px-6 py-3 text-center">Payment</th>
-                    <th className="px-6 py-3 text-center">Actions</th>
+                    {canDelete && (
+                      <th className="px-4 py-3 text-center w-[5%]">
+                        <input
+                          type="checkbox"
+                          checked={
+                            selectedInvoices.length ===
+                              filteredInvoices.length &&
+                            filteredInvoices.length > 0
+                          }
+                          onChange={toggleSelectAll}
+                        />
+                      </th>
+                    )}
+
+                    <th className="px-4 py-3 text-left w-[12%]">Invoice</th>
+                    <th className="px-4 py-3 text-left w-[18%]">Customer</th>
+                    <th className="px-4 py-3 text-center w-[10%]">Date</th>
+                    <th className="px-4 py-3 text-center w-[10%]">Due</th>
+                    <th className="px-4 py-3 text-center w-[10%]">Status</th>
+                    <th className="px-4 py-3 text-right w-[12%]">Total</th>
+                    <th className="px-4 py-3 text-center w-[15%]">Payment</th>
+                    <th className="px-4 py-3 text-center w-[15%]">Actions</th>
                   </tr>
                 </thead>
+
+                {/* BODY */}
                 <tbody className="divide-y divide-gray-200">
                   {isLoading ? (
                     <tr>
                       <td
-                        colSpan="9"
-                        className="px-6 py-10 text-center text-gray-500"
+                        colSpan={canDelete ? 9 : 8}
+                        className="py-10 text-center"
                       >
                         <Loader2
                           className="animate-spin mx-auto mb-2"
@@ -2613,161 +2734,161 @@ const Invoice = () => {
                   ) : filteredInvoices.length === 0 ? (
                     <tr>
                       <td
-                        colSpan="9"
-                        className="px-6 py-10 text-center text-gray-500"
+                        colSpan={canDelete ? 9 : 8}
+                        className="py-10 text-center text-gray-500"
                       >
                         {quickSearch ? "No invoices found" : "No invoices yet"}
                       </td>
                     </tr>
                   ) : (
                     filteredInvoices.map((inv) => {
-                      const balanceDue =
-                        parseFloat(inv.grand_total || 0) -
-                        parseFloat(inv.amount_paid || 0);
+                      const grandTotal = parseFloat(inv.grand_total || 0);
+                      const amountPaid = parseFloat(inv.amount_paid || 0);
+                      const balanceDue = grandTotal - amountPaid;
+
                       return (
                         <tr
                           key={inv.id}
                           className="hover:bg-gray-50 transition"
                         >
-                          <td className="px-4 py-4 text-center">
-                            <input
-                              type="checkbox"
-                              checked={selectedInvoices.includes(inv.id)}
-                              onChange={() => toggleInvoiceSelection(inv.id)}
-                            />
-                          </td>
-                          <td className="px-6 py-4 font-semibold text-blue-600 text-center">
+                          {/* CHECKBOX */}
+                          {canDelete && (
+                            <td className="px-4 py-3 text-center">
+                              <input
+                                type="checkbox"
+                                checked={selectedInvoices.includes(inv.id)}
+                                onChange={() => toggleInvoiceSelection(inv.id)}
+                              />
+                            </td>
+                          )}
+
+                          {/* INVOICE */}
+                          <td className="px-4 py-3 font-semibold text-blue-600">
                             {inv.invoice_number}
                           </td>
-                          <td className="px-6 py-4 text-center">
-                            {inv.customer_name || getCustomerName(inv.customer)}
+
+                          {/* CUSTOMER */}
+                          <td className="px-4 py-3">
+                            <div className="font-medium text-gray-800">
+                              {inv.customer_name ||
+                                getCustomerName(inv.customer)}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {inv.customer_phone}
+                            </div>
                           </td>
-                          <td className="px-6 py-4 text-gray-600 text-center">
+
+                          {/* DATE */}
+                          <td className="px-4 py-3 text-center text-gray-600">
                             {inv.invoice_date}
                           </td>
-                          <td className="px-6 py-4 text-gray-600 text-center">
+
+                          {/* DUE */}
+                          <td className="px-4 py-3 text-center text-gray-600">
                             {inv.due_date || "-"}
                           </td>
-                          <td className="px-6 py-4 text-center">
+
+                          {/* STATUS */}
+                          <td className="px-4 py-3 text-center">
                             <span className={getStatusBadge(inv.status)}>
                               {inv.status}
                             </span>
                           </td>
-                          <td className="px-6 py-4 font-bold text-gray-800 text-center">
-                            ₹{format(inv.grand_total)}
+
+                          {/* TOTAL */}
+                          <td className="px-4 py-3 text-right font-semibold text-gray-800">
+                            ₹{format(grandTotal)}
                           </td>
-                          <td className="px-6 py-4 text-center">
-                            {(() => {
-                              const grandTotal = parseFloat(
-                                inv.grand_total || 0,
-                              );
-                              const amountPaid = parseFloat(
-                                inv.amount_paid || 0,
-                              );
-                              const balanceDue = grandTotal - amountPaid;
 
-                              let paymentStatus = "UNPAID";
+                          {/* PAYMENT */}
+                          <td className="px-4 py-3 text-center">
+                            <div className="flex flex-col items-center gap-1">
+                              {amountPaid >= grandTotal && (
+                                <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-semibold">
+                                  Paid
+                                </span>
+                              )}
 
-                              if (amountPaid >= grandTotal)
-                                paymentStatus = "PAID";
-                              else if (amountPaid > 0)
-                                paymentStatus = "PARTIAL";
+                              {amountPaid > 0 && amountPaid < grandTotal && (
+                                <span className="px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-semibold">
+                                  Partial
+                                </span>
+                              )}
 
-                              return (
-                                <div className="flex flex-col items-center gap-1">
-                                  {paymentStatus === "PAID" && (
-                                    <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-semibold">
-                                      Paid
-                                    </span>
-                                  )}
+                              {amountPaid === 0 && (
+                                <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-semibold">
+                                  Unpaid
+                                </span>
+                              )}
 
-                                  {paymentStatus === "PARTIAL" && (
-                                    <span className="px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-semibold">
-                                      Partial
-                                    </span>
-                                  )}
+                              {inv.payments?.length > 0 && (
+                                <button
+                                  onClick={() => {
+                                    const latest =
+                                      inv.payments[inv.payments.length - 1];
+                                    openPDF(
+                                      `/zoho/invoice-payments/${latest.id}/pdf/`,
+                                    );
+                                  }}
+                                  className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                                >
+                                  <FileText size={12} /> Receipt
+                                </button>
+                              )}
 
-                                  {paymentStatus === "UNPAID" && (
-                                    <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-semibold">
-                                      Unpaid
-                                    </span>
-                                  )}
-
-                                  {/* Payment Receipt Buttons */}
-                                  {inv.payments?.length > 0 && (
-                                    <button
-                                      onClick={() => {
-                                        const latestPayment =
-                                          inv.payments[inv.payments.length - 1];
-                                        openPDF(
-                                          `/zoho/invoice-payments/${latestPayment.id}/pdf/`,
-                                        );
-                                      }}
-                                      className="flex items-center gap-1 text-xs text-blue-600 hover:underline"
-                                    >
-                                      <FileText size={12} />
-                                      Receipt
-                                    </button>
-                                  )}
-
-                                  {balanceDue > 0 && (
-                                    <span className="text-xs text-red-600 font-medium">
-                                      Balance: ₹{format(balanceDue)}
-                                    </span>
-                                  )}
-                                </div>
-                              );
-                            })()}
+                              {balanceDue > 0 && (
+                                <span className="text-xs text-red-600 font-medium">
+                                  ₹{format(balanceDue)}
+                                </span>
+                              )}
+                            </div>
                           </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center justify-center gap-2">
+
+                          {/* ACTIONS */}
+                          <td className="px-4 py-3">
+                            <div className="flex justify-center gap-2">
                               <button
                                 onClick={() => handleView(inv)}
                                 className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
-                                title="View"
                               >
                                 <Eye size={16} />
                               </button>
-                              <button
-                                onClick={() => handleEdit(inv)}
-                                className="p-1.5 text-green-600 hover:bg-green-50 rounded"
-                                title="Edit"
-                              >
-                                <Edit size={16} />
-                              </button>
+
+                              {canEdit && (
+                                <button
+                                  onClick={() => handleEdit(inv)}
+                                  className="p-1.5 text-green-600 hover:bg-green-50 rounded"
+                                >
+                                  <Edit size={16} />
+                                </button>
+                              )}
+
                               {balanceDue > 0 && (
                                 <button
                                   onClick={() => openPaymentModal(inv)}
                                   className="p-1.5 text-green-600 hover:bg-green-50 rounded"
-                                  title="Record Payment"
                                 >
                                   <CreditCard size={16} />
                                 </button>
                               )}
+
                               {inv.pdf_url && (
                                 <button
                                   onClick={() => openPDF(inv.pdf_url, inv.id)}
-                                  disabled={pdfId === inv.id}
-                                  className="p-1.5 text-purple-600 hover:bg-purple-50 rounded disabled:opacity-50"
-                                  title="View PDF"
+                                  className="p-1.5 text-purple-600 hover:bg-purple-50 rounded"
                                 >
-                                  {pdfId === inv.id ? (
-                                    <Loader2
-                                      size={16}
-                                      className="animate-spin"
-                                    />
-                                  ) : (
-                                    <FileText size={16} />
-                                  )}
+                                  <FileText size={16} />
                                 </button>
                               )}
-                              <button
-                                onClick={() => handleDelete(inv.id)}
-                                className="p-1.5 text-red-600 hover:bg-red-50 rounded"
-                                title="Delete"
-                              >
-                                <Trash2 size={16} />
-                              </button>
+
+                              {canDelete && (
+                                <button
+                                  onClick={() => handleDelete(inv.id)}
+                                  className="p-1.5 text-red-600 hover:bg-red-50 rounded"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -3550,18 +3671,20 @@ const Invoice = () => {
 
             {/* Create/Update Button at Bottom */}
             <div className="flex justify-end pt-4 border-t">
-              <button
-                onClick={saveInvoice}
-                disabled={isLoading}
-                className="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2 text-lg font-semibold"
-              >
-                {isLoading ? (
-                  <Loader2 className="animate-spin" size={20} />
-                ) : (
-                  <Save size={20} />
-                )}
-                {editIndex !== null ? "Update Invoice" : "Create Invoice"}
-              </button>
+              {(canCreate || canEdit) && (
+                <button
+                  onClick={saveInvoice}
+                  disabled={isLoading}
+                  className="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2 text-lg font-semibold"
+                >
+                  {isLoading ? (
+                    <Loader2 className="animate-spin" size={20} />
+                  ) : (
+                    <Save size={20} />
+                  )}
+                  {editIndex !== null ? "Update Invoice" : "Create Invoice"}
+                </button>
+              )}
             </div>
           </div>
         </div>

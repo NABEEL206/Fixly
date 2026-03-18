@@ -17,6 +17,9 @@ import {
 } from "lucide-react";
 import axiosInstance from "@/API/axiosInstance";
 import toast from "react-hot-toast";
+import { PERMISSIONS } from "@/config/permissions";
+import { canAccess } from "@/utils/canAccess";
+import { useAuth } from "@/auth/AuthContext";
 
 // Utility function to ensure only numbers are entered and remove leading zeros
 const processNumericInput = (value, allowDecimal = true, maxLength = null) => {
@@ -143,6 +146,21 @@ const PurchaseOrder = () => {
 
   const [formData, setFormData] = useState(initialFormState);
   const [errors, setErrors] = useState({});
+  const { user } = useAuth();
+  const role = user?.role;
+
+  const canView = canAccess(role, PERMISSIONS.purchaseOrders.view);
+  const canCreate = canAccess(role, PERMISSIONS.purchaseOrders.create);
+  const canEdit = canAccess(role, PERMISSIONS.purchaseOrders.edit);
+  const canDelete = canAccess(role, PERMISSIONS.purchaseOrders.delete);
+
+  if (!canView) {
+    return (
+      <div className="p-10 text-center text-red-500 font-semibold">
+        You do not have permission to access Purchase Orders
+      </div>
+    );
+  }
 
   // Get unique createdBy values for filter
   const uniqueCreatedBy = React.useMemo(() => {
@@ -787,6 +805,10 @@ const PurchaseOrder = () => {
 
   // Create Purchase Order
   const createPO = async () => {
+    if (!canCreate) {
+      toast.error("You don't have permission to create purchase order");
+      return;
+    }
     if (!validateForm()) {
       toast.error("Please fix all errors before submitting");
       return;
@@ -904,6 +926,10 @@ const PurchaseOrder = () => {
 
   // Update Purchase Order
   const updatePO = async () => {
+    if (!canEdit) {
+      toast.error("You don't have permission to edit purchase order");
+      return;
+    }
     if (!validateForm()) {
       toast.error("Please fix all errors before updating");
       return;
@@ -1025,6 +1051,10 @@ const PurchaseOrder = () => {
 
   // Delete Single Purchase Order
   const deletePO = (id) => {
+    if (!canDelete) {
+      toast.error("You don't have permission to delete purchase order");
+      return;
+    }
     if (toastIdRef.current) {
       toast.dismiss(toastIdRef.current);
     }
@@ -1698,16 +1728,18 @@ const PurchaseOrder = () => {
 
         <div className="px-6 py-4 border-t border-gray-100 bg-gray-50">
           <div className="flex justify-between items-center">
-            <button
-              onClick={() => {
-                setViewMode(false);
-                setEditMode(true);
-              }}
-              className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors flex items-center"
-            >
-              <Edit size={16} className="mr-2" />
-              Edit Purchase Order
-            </button>
+            {canEdit && (
+              <button
+                onClick={() => {
+                  setViewMode(false);
+                  setEditMode(true);
+                }}
+                className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors flex items-center"
+              >
+                <Edit size={16} className="mr-2" />
+                Edit Purchase Order
+              </button>
+            )}
             <button
               onClick={resetForm}
               className="px-5 py-2 text-sm font-medium bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
@@ -1727,7 +1759,7 @@ const PurchaseOrder = () => {
         <div className="flex justify-between items-center">
           <h1 className="text-3xl font-bold text-gray-800">Purchase Orders</h1>
           <div className="flex gap-3">
-            {selectedPOs.length > 0 && (
+            {selectedPOs.length > 0 && canDelete && (
               <button
                 onClick={handleBulkDelete}
                 disabled={isSubmitting}
@@ -1737,7 +1769,8 @@ const PurchaseOrder = () => {
                 Delete Selected ({selectedPOs.length})
               </button>
             )}
-            {!showForm && (
+
+            {!showForm && canCreate && (
               <button
                 onClick={newPO}
                 disabled={isSubmitting}
@@ -1930,21 +1963,25 @@ const PurchaseOrder = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         <div className="flex gap-2">
-                          <button
-                            onClick={() => viewPO(po)}
-                            className="text-blue-600 hover:text-blue-800 p-1.5 hover:bg-blue-50 rounded transition-colors"
-                            title="View"
-                          >
-                            <Eye size={18} />
-                          </button>
+                          {canView && (
+                            <button
+                              onClick={() => viewPO(po)}
+                              className="text-blue-600 hover:text-blue-800 p-1.5 hover:bg-blue-50 rounded transition-colors"
+                              title="View"
+                            >
+                              <Eye size={18} />
+                            </button>
+                          )}
 
-                          <button
-                            onClick={() => editPO(po)}
-                            className="text-green-600 hover:text-green-800 p-1.5 hover:bg-green-50 rounded transition-colors"
-                            title="Edit"
-                          >
-                            <Edit size={18} />
-                          </button>
+                          {canEdit && (
+                            <button
+                              onClick={() => editPO(po)}
+                              className="text-green-600 hover:text-green-800 p-1.5 hover:bg-green-50 rounded transition-colors"
+                              title="Edit"
+                            >
+                              <Edit size={18} />
+                            </button>
+                          )}
 
                           <button
                             onClick={() => handleDownloadPOPdf(po.id)}
@@ -1954,13 +1991,15 @@ const PurchaseOrder = () => {
                             <FileText size={18} />
                           </button>
 
-                          <button
-                            onClick={() => deletePO(po.id)}
-                            className="text-red-600 hover:text-red-800 p-1.5 hover:bg-red-50 rounded transition-colors"
-                            title="Delete"
-                          >
-                            <Trash2 size={18} />
-                          </button>
+                          {canDelete && (
+                            <button
+                              onClick={() => deletePO(po.id)}
+                              className="text-red-600 hover:text-red-800 p-1.5 hover:bg-red-50 rounded transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

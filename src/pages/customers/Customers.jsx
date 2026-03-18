@@ -700,7 +700,10 @@ export default function CustomerTable() {
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {history.map((h) => {
-                        const assigned = getAssignedToWithType(h);
+                        const assigned = {
+                          type: h.assigned_to_display?.assign_type || "",
+                          name: h.assigned_to_display?.name || "Unassigned",
+                        };
                         const invoiceStatus = getInvoiceStatus(h);
                         const invoiceStatusColor =
                           getInvoiceStatusColor(invoiceStatus);
@@ -744,10 +747,10 @@ export default function CustomerTable() {
                               {getStatusBadge(h.status)}
                             </td>
                             <td className="px-4 py-3">
-                              {assigned.type ? (
+                              {h.assign_to ? (
                                 <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-50 text-purple-700 rounded-full text-xs font-medium capitalize">
                                   <Tag size={12} />
-                                  {assigned.type}
+                                  {h.assign_to}
                                 </span>
                               ) : (
                                 <span className="text-gray-400">—</span>

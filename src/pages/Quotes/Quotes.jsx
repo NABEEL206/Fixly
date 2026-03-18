@@ -1316,7 +1316,7 @@ const Quotes = () => {
                   {loading ? (
                     <tr>
                       <td
-                        colSpan="9"
+                        colSpan={canDelete ? 9 : 8}
                         className="px-6 py-8 text-center text-gray-500"
                       >
                         <div className="flex items-center justify-center gap-2">
@@ -1328,7 +1328,7 @@ const Quotes = () => {
                   ) : currentItems.length === 0 ? (
                     <tr>
                       <td
-                        colSpan="9"
+                        colSpan={canDelete ? 9 : 8}
                         className="px-6 py-8 text-center text-gray-500"
                       >
                         No quotations found. Create your first one!
@@ -1337,15 +1337,17 @@ const Quotes = () => {
                   ) : (
                     currentItems.map((quotation) => (
                       <tr key={quotation.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-4">
-                          <input
-                            type="checkbox"
-                            checked={selectedQuotes.includes(quotation.id)}
-                            onChange={() => handleSelectQuote(quotation.id)}
-                            disabled={isFetchingDetails}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
-                          />
-                        </td>
+                        {canDelete && (
+                          <td className="px-4 py-4">
+                            <input
+                              type="checkbox"
+                              checked={selectedQuotes.includes(quotation.id)}
+                              onChange={() => handleSelectQuote(quotation.id)}
+                              disabled={isFetchingDetails}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
+                            />
+                          </td>
+                        )}
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                           {new Date(
                             quotation.quotation_date,

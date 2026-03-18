@@ -18,6 +18,9 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import axiosInstance from "@/API/axiosInstance";
+import { PERMISSIONS } from "@/config/permissions";
+import { canAccess } from "@/utils/canAccess";
+import { useAuth } from "@/auth/AuthContext";
 
 // Utility function to remove leading zeros from numeric strings
 const removeLeadingZerosFromNumeric = (value) => {
@@ -812,13 +815,15 @@ const ViewBillModal = ({
         <div className="px-6 py-4 border-t border-gray-100 bg-gray-50">
           <div className="flex justify-between items-center">
             <div className="flex gap-2">
-              <button
-                onClick={onEdit}
-                className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors flex items-center"
-              >
-                <Edit size={16} className="mr-2" />
-                Edit Bill
-              </button>
+              {canEdit && (
+                <button
+                  onClick={onEdit}
+                  className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg flex items-center"
+                >
+                  <Edit size={16} className="mr-2" />
+                  Edit Bill
+                </button>
+              )}
               {formData.status === "OPEN" &&
                 formData.payment_status !== "PAID" &&
                 formData.balance_due > 0 && (
@@ -880,6 +885,21 @@ const Bill = () => {
 
   // Cache for detailed bills
   const [billDetailsCache, setBillDetailsCache] = useState({});
+  const { user } = useAuth();
+  const role = user?.role;
+
+  const canView = canAccess(role, PERMISSIONS.bills.view);
+  const canCreate = canAccess(role, PERMISSIONS.bills.create);
+  const canEdit = canAccess(role, PERMISSIONS.bills.edit);
+  const canDelete = canAccess(role, PERMISSIONS.bills.delete);
+
+  if (!canView) {
+    return (
+      <div className="p-10 text-center text-red-500 font-semibold">
+        You do not have permission to access Bills
+      </div>
+    );
+  }
 
   const initialFormState = {
     id: null,
@@ -991,6 +1011,10 @@ const Bill = () => {
 
   // NEW: Bulk delete bills
   const handleBulkDelete = () => {
+    if (!canDelete) {
+      toast.error("You don't have permission to delete bills");
+      return;
+    }
     if (selectedBills.length === 0) {
       toast.error("Please select at least one bill to delete");
       return;
@@ -2022,6 +2046,10 @@ const Bill = () => {
 
   // Create Bill
   const createBill = async () => {
+    if (!canCreate) {
+      toast.error("You don't have permission to create bill");
+      return;
+    }
     if (!validateForm()) {
       toast.error("Please fix all errors before submitting");
       return;
@@ -2156,6 +2184,10 @@ const Bill = () => {
 
   // Update Bill
   const updateBill = async () => {
+    if (!canEdit) {
+      toast.error("You don't have permission to edit bill");
+      return;
+    }
     if (!validateForm()) {
       toast.error("Please fix all errors before updating");
       return;
@@ -2297,6 +2329,10 @@ const Bill = () => {
 
   // Delete Bill
   const deleteBill = (id) => {
+    if (!canDelete) {
+      toast.error("You don't have permission to delete bill");
+      return;
+    }
     toast(
       (t) => (
         <div className="flex flex-col gap-3">
@@ -2616,14 +2652,25 @@ const Bill = () => {
           {!showForm && (
             <div className="flex items-center gap-3">
               {/* NEW: Bulk Delete Button */}
-              {selectedBills.length > 0 && (
+              {selectedBills.length > 0 && canDelete && (
                 <button
                   onClick={handleBulkDelete}
-                  disabled={isSubmitting || isFetchingDetails}
-                  className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={isSubmitting}
+                  className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition disabled:opacity-50"
                 >
-                  <Trash2 size={20} />
+                  <Trash2 size={18} />
                   Delete Selected ({selectedBills.length})
+                </button>
+              )}
+
+              {!showForm && canCreate && (
+                <button
+                  onClick={newBill}
+                  disabled={isSubmitting}
+                  className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+                >
+                  <Plus size={18} />
+                  New Bill
                 </button>
               )}
               <button
@@ -2830,58 +2877,32 @@ const Bill = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         <div className="flex gap-2">
-                          <button
-                            onClick={() => viewBill(bill)}
-                            disabled={isFetchingDetails}
-                            className="text-blue-600 hover:text-blue-800 p-1.5 hover:bg-blue-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            title="View"
-                          >
-                            {isFetchingDetails ? (
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                            ) : (
+                          {canView && (
+                            <button
+                              onClick={() => viewBill(bill)}
+                              className="text-blue-600 hover:text-blue-800 p-1.5 hover:bg-blue-50 rounded"
+                            >
                               <Eye size={18} />
-                            )}
-                          </button>
-                          <button
-                            onClick={() => editBill(bill)}
-                            disabled={isFetchingDetails}
-                            className="text-green-600 hover:text-green-800 p-1.5 hover:bg-green-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            title="Edit"
-                          >
-                            {isFetchingDetails ? (
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600"></div>
-                            ) : (
+                            </button>
+                          )}
+
+                          {canEdit && (
+                            <button
+                              onClick={() => editBill(bill)}
+                              className="text-green-600 hover:text-green-800 p-1.5 hover:bg-green-50 rounded"
+                            >
                               <Edit size={18} />
-                            )}
-                          </button>
-                          <button
-                            onClick={() => openBillPDF(bill.id)}
-                            disabled={isFetchingDetails}
-                            className="text-purple-600 hover:text-purple-800 p-1.5 hover:bg-purple-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            title="View PDF"
-                          >
-                            <FileText size={18} />
-                          </button>
-                          <button
-                            onClick={() => deleteBill(bill.id)}
-                            disabled={isFetchingDetails}
-                            className="text-red-600 hover:text-red-800 p-1.5 hover:bg-red-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            title="Delete"
-                          >
-                            <Trash2 size={18} />
-                          </button>
-                          {bill.status === "OPEN" &&
-                            bill.payment_status !== "PAID" &&
-                            bill.balance_due > 0 && (
-                              <button
-                                onClick={() => openPaymentModal(bill)}
-                                disabled={isFetchingDetails}
-                                className="text-green-600 hover:text-green-800 p-1.5 hover:bg-green-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                title="Record Payment"
-                              >
-                                <CreditCard size={18} />
-                              </button>
-                            )}
+                            </button>
+                          )}
+
+                          {canDelete && (
+                            <button
+                              onClick={() => deleteBill(bill.id)}
+                              className="text-red-600 hover:text-red-800 p-1.5 hover:bg-red-50 rounded"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

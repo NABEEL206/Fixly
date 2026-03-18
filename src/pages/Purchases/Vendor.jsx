@@ -25,6 +25,9 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import axiosInstance from "@/API/axiosInstance";
+import { PERMISSIONS } from "@/config/permissions";
+import { canAccess } from "@/utils/canAccess";
+import { useAuth } from "@/auth/AuthContext";
 
 const STATUS_OPTIONS = [
   { value: "active", label: "Active" },
@@ -549,6 +552,20 @@ export default function Vendor() {
 
   // Selection for bulk actions
   const [selectedIds, setSelectedIds] = useState([]);
+  const { user } = useAuth();
+  const role = user?.role;
+
+  const canView = canAccess(role, PERMISSIONS.vendors.view);
+  const canCreate = canAccess(role, PERMISSIONS.vendors.create);
+  const canEdit = canAccess(role, PERMISSIONS.vendors.edit);
+  const canDelete = canAccess(role, PERMISSIONS.vendors.delete);
+  if (!canView) {
+    return (
+      <div className="p-10 text-center text-red-500 font-semibold">
+        You do not have permission to access Vendors
+      </div>
+    );
+  }
 
   // Get unique createdBy values for filter
   const uniqueCreatedBy = useMemo(() => {
@@ -934,6 +951,10 @@ export default function Vendor() {
 
   // Handle delete
   const handleDelete = (id) => {
+    if (!canDelete) {
+      toast.error("You don't have permission to delete vendor");
+      return;
+    }
     if (toastIdRef.current) {
       toast.dismiss(toastIdRef.current);
     }
@@ -1158,22 +1179,24 @@ export default function Vendor() {
             />
           </button>
         </div>
-        <button
-          onClick={() => {
-            if (toastIdRef.current) {
-              toast.dismiss(toastIdRef.current);
-              toastIdRef.current = null;
-            }
-            setOpenForm(true);
-            setIsEdit(false);
-            setEditVendor(null);
-            resetFormStates();
-          }}
-          className="bg-blue-600 text-white px-6 py-2 rounded-xl shadow-md hover:bg-blue-700 transition-all w-full md:w-auto flex items-center justify-center gap-2"
-          disabled={isSubmitting}
-        >
-          <Plus size={18} /> Add Vendor
-        </button>
+        {canCreate && (
+          <button
+            onClick={() => {
+              if (toastIdRef.current) {
+                toast.dismiss(toastIdRef.current);
+                toastIdRef.current = null;
+              }
+              setOpenForm(true);
+              setIsEdit(false);
+              setEditVendor(null);
+              resetFormStates();
+            }}
+            className="bg-blue-600 text-white px-6 py-2 rounded-xl shadow-md hover:bg-blue-700 transition-all w-full md:w-auto flex items-center justify-center gap-2"
+            disabled={isSubmitting}
+          >
+            <Plus size={18} /> Add Vendor
+          </button>
+        )}
       </div>
 
       {/* Filter Section */}
@@ -1381,30 +1404,38 @@ export default function Vendor() {
                     </td>
                     <td className="px-3 py-4">
                       <div className="flex items-center justify-center gap-2">
-                        <button
-                          onClick={() => {
-                            setSelectedVendor(vendor);
-                            setViewModalOpen(true);
-                          }}
-                          className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
-                          title="View Details"
-                        >
-                          <Eye size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleEdit(vendor)}
-                          className="p-2 rounded-lg bg-yellow-50 text-yellow-600 hover:bg-yellow-100 transition-colors"
-                          title="Edit Vendor"
-                        >
-                          <Edit size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(vendor.id)}
-                          className="p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
-                          title="Delete Vendor"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        {canView && (
+                          <button
+                            onClick={() => {
+                              setSelectedVendor(vendor);
+                              setViewModalOpen(true);
+                            }}
+                            className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
+                            title="View Details"
+                          >
+                            <Eye size={16} />
+                          </button>
+                        )}
+
+                        {canEdit && (
+                          <button
+                            onClick={() => handleEdit(vendor)}
+                            className="p-2 rounded-lg bg-yellow-50 text-yellow-600 hover:bg-yellow-100 transition-colors"
+                            title="Edit Vendor"
+                          >
+                            <Edit size={16} />
+                          </button>
+                        )}
+
+                        {canDelete && (
+                          <button
+                            onClick={() => handleDelete(vendor.id)}
+                            className="p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                            title="Delete Vendor"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -1461,30 +1492,38 @@ export default function Vendor() {
               </div>
 
               <div className="grid grid-cols-3 gap-2 pt-2">
-                <button
-                  onClick={() => {
-                    setSelectedVendor(vendor);
-                    setViewModalOpen(true);
-                  }}
-                  className="flex flex-col items-center justify-center p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
-                >
-                  <Eye size={18} />
-                  <span className="text-xs mt-1">View</span>
-                </button>
-                <button
-                  onClick={() => handleEdit(vendor)}
-                  className="flex flex-col items-center justify-center p-2 bg-yellow-50 text-yellow-600 rounded-lg hover:bg-yellow-100 transition-colors"
-                >
-                  <Edit size={18} />
-                  <span className="text-xs mt-1">Edit</span>
-                </button>
-                <button
-                  onClick={() => handleDelete(vendor.id)}
-                  className="flex flex-col items-center justify-center p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
-                >
-                  <Trash2 size={18} />
-                  <span className="text-xs mt-1">Delete</span>
-                </button>
+                {canView && (
+                  <button
+                    onClick={() => {
+                      setSelectedVendor(vendor);
+                      setViewModalOpen(true);
+                    }}
+                    className="flex flex-col items-center justify-center p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
+                  >
+                    <Eye size={18} />
+                    <span className="text-xs mt-1">View</span>
+                  </button>
+                )}
+
+                {canEdit && (
+                  <button
+                    onClick={() => handleEdit(vendor)}
+                    className="flex flex-col items-center justify-center p-2 bg-yellow-50 text-yellow-600 rounded-lg hover:bg-yellow-100 transition-colors"
+                  >
+                    <Edit size={18} />
+                    <span className="text-xs mt-1">Edit</span>
+                  </button>
+                )}
+
+                {canDelete && (
+                  <button
+                    onClick={() => handleDelete(vendor.id)}
+                    className="flex flex-col items-center justify-center p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
+                  >
+                    <Trash2 size={18} />
+                    <span className="text-xs mt-1">Delete</span>
+                  </button>
+                )}
               </div>
             </div>
           ))}

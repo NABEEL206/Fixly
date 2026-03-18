@@ -18,7 +18,7 @@ export const PERMISSIONS = {
   },
 
   assignGrowtags: {
-    view: [ROLES.ADMIN],
+    view: [ROLES.ADMIN,],
     create: [ROLES.ADMIN],
     delete: [ROLES.ADMIN],
   },
