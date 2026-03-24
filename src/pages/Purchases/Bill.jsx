@@ -85,19 +85,30 @@ const PAYMENT_STATUS_OPTIONS = [
 ];
 
 const PAYMENT_METHODS = [
-  { value: "Cash", label: "Cash" },
-  { value: "Bank Transfer", label: "Bank Transfer" },
-  { value: "Check", label: "Check" },
-  { value: "Credit Card", label: "Credit Card" },
-  { value: "Debit Card", label: "Debit Card" },
+  { value: "CASH", label: "Cash" },
+  { value: "BANK_TRANSFER", label: "Bank Transfer" },
+  { value: "CHECK", label: "Check" },
+  { value: "CREDIT_CARD", label: "Credit Card" },
+  { value: "DEBIT_CARD", label: "Debit Card" },
   { value: "UPI", label: "UPI" },
-  { value: "Other", label: "Other" },
+  { value: "OTHER", label: "Other" },
 ];
 
-const OWNER_TYPE_OPTIONS = [
-  { value: "shop", label: "Shop" },
-  { value: "growtag", label: "Growtag" },
-];
+const getOwnerTypeOptionsByRole = (role) => {
+  if (role === "ADMIN") {
+    return [
+      { value: "shop", label: "Shop" },
+      { value: "growtag", label: "GrowTag" },
+    ];
+  }
+
+  if (role === "GROWTAG") {
+    return [{ value: "growtag", label: "GrowTag" }];
+  }
+
+  // FRANCHISE + OTHER SHOP
+  return [{ value: "shop", label: "Shop" }];
+};
 
 const ACCOUNT_TYPES = [
   "Cost of Goods Sold",
@@ -316,7 +327,7 @@ const PaymentModal = ({
   );
 };
 
-// ==================== VIEW MODAL COMPONENT ====================
+// ==================== VIEW MODAL COMPONENT (Payment button removed) ====================
 const ViewBillModal = ({
   formData,
   shops,
@@ -325,7 +336,7 @@ const ViewBillModal = ({
   getPaymentStatusColor,
   onClose,
   onEdit,
-  onPayment,
+  canEdit,
 }) => {
   return (
     <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
@@ -811,7 +822,7 @@ const ViewBillModal = ({
           )}
         </div>
 
-        {/* Modal Footer */}
+        {/* Modal Footer - Payment button removed */}
         <div className="px-6 py-4 border-t border-gray-100 bg-gray-50">
           <div className="flex justify-between items-center">
             <div className="flex gap-2">
@@ -824,17 +835,6 @@ const ViewBillModal = ({
                   Edit Bill
                 </button>
               )}
-              {formData.status === "OPEN" &&
-                formData.payment_status !== "PAID" &&
-                formData.balance_due > 0 && (
-                  <button
-                    onClick={onPayment}
-                    className="px-4 py-2 text-sm font-medium text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors flex items-center"
-                  >
-                    <CreditCard size={16} className="mr-2" />
-                    Record Payment
-                  </button>
-                )}
             </div>
             <button
               onClick={onClose}
@@ -878,7 +878,7 @@ const Bill = () => {
   const [paymentForm, setPaymentForm] = useState({
     payment_date: new Date().toISOString().split("T")[0],
     amount: "",
-    method: "Cash",
+    method: "CASH",
     reference: "",
   });
   const [paymentErrors, setPaymentErrors] = useState({});
@@ -900,6 +900,43 @@ const Bill = () => {
       </div>
     );
   }
+  // ===== DOWNLOAD BILL PDF =====
+  const downloadBillPDF = async (billId) => {
+    try {
+      const response = await axiosInstance.get(
+        `/purchase-bills/${billId}/pdf/`, // ✅ correct endpoint
+        {
+          responseType: "blob", // 🔥 IMPORTANT for file
+        },
+      );
+
+      // Create file URL
+      const url = window.URL.createObjectURL(
+        new Blob([response.data], { type: "application/pdf" }),
+      );
+
+      // Create download link
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `bill_${billId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      // Cleanup
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("PDF error:", error);
+
+      if (error.response?.status === 401) {
+        toast.error("Unauthorized! Please login again");
+      } else if (error.response?.status === 404) {
+        toast.error("PDF API not found");
+      } else {
+        toast.error("Download failed");
+      }
+    }
+  };
 
   const initialFormState = {
     id: null,
@@ -974,12 +1011,21 @@ const Bill = () => {
       setPaymentForm({
         payment_date: new Date().toISOString().split("T")[0],
         amount: selectedBill.balance_due.toFixed(2),
-        method: "Cash",
+        method: "CASH",
         reference: "",
       });
       setPaymentErrors({});
     }
   }, [selectedBill?.id]);
+
+  useEffect(() => {
+    if (!role) return;
+
+    setFormData((prev) => ({
+      ...prev,
+      owner_type: role === "GROWTAG" ? "growtag" : "shop",
+    }));
+  }, [role]);
 
   // Toggle expanded row
   const toggleRow = (index) => {
@@ -1212,7 +1258,9 @@ const Bill = () => {
         sync_status: item.sync_status,
       }));
 
-      setItems(transformedItems);
+      const filteredItems = transformedItems.filter((item) => item.is_active);
+
+      setItems(filteredItems);
     } catch (error) {
       console.error("Fetch items error:", error);
 
@@ -1571,7 +1619,9 @@ const Bill = () => {
 
     if (!paymentForm.amount || parseFloat(paymentForm.amount) <= 0) {
       newErrors.amount = "Valid amount is required";
-    } else if (parseFloat(paymentForm.amount) > selectedBill?.balance_due) {
+    } else if (
+      parseFloat(paymentForm.amount) > parseFloat(selectedBill?.balance_due)
+    ) {
       newErrors.amount = `Amount cannot exceed balance due (₹${selectedBill?.balance_due?.toFixed(2)})`;
     }
 
@@ -1706,39 +1756,35 @@ const Bill = () => {
   };
 
   // Handle item selection from catalog
-  const handleItemSelection = (index, itemId) => {
-    const item = items.find((i) => i.id === parseInt(itemId));
-    if (item) {
-      const newItems = [...formData.items];
-      newItems[index].item = item.id;
-      newItems[index].name = item.name || "";
-      // Use purchase_description for purchase bills
-      newItems[index].description =
-        item.purchase_description || item.sales_description || "";
-      // Use cost_price for purchase bills
-      newItems[index].rate = parseFloat(item.cost_price || 0);
+  const handleItemSelection = (index, selectedItemId) => {
+    const selectedItem = items.find(
+      (item) => String(item.id) === String(selectedItemId),
+    );
 
-      newItems[index].amount = calculateItemAmount(newItems[index]);
+    if (!selectedItem) return;
 
-      const totals = calculateTotals(
-        newItems,
-        formData.tds_percent,
-        formData.shipping_charges,
-        formData.adjustment,
-        formData.amount_paid,
-      );
+    setFormData((prev) => {
+      const updatedItems = [...prev.items];
 
-      setFormData((prev) => ({
+      updatedItems[index] = {
+        ...updatedItems[index],
+        item: selectedItem.id,
+        name: selectedItem.name,
+        description: selectedItem.sales_description || "",
+
+        // ✅ IMPORTANT: use SELLING PRICE
+        rate: selectedItem.selling_price || 0,
+
+        // optional
+        account: "Cost of Goods Sold",
+        qty: 1,
+      };
+
+      return {
         ...prev,
-        items: newItems,
-        ...totals,
-      }));
-
-      // Clear any errors for this item
-      if (errors[`item_${index}_name`]) {
-        setErrors((prev) => ({ ...prev, [`item_${index}_name`]: "" }));
-      }
-    }
+        items: updatedItems,
+      };
+    });
   };
 
   // Handle input change
@@ -1887,10 +1933,11 @@ const Bill = () => {
     setShowPaymentModal(false);
     setSelectedBill(null);
     setPaymentErrors({});
+
     setPaymentForm({
       payment_date: new Date().toISOString().split("T")[0],
       amount: "",
-      method: "Cash",
+      method: "CASH",
       reference: "",
     });
   };
@@ -1902,18 +1949,8 @@ const Bill = () => {
       return;
     }
 
-    if (selectedBill.payment_status === "PAID") {
-      toast.error("This bill is already fully paid");
-      return;
-    }
-
-    if (selectedBill.balance_due <= 0) {
-      toast.error("No balance due on this bill");
-      return;
-    }
-
     if (!validatePaymentForm()) {
-      toast.error("Please fix all payment errors");
+      toast.error("Fix errors");
       return;
     }
 
@@ -1921,9 +1958,20 @@ const Bill = () => {
     const loadingToast = toast.loading("Recording payment...");
 
     try {
+      let entered = Number(paymentForm.amount);
+      let balance = Number(selectedBill.balance_due);
+
+      // 🔥 HARD FIX (NO FLOAT ISSUE)
+      entered = Math.round(entered * 100);
+      balance = Math.round(balance * 100);
+
+      const finalAmount = Math.min(entered, balance) / 100;
+
+      console.log("FINAL SAFE:", finalAmount);
+
       const paymentData = {
-        amount: parseFloat(paymentForm.amount).toFixed(2),
         payment_date: paymentForm.payment_date,
+        amount: finalAmount.toFixed(2), // ALWAYS SAFE
         method: paymentForm.method,
         reference: paymentForm.reference || "",
       };
@@ -1933,63 +1981,65 @@ const Bill = () => {
         paymentData,
       );
 
-      // refresh bill data
-      const paidAmount = parseFloat(paymentForm.amount);
+      // ✅ use FINAL API amount (IMPORTANT)
+      const paidAmount = parseFloat(paymentData.amount);
 
-      setBills((prevBills) =>
-        prevBills.map((bill) => {
-          if (bill.id === selectedBill.id) {
-            const newAmountPaid = bill.amount_paid + paidAmount;
-            const newBalance = bill.total - newAmountPaid;
+      // 🔥 UPDATE TABLE
+      setBills((prev) =>
+        prev.map((bill) => {
+          if (bill.id !== selectedBill.id) return bill;
 
-            let newStatus = "UNPAID";
-            if (newAmountPaid === 0) newStatus = "UNPAID";
-            else if (newAmountPaid < bill.total) newStatus = "PARTIALLY_PAID";
-            else newStatus = "PAID";
+          const newAmountPaid = parseFloat(bill.amount_paid) + paidAmount;
 
-            return {
-              ...bill,
-              amount_paid: newAmountPaid,
-              balance_due: newBalance,
-              payment_status: newStatus,
-            };
-          }
-          return bill;
+          const newBalance = parseFloat(bill.balance_due) - paidAmount;
+
+          let newStatus = "UNPAID";
+          if (newAmountPaid === 0) newStatus = "UNPAID";
+          else if (newBalance > 0) newStatus = "PARTIALLY_PAID";
+          else newStatus = "PAID";
+
+          return {
+            ...bill,
+            amount_paid: newAmountPaid,
+            balance_due: newBalance < 0 ? 0 : newBalance,
+            payment_status: newStatus,
+          };
         }),
       );
-      toast.success("Payment recorded successfully!", { id: loadingToast });
 
-      // close modal
-      closePaymentModal();
+      // 🔥 UPDATE VIEW MODAL (THIS IS WHAT YOU ASKED)
+      setSelectedBill((prev) => {
+        if (!prev) return prev;
+
+        const newAmountPaid = parseFloat(prev.amount_paid) + paidAmount;
+
+        const newBalance = parseFloat(prev.balance_due) - paidAmount;
+
+        let newStatus = "UNPAID";
+        if (newAmountPaid === 0) newStatus = "UNPAID";
+        else if (newBalance > 0) newStatus = "PARTIALLY_PAID";
+        else newStatus = "PAID";
+
+        return {
+          ...prev,
+          amount_paid: newAmountPaid,
+          balance_due: newBalance < 0 ? 0 : newBalance,
+          payment_status: newStatus,
+        };
+      });
+      toast.success("Payment recorded!", { id: loadingToast });
+
+      setShowPaymentModal(false);
+      setSelectedBill(null);
     } catch (error) {
-      console.error("Record payment error:", error);
+      console.log("ERROR RESPONSE:", error.response?.data);
 
-      if (!error.response) {
-        toast.dismiss(loadingToast);
-        return;
-      }
-
-      if (error.response?.status === 400) {
-        const apiErrors = error.response.data;
-        const errorMessages = [];
-
-        Object.keys(apiErrors).forEach((key) => {
-          if (Array.isArray(apiErrors[key])) {
-            errorMessages.push(`${key}: ${apiErrors[key].join(", ")}`);
-          } else if (typeof apiErrors[key] === "string") {
-            errorMessages.push(apiErrors[key]);
-          }
-        });
-
-        toast.error(errorMessages.join("\n") || "Validation failed", {
-          id: loadingToast,
-        });
-      } else {
-        toast.error(
-          error.response?.data?.message || "Failed to record payment",
-          { id: loadingToast },
-        );
-      }
+      toast.error(
+        error.response?.data?.amount ||
+          error.response?.data?.detail ||
+          "Failed to record payment",
+        { id: loadingToast },
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -2520,7 +2570,7 @@ const Bill = () => {
     setExpandedRows({});
   };
 
-  // Open Payment Modal
+  // Open Payment Modal (called from table row action)
   const openPaymentModal = (bill) => {
     setSelectedBill(bill);
     setShowPaymentModal(true);
@@ -2613,7 +2663,7 @@ const Bill = () => {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       {/* Payment Modal */}
-      {showPaymentModal && (
+      {showPaymentModal && selectedBill && (
         <PaymentModal
           selectedBill={selectedBill}
           paymentForm={paymentForm}
@@ -2625,7 +2675,7 @@ const Bill = () => {
         />
       )}
 
-      {/* View Modal */}
+      {/* View Modal - Payment prop removed */}
       {viewMode && (
         <ViewBillModal
           formData={formData}
@@ -2633,14 +2683,17 @@ const Bill = () => {
           growtags={growtags}
           getStatusColor={getStatusColor}
           getPaymentStatusColor={getPaymentStatusColor}
-          onClose={resetForm}
-          onEdit={() => {
+          canEdit={canEdit}
+          onClose={() => {
             setViewMode(false);
-            setEditMode(true);
+            setShowForm(false);
+            setEditMode(false);
+            setSelectedBill(null);
           }}
-          onPayment={() => {
+          onEdit={() => {
+            setEditMode(true);
+            setShowForm(true);
             setViewMode(false);
-            openPaymentModal(formData);
           }}
         />
       )}
@@ -2663,16 +2716,6 @@ const Bill = () => {
                 </button>
               )}
 
-              {!showForm && canCreate && (
-                <button
-                  onClick={newBill}
-                  disabled={isSubmitting}
-                  className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
-                >
-                  <Plus size={18} />
-                  New Bill
-                </button>
-              )}
               <button
                 onClick={newBill}
                 disabled={isSubmitting || isFetchingDetails}
@@ -2881,24 +2924,47 @@ const Bill = () => {
                             <button
                               onClick={() => viewBill(bill)}
                               className="text-blue-600 hover:text-blue-800 p-1.5 hover:bg-blue-50 rounded"
+                              title="View Bill"
                             >
                               <Eye size={18} />
                             </button>
                           )}
-
+                          {/* DOWNLOAD PDF (WITH PERMISSION) */}
+                          {canEdit && (
+                            <button
+                              onClick={() => downloadBillPDF(bill.id)}
+                              className="p-1.5 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 transition"
+                              title="Download PDF"
+                            >
+                              <FileText size={18} />
+                            </button>
+                          )}
+                          {/* RECORD PAYMENT BUTTON ADDED HERE */}
+                          {canEdit &&
+                            bill?.status === "OPEN" &&
+                            bill?.payment_status !== "PAID" &&
+                            Number(bill?.balance_due) > 0 && (
+                              <button
+                                onClick={() => openPaymentModal(bill)}
+                                className="text-green-600 hover:text-green-800 p-1.5 hover:bg-green-50 rounded"
+                              >
+                                <CreditCard size={18} />
+                              </button>
+                            )}
                           {canEdit && (
                             <button
                               onClick={() => editBill(bill)}
                               className="text-green-600 hover:text-green-800 p-1.5 hover:bg-green-50 rounded"
+                              title="Edit Bill"
                             >
                               <Edit size={18} />
                             </button>
                           )}
-
                           {canDelete && (
                             <button
                               onClick={() => deleteBill(bill.id)}
                               className="text-red-600 hover:text-red-800 p-1.5 hover:bg-red-50 rounded"
+                              title="Delete Bill"
                             >
                               <Trash2 size={18} />
                             </button>
@@ -3058,16 +3124,14 @@ const Bill = () => {
                     Owner Type <span className="text-red-500">*</span>
                   </label>
                   <select
+                    name="owner_type"
                     value={formData.owner_type}
                     onChange={(e) => handleOwnerTypeChange(e.target.value)}
-                    disabled={isSubmitting}
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed ${
-                      errors.owner_type ? "border-red-500" : "border-gray-300"
-                    }`}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                   >
-                    {OWNER_TYPE_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
+                    {getOwnerTypeOptionsByRole(role).map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
                       </option>
                     ))}
                   </select>
@@ -3379,21 +3443,20 @@ const Bill = () => {
                                   }`}
                                 >
                                   <option value="">-- Select an item --</option>
+
                                   {isLoadingItems ? (
                                     <option disabled>Loading items...</option>
+                                  ) : items && items.length > 0 ? (
+                                    items.map((catalogItem) => (
+                                      <option
+                                        key={catalogItem.id}
+                                        value={catalogItem.id}
+                                      >
+                                        {catalogItem.name || "Unnamed Item"}
+                                      </option>
+                                    ))
                                   ) : (
-                                    items
-                                      .filter(
-                                        (item) => item.is_purchasable !== false,
-                                      )
-                                      .map((catalogItem) => (
-                                        <option
-                                          key={catalogItem.id}
-                                          value={catalogItem.id}
-                                        >
-                                          {catalogItem.name}
-                                        </option>
-                                      ))
+                                    <option disabled>No items found</option>
                                   )}
                                 </select>
                                 <button

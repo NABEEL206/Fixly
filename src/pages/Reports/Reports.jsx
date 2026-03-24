@@ -1195,40 +1195,40 @@ const Reports = () => {
     ),
   );
 
-const loadAllReports = async () => {
-  setLoading(true);
+  const loadAllReports = async () => {
+    setLoading(true);
 
-  try {
-    const promises = REPORTS_CONFIG.map(async ({ key, endpoint }) => {
-      const data = await fetchReportData(endpoint);
-      return { key, data };
-    });
+    try {
+      const promises = REPORTS_CONFIG.map(async ({ key, endpoint }) => {
+        const data = await fetchReportData(endpoint);
+        return { key, data };
+      });
 
-    const results = await Promise.all(promises);
+      const results = await Promise.all(promises);
 
-    const newReportData = results.reduce(
-      (acc, { key, data }) => ({
-        ...acc,
-        [key]: {
-          title: REPORTS_CONFIG.find((r) => r.key === key).title,
-          columns: data?.columns || [],
-          data: transformReportData(data),
-        },
-      }),
-      {}
-    );
+      const newReportData = results.reduce(
+        (acc, { key, data }) => ({
+          ...acc,
+          [key]: {
+            title: REPORTS_CONFIG.find((r) => r.key === key).title,
+            columns: data?.columns || [],
+            data: transformReportData(data),
+          },
+        }),
+        {},
+      );
 
-    setReportData(newReportData);
-  } catch (error) {
-    console.error("Error loading reports:", error);
+      setReportData(newReportData);
+    } catch (error) {
+      console.error("Error loading reports:", error);
 
-    if (!error.response) return;
+      if (!error.response) return;
 
-    toast.error(getErrorMessage(error));
-  } finally {
-    setLoading(false);   // ⭐ THIS WAS MISSING
-  }
-};
+      toast.error(getErrorMessage(error));
+    } finally {
+      setLoading(false); // ⭐ THIS WAS MISSING
+    }
+  };
 
   useEffect(() => {
     loadAllReports();
@@ -1251,7 +1251,7 @@ const loadAllReports = async () => {
       {/* Mobile Overlay */}
       {sidebarOpen && (
         <div
-          className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-30"
+          className="lg:hidden fixed inset-0  bg-opacity-50 z-30"
           onClick={() => setSidebarOpen(false)}
         />
       )}

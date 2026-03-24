@@ -803,19 +803,29 @@ const ViewModal = ({ shop, onClose }) => {
                             {complaint.title}
                           </h4>
 
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                          <div className="grid grid-cols-2 md:grid-cols-6 gap-3 text-sm">
+                            {/* ✅ NEW FIELD - CUSTOMER */}
+                            <div>
+                              <p className="text-xs text-gray-500">Customer</p>
+                              <p className="font-semibold text-indigo-600">
+                                {complaint.customer_name || "—"}
+                              </p>
+                            </div>
+
                             <div>
                               <p className="text-xs text-gray-500">Area</p>
                               <p className="font-medium text-gray-700">
                                 {complaint.area}
                               </p>
                             </div>
+
                             <div>
                               <p className="text-xs text-gray-500">Pincode</p>
                               <p className="font-medium text-gray-700">
                                 {complaint.pincode}
                               </p>
                             </div>
+
                             <div>
                               <p className="text-xs text-gray-500">
                                 Assigned To
@@ -824,6 +834,14 @@ const ViewModal = ({ shop, onClose }) => {
                                 {complaint.assign_to}
                               </p>
                             </div>
+
+                            <div>
+                              <p className="text-xs text-gray-500">Shop</p>
+                              <p className="font-medium text-blue-600">
+                                {complaint.shop_name || "—"}
+                              </p>
+                            </div>
+
                             <div>
                               <p className="text-xs text-gray-500">
                                 Created On

@@ -115,7 +115,7 @@ export const PERMISSIONS = {
     ],
     create: [ROLES.ADMIN, ROLES.FRANCHISE, ROLES.OTHERSHOP],
     edit: [ROLES.ADMIN, ROLES.FRANCHISE, ROLES.OTHERSHOP],
-    delete: [ROLES.ADMIN],
+    delete: [ROLES.ADMIN,],
   },
 
   reports: {

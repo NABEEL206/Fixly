@@ -2162,7 +2162,16 @@ export default function Complaints() {
                 </button>
               </div>
 
-              <div className="grid grid-cols-4 gap-2 pt-2">
+              <div
+                className={`grid gap-2 pt-2 ${
+                  canEdit && canDelete
+                    ? "grid-cols-4"
+                    : canEdit || canDelete
+                      ? "grid-cols-3"
+                      : "grid-cols-2"
+                }`}
+              >
+                {/* VIEW (always visible) */}
                 <button
                   onClick={() => {
                     setSelectedComplaint(c);
@@ -2174,14 +2183,20 @@ export default function Complaints() {
                   <Eye size={20} />
                   <span className="text-xs mt-1">View</span>
                 </button>
-                <button
-                  onClick={() => handleEdit(c)}
-                  className="flex flex-col items-center justify-center p-2 bg-yellow-50 text-yellow-600 rounded-lg hover:bg-yellow-100 transition-colors"
-                  title="Edit"
-                >
-                  <Edit size={20} />
-                  <span className="text-xs mt-1">Edit</span>
-                </button>
+
+                {/* EDIT */}
+                {canEdit && (
+                  <button
+                    onClick={() => handleEdit(c)}
+                    className="flex flex-col items-center justify-center p-2 bg-yellow-50 text-yellow-600 rounded-lg hover:bg-yellow-100 transition-colors"
+                    title="Edit"
+                  >
+                    <Edit size={20} />
+                    <span className="text-xs mt-1">Edit</span>
+                  </button>
+                )}
+
+                {/* INVOICE (keep always OR restrict if needed) */}
                 <button
                   onClick={() => handleInvoiceClick(c)}
                   className="flex flex-col items-center justify-center p-2 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 transition-colors"
@@ -2190,14 +2205,18 @@ export default function Complaints() {
                   <FileText size={20} />
                   <span className="text-xs mt-1">Invoice</span>
                 </button>
-                <button
-                  onClick={() => handleDelete(c.id)}
-                  className="flex flex-col items-center justify-center p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
-                  title="Delete"
-                >
-                  <Trash2 size={20} />
-                  <span className="text-xs mt-1">Delete</span>
-                </button>
+
+                {/* DELETE */}
+                {canDelete && (
+                  <button
+                    onClick={() => handleDelete(c.id)}
+                    className="flex flex-col items-center justify-center p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
+                    title="Delete"
+                  >
+                    <Trash2 size={20} />
+                    <span className="text-xs mt-1">Delete</span>
+                  </button>
+                )}
               </div>
             </div>
           ))}

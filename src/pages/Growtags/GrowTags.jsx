@@ -488,7 +488,7 @@ const GrowTagViewModal = ({ growTag, onClose, onEdit }) => {
                           <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
                             <div className="flex items-center gap-2">
                               <span className="text-xs font-mono bg-gray-100 text-gray-600 px-2 py-1 rounded border border-gray-200">
-                                {complaint.complaint_id || `#${complaint.id}`}
+                                #{complaint.id}
                               </span>
                               <span
                                 className={`px-2.5 py-1 rounded-full text-xs font-semibold ${getStatusClasses(complaint.status)}`}
@@ -519,19 +519,36 @@ const GrowTagViewModal = ({ growTag, onClose, onEdit }) => {
                             {complaint.title || "No title"}
                           </h4>
 
-                          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                            <div>
+                              <p className="text-xs text-gray-500">Customer</p>
+                              <p className="font-medium text-indigo-600">
+                                {complaint.customer_name || "—"}
+                              </p>
+                            </div>
+
                             <div>
                               <p className="text-xs text-gray-500">Area</p>
                               <p className="font-medium text-gray-700">
                                 {complaint.area || "-"}
                               </p>
                             </div>
+
                             <div>
                               <p className="text-xs text-gray-500">Pincode</p>
                               <p className="font-medium text-gray-700">
                                 {complaint.pincode || "-"}
                               </p>
                             </div>
+
+                            {/* ✅ ADD THIS */}
+                            <div>
+                              <p className="text-xs text-gray-500">Shop Name</p>
+                              <p className="font-medium text-gray-700">
+                                {complaint.shop_name || "nv"}
+                              </p>
+                            </div>
+
                             <div>
                               <p className="text-xs text-gray-500">
                                 Assigned To
@@ -540,6 +557,7 @@ const GrowTagViewModal = ({ growTag, onClose, onEdit }) => {
                                 {complaint.assign_to || "-"}
                               </p>
                             </div>
+
                             <div>
                               <p className="text-xs text-gray-500">
                                 Created On

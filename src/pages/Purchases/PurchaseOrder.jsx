@@ -153,6 +153,14 @@ const PurchaseOrder = () => {
   const canCreate = canAccess(role, PERMISSIONS.purchaseOrders.create);
   const canEdit = canAccess(role, PERMISSIONS.purchaseOrders.edit);
   const canDelete = canAccess(role, PERMISSIONS.purchaseOrders.delete);
+  useEffect(() => {
+    if (!role) return;
+
+    setFormData((prev) => ({
+      ...prev,
+      assign_type: role === "GROWTAG" ? "growtag" : "shop",
+    }));
+  }, [role]);
 
   if (!canView) {
     return (
@@ -278,12 +286,12 @@ const PurchaseOrder = () => {
       const data = response.data;
       const order = data.data || data;
 
-      // Transform the detailed data
+      // Transform the detailed data with proper itemId
       let itemsArray = [];
       if (order?.items && Array.isArray(order.items)) {
         itemsArray = order.items.map((item) => ({
           id: item?.id || null,
-          itemId: item?.id || "",
+          itemId: item?.item_id ? Number(item.item_id) : Number(item?.id) || "", // This ensures dropdown shows selected item
           itemName: item?.item_name || "",
           description: item?.description || "",
           quantity: parseFloat(item?.qty) || 0,
@@ -295,6 +303,23 @@ const PurchaseOrder = () => {
       }
 
       const vendorDetails = order?.vendor_details || {};
+
+      // Determine assign_type and assign_id
+      let assign_type = "shop";
+      let assign_id = null;
+      let assign_name = "";
+
+      if (order?.assigned_shop) {
+        assign_type = "shop";
+        assign_id = order.assigned_shop;
+        const shop = shops.find((s) => s.id === order.assigned_shop);
+        assign_name = shop?.shopname || "";
+      } else if (order?.assigned_growtag) {
+        assign_type = "growtag";
+        assign_id = order.assigned_growtag;
+        const growtag = growtags.find((g) => g.id === order.assigned_growtag);
+        assign_name = growtag?.name || "";
+      }
 
       const detailedOrder = {
         id: order?.id || null,
@@ -319,6 +344,9 @@ const PurchaseOrder = () => {
         terms: order?.terms_and_conditions || "",
         notes: order?.notes || "",
         created_by: order?.created_by || null,
+        assign_type: assign_type,
+        assign_id: assign_id,
+        assign_name: assign_name,
       };
 
       // Update cache
@@ -791,7 +819,7 @@ const PurchaseOrder = () => {
       notes: data.notes || null,
     };
 
-    // ⭐ ADD THIS PART
+    // Add assign fields
     if (data.assign_type === "shop" && data.assign_id) {
       apiData.assigned_shop = data.assign_id;
     }
@@ -824,6 +852,15 @@ const PurchaseOrder = () => {
 
     try {
       const apiData = transformToAPIFormat(formData);
+
+      // Make sure assign fields are included
+      if (formData.assign_type === "shop" && formData.assign_id) {
+        apiData.assigned_shop = formData.assign_id;
+      }
+      if (formData.assign_type === "growtag" && formData.assign_id) {
+        apiData.assigned_growtag = formData.assign_id;
+      }
+
       const response = await axiosInstance.post(
         "/api/purchase-orders/",
         apiData,
@@ -836,7 +873,7 @@ const PurchaseOrder = () => {
       if (newOrder?.items && Array.isArray(newOrder.items)) {
         itemsArray = newOrder.items.map((item) => ({
           id: item?.id || null,
-          itemId: item?.id || "",
+          itemId: item?.item_id || item?.id || "",
           itemName: item?.item_name || "",
           description: item?.description || "",
           quantity: parseFloat(item?.qty) || 0,
@@ -945,6 +982,15 @@ const PurchaseOrder = () => {
 
     try {
       const apiData = transformToAPIFormat(formData);
+
+      // Make sure assign fields are included in update
+      if (formData.assign_type === "shop" && formData.assign_id) {
+        apiData.assigned_shop = formData.assign_id;
+      }
+      if (formData.assign_type === "growtag" && formData.assign_id) {
+        apiData.assigned_growtag = formData.assign_id;
+      }
+
       const response = await axiosInstance.put(
         `/api/purchase-orders/${formData.id}/`,
         apiData,
@@ -957,7 +1003,7 @@ const PurchaseOrder = () => {
       if (updatedOrder?.items && Array.isArray(updatedOrder.items)) {
         itemsArray = updatedOrder.items.map((item) => ({
           id: item?.id || null,
-          itemId: item?.id || "",
+          itemId: item?.item_id || item?.id || "",
           itemName: item?.item_name || "",
           description: item?.description || "",
           quantity: parseFloat(item?.qty) || 0,
@@ -1253,7 +1299,7 @@ const PurchaseOrder = () => {
     setSelectAll(false);
   };
 
-  // Edit Purchase Order
+  // Edit Purchase Order - UPDATED to properly set itemId for dropdown
   const editPO = async (po) => {
     if (toastIdRef.current) {
       toast.dismiss(toastIdRef.current);
@@ -1268,6 +1314,17 @@ const PurchaseOrder = () => {
       }
 
       if (detailedPO) {
+        // Transform items to ensure itemId is properly set for dropdown
+        const transformedItems = detailedPO.items.map((item) => ({
+          ...item,
+          itemId: item.itemId ? Number(item.itemId) : Number(item.id), // Ensure itemId is set for dropdown selection
+          quantity: item.quantity.toString(),
+          unitPrice: item.unitPrice.toString(),
+          tax: item.tax.toString(),
+          discount: item.discount.toString(),
+          amount: item.amount,
+        }));
+
         setFormData({
           id: detailedPO.id,
           poNumber: detailedPO.poNumber,
@@ -1281,14 +1338,7 @@ const PurchaseOrder = () => {
           shipTo: detailedPO.shipTo || "",
           billTo: detailedPO.billTo || "",
           status: detailedPO.status,
-          items: detailedPO.items.map((item) => ({
-            ...item,
-            quantity: item.quantity.toString(),
-            unitPrice: item.unitPrice.toString(),
-            tax: item.tax.toString(),
-            discount: item.discount.toString(),
-            amount: item.amount,
-          })),
+          items: transformedItems,
           subtotal: detailedPO.subtotal,
           totalDiscount: detailedPO.totalDiscount,
           totalTax: detailedPO.totalTax,
@@ -1298,6 +1348,9 @@ const PurchaseOrder = () => {
           terms: detailedPO.terms || "",
           notes: detailedPO.notes || "",
           created_by: detailedPO.created_by,
+          assign_type: detailedPO.assign_type || "shop",
+          assign_id: detailedPO.assign_id || null,
+          assign_name: detailedPO.assign_name || "",
         });
         setEditMode(true);
         setViewMode(false);
@@ -2169,17 +2222,32 @@ const PurchaseOrder = () => {
                     <select
                       value={formData.assign_type}
                       onChange={(e) =>
-                        setFormData({
-                          ...formData,
+                        setFormData((prev) => ({
+                          ...prev,
                           assign_type: e.target.value,
                           assign_id: null,
                           assign_name: "",
-                        })
+                        }))
                       }
-                      className="w-1/3 px-3 py-2 border rounded-lg bg-gray-50"
+                      className="w-30 px-3 py-2 border  rounded-lg "
                     >
-                      <option value="shop">Shop</option>
-                      <option value="growtag">Growtag</option>
+                      {/* ADMIN → both */}
+                      {role === "ADMIN" && (
+                        <>
+                          <option value="shop">🏪 Shop</option>
+                          <option value="growtag">🏷️ GrowTag</option>
+                        </>
+                      )}
+
+                      {/* FRANCHISE / OTHER SHOP → only shop */}
+                      {(role === "FRANCHISE" || role === "OTHERSHOP") && (
+                        <option value="shop">🏪 Shop</option>
+                      )}
+
+                      {/* GROWTAG → only growtag */}
+                      {role === "GROWTAG" && (
+                        <option value="growtag">🏷️ GrowTag</option>
+                      )}
                     </select>
 
                     {/* LIST */}
@@ -2205,32 +2273,35 @@ const PurchaseOrder = () => {
                     >
                       <option value="">None</option>
 
-                      {formData.assign_type === "shop"
-                        ? shops.map((shop) => {
-                            const shopType = shop.shop_type?.toLowerCase();
+                      {/* SHOP LIST */}
+                      {formData.assign_type === "shop" &&
+                        role !== "GROWTAG" &&
+                        shops.map((shop) => {
+                          const type = shop.shop_type?.toLowerCase();
 
-                            const icon =
-                              shopType === "franchise"
-                                ? "🏬"
-                                : shopType === "other_shop"
-                                  ? "🛍️"
-                                  : "🏪";
+                          const icon =
+                            type === "franchise"
+                              ? "🏬"
+                              : type === "other_shop"
+                                ? "🛍️"
+                                : "🏪";
 
-                            return (
-                              <option key={shop.id} value={shop.id}>
-                                {icon}{" "}
-                                {shop.shop_type
-                                  ?.replace("_", " ")
-                                  .toUpperCase()}{" "}
-                                — {shop.shopname}
-                              </option>
-                            );
-                          })
-                        : growtags.map((gt) => (
-                            <option key={gt.id} value={gt.id}>
-                              🏷️ Growtag — {gt.name}
+                          return (
+                            <option key={shop.id} value={shop.id}>
+                              {icon} {shop.shopname}
                             </option>
-                          ))}
+                          );
+                        })}
+
+                      {/* GROWTAG LIST */}
+                      {formData.assign_type === "growtag" &&
+                        role !== "FRANCHISE" &&
+                        role !== "OTHERSHOP" &&
+                        growtags.map((gt) => (
+                          <option key={gt.id} value={gt.id}>
+                            🏷️ {gt.name}
+                          </option>
+                        ))}
                     </select>
                   </div>
                 </div>
@@ -2404,7 +2475,7 @@ const PurchaseOrder = () => {
                         <tr key={index} className="border-t">
                           <td className="px-3 py-2">
                             <select
-                              value={item.itemId}
+                              value={item.itemId ? Number(item.itemId) : ""}
                               onChange={(e) =>
                                 handleItemSelection(index, e.target.value)
                               }
@@ -2415,18 +2486,10 @@ const PurchaseOrder = () => {
                                   : "border-gray-300"
                               }`}
                             >
-                              <option value="">-- Select Item --</option>
-                              {items.map((catalogItem) => (
-                                <option
-                                  key={catalogItem.id}
-                                  value={catalogItem.id}
-                                >
-                                  {catalogItem.name} - ₹
-                                  {parseFloat(
-                                    catalogItem.selling_price ||
-                                      catalogItem.cost_price ||
-                                      0,
-                                  ).toFixed(2)}
+                              <option value="">Select Item</option>
+                              {items.map((i) => (
+                                <option key={i.id} value={i.id}>
+                                  {i.name}
                                 </option>
                               ))}
                             </select>

@@ -80,12 +80,6 @@ const TAX_PREFERENCE_DISPLAY_NAMES = {
   non_taxable: "Non-Taxable",
 };
 
-const VENDORS = [
-  { id: "", name: "None" },
-  { id: "vendor_a_id", name: "Vendor A (Mobile Wholesaler)" },
-  { id: "vendor_b_id", name: "Vendor B (Component Supplier)" },
-];
-
 const GST_TREATMENTS = [
   { value: "NO_TAX", label: "No Tax (0%)" },
   { value: "IGST_5", label: "5% IGST" },
@@ -163,6 +157,7 @@ export default function Items() {
   const [errors, setErrors] = useState({});
   const [imageLoading, setImageLoading] = useState(false);
   const [existingImageUrl, setExistingImageUrl] = useState(null);
+  const [vendors, setVendors] = useState([]);
 
   // Filter states
   const [filterProductType, setFilterProductType] = useState("");
@@ -234,6 +229,7 @@ export default function Items() {
 
   useEffect(() => {
     fetchItems();
+    fetchVendors();
   }, []);
 
   // ==================== HELPER FUNCTIONS ====================
@@ -296,6 +292,20 @@ export default function Items() {
       );
     });
   }, [items, searchTerm, filterProductType, filterSellable, filterCreatedBy]);
+
+  // venodr fetch
+  const fetchVendors = async () => {
+    try {
+      const res = await axiosInstance.get("/api/vendors/", authRequest());
+
+      const vendorData = res.data?.data || res.data || [];
+
+      setVendors(vendorData);
+    } catch (error) {
+      console.error("Vendor fetch error:", error);
+      toast.error("Failed to load vendors");
+    }
+  };
 
   // ==================== FORM VALIDATION ====================
   const validateField = (name, value) => {
@@ -430,6 +440,7 @@ export default function Items() {
   // ==================== FORM SUBMISSION ====================
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     if (!canCreate && !canEdit) {
       toast.error("You don't have permission");
       return;
@@ -440,7 +451,6 @@ export default function Items() {
       setErrors(validationErrors);
       toast.error(Object.values(validationErrors)[0]);
 
-      // Switch to appropriate tab based on error
       if (validationErrors.selling_price || validationErrors.sales_account) {
         setActiveTab("Sales");
       } else if (
@@ -460,15 +470,28 @@ export default function Items() {
     try {
       const formData = new FormData();
 
-      // Append all form fields
-      Object.keys(form).forEach((key) => {
-        if (form[key] !== null && form[key] !== undefined && form[key] !== "") {
-          if (key === "item_image" && form[key] instanceof File) {
-            formData.append(key, form[key]);
-          } else if (typeof form[key] === "boolean") {
-            formData.append(key, form[key].toString());
+      // ✅ FIX: handle preferred_vendor properly
+      const formToSend = { ...form };
+
+      if (!formToSend.preferred_vendor) {
+        delete formToSend.preferred_vendor;
+      }
+
+      // Append all fields
+      Object.keys(formToSend).forEach((key) => {
+        if (
+          formToSend[key] !== null &&
+          formToSend[key] !== undefined &&
+          formToSend[key] !== ""
+        ) {
+          if (key === "item_image" && formToSend[key] instanceof File) {
+            formData.append(key, formToSend[key]);
+          } else if (typeof formToSend[key] === "boolean") {
+            formData.append(key, formToSend[key].toString());
+          } else if (key === "preferred_vendor") {
+            formData.append(key, Number(formToSend[key])); // ✅ ensure number
           } else {
-            formData.append(key, form[key]);
+            formData.append(key, formToSend[key]);
           }
         }
       });
@@ -516,6 +539,39 @@ export default function Items() {
         toast.error("You don't have permission to perform this action", {
           id: toastId,
         });
+      } else if (error.response.status === 400) {
+        const data = error.response.data;
+
+        if (typeof data === "object") {
+          const firstKey = Object.keys(data)[0];
+          const firstError = data[firstKey];
+
+          const message = Array.isArray(firstError)
+            ? firstError[0]
+            : firstError;
+
+          // ✅ Show exact backend error (SKU / HSN etc.)
+          toast.error(message, { id: toastId });
+
+          // ✅ Set field error
+          setErrors((prev) => ({
+            ...prev,
+            [firstKey]: message,
+          }));
+
+          // ✅ Auto switch tab
+          if (firstKey === "selling_price" || firstKey === "sales_account") {
+            setActiveTab("Sales");
+          } else if (
+            firstKey === "cost_price" ||
+            firstKey === "purchase_account" ||
+            firstKey === "preferred_vendor"
+          ) {
+            setActiveTab("Purchase");
+          }
+        } else {
+          toast.error("Invalid input data", { id: toastId });
+        }
       } else {
         const errorMessage =
           error.response.data?.detail ||
@@ -1302,7 +1358,7 @@ export default function Items() {
                     <DetailRow
                       label="Preferred Vendor"
                       value={
-                        VENDORS.find(
+                        vendors.find(
                           (v) => v.id === viewedItem.preferred_vendor,
                         )?.name || viewedItem.preferred_vendor
                       }
@@ -1744,9 +1800,11 @@ export default function Items() {
               onChange={handleChange}
               className="border p-3 w-full rounded-lg text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
             >
-              {VENDORS.map((vendor) => (
+              <option value="">Select Vendor</option>
+
+              {vendors.map((vendor) => (
                 <option key={vendor.id} value={vendor.id}>
-                  {vendor.name}
+                  {vendor.name} {vendor.phone ? `(${vendor.phone})` : ""}
                 </option>
               ))}
             </select>

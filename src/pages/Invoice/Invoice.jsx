@@ -1329,6 +1329,37 @@ const Invoice = () => {
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
   const { user } = useAuth();
   const role = user?.role;
+  useEffect(() => {
+    if (!role) return;
+
+    setInvoiceData((prev) => ({
+      ...prev,
+      assign_type: role === "GROWTAG" ? "growtag" : "shop",
+    }));
+  }, [role]);
+  const filteredAssignOptions = useMemo(() => {
+    let options = [];
+
+    // ADMIN → both
+    if (role === "ADMIN") {
+      options = [
+        { label: "Shop", value: "shop" },
+        { label: "Grow Tag", value: "growtag" },
+      ];
+    }
+
+    // FRANCHISE / OTHER SHOP → only shop
+    else if (role === "FRANCHISE" || role === "OTHERSHOP") {
+      options = [{ label: "Shop", value: "shop" }];
+    }
+
+    // GROWTAG → only growtag
+    else if (role === "GROWTAG") {
+      options = [{ label: "Grow Tag", value: "growtag" }];
+    }
+
+    return options;
+  }, [role]);
 
   const canView = canAccess(role, PERMISSIONS.invoice.view);
   const canCreate = canAccess(role, PERMISSIONS.invoice.create);
@@ -2493,37 +2524,39 @@ const Invoice = () => {
                   Delete Selected ({selectedInvoices.length})
                 </button>
               )}
-              <button
-                onClick={() => {
-                  if (!invoices.length) {
-                    toast.error("Invoices still loading...");
-                    return;
-                  }
+              {canCreate && (
+                <button
+                  onClick={() => {
+                    if (isLoading) {
+                      toast.error("Invoices still loading...");
+                      return;
+                    }
 
-                  setInvoiceData({
-                    ...initialInvoiceState,
-                    invoice_number: generateInvoiceNumber(),
-                    items: [
-                      {
-                        item_id: null,
-                        item_name: "",
-                        qty: 1,
-                        rate: 0,
-                        description: "",
-                        service_charge_type: "AMOUNT",
-                        service_charge_value: 0,
-                        service_charge_amount: 0,
-                        gst_treatment: "GST_5",
-                      },
-                    ],
-                  });
+                    setInvoiceData({
+                      ...initialInvoiceState,
+                      invoice_number: generateInvoiceNumber(),
+                      items: [
+                        {
+                          item_id: null,
+                          item_name: "",
+                          qty: 1,
+                          rate: 0,
+                          description: "",
+                          service_charge_type: "AMOUNT",
+                          service_charge_value: 0,
+                          service_charge_amount: 0,
+                          gst_treatment: "GST_5",
+                        },
+                      ],
+                    });
 
-                  setCurrentScreen("form");
-                }}
-                className="w-full sm:w-auto bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2"
-              >
-                <Plus size={18} /> New Invoice
-              </button>
+                    setCurrentScreen("form");
+                  }}
+                  className="w-full sm:w-auto bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2"
+                >
+                  <Plus size={18} /> New Invoice
+                </button>
+              )}
             </div>
           </div>
 
@@ -2970,8 +3003,11 @@ const Invoice = () => {
                     }
                     className="w-1/3 px-3 py-2 border rounded-lg bg-gray-50"
                   >
-                    <option value="shop">Shop</option>
-                    <option value="growtag">Growtag</option>
+                    {filteredAssignOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
                   </select>
                   <select
                     value={invoiceData.assign_id || ""}
@@ -2994,30 +3030,35 @@ const Invoice = () => {
                   >
                     <option value="">None</option>
 
-                    {invoiceData.assign_type === "shop"
-                      ? shops.map((shop) => {
-                          const shopType = shop.shop_type?.toLowerCase();
+                    {invoiceData.assign_type === "shop" &&
+                      role !== "GROWTAG" && // ❌ hide shop for growtag login
+                      shops.map((shop) => {
+                        const shopType = shop.shop_type?.toLowerCase();
 
-                          const icon =
-                            shopType === "franchise"
-                              ? "🏬"
-                              : shopType === "other_shop"
-                                ? "🛍️"
-                                : "🏪";
+                        const icon =
+                          shopType === "franchise"
+                            ? "🏬"
+                            : shopType === "other_shop"
+                              ? "🛍️"
+                              : "🏪";
 
-                          return (
-                            <option key={shop.id} value={shop.id}>
-                              {icon}{" "}
-                              {shop.shop_type?.replace("_", " ").toUpperCase()}{" "}
-                              — {shop.shopname}
-                            </option>
-                          );
-                        })
-                      : growtags.map((gt) => (
-                          <option key={gt.id} value={gt.id}>
-                            🏷️ Growtag — {gt.name}
+                        return (
+                          <option key={shop.id} value={shop.id}>
+                            {icon}{" "}
+                            {shop.shop_type?.replace("_", " ").toUpperCase()} —{" "}
+                            {shop.shopname}
                           </option>
-                        ))}
+                        );
+                      })}
+
+                    {invoiceData.assign_type === "growtag" &&
+                      role !== "FRANCHISE" &&
+                      role !== "OTHERSHOP" && // ❌ hide growtag for franchise & other shop
+                      growtags.map((gt) => (
+                        <option key={gt.id} value={gt.id}>
+                          🏷️ Growtag — {gt.name}
+                        </option>
+                      ))}
                   </select>
                 </div>
               </div>

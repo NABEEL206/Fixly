@@ -432,25 +432,33 @@ const Quotes = () => {
     }
   };
 
-  const generateQuoteNumber = () => {
-    const year = new Date().getFullYear();
+  const generateQuoteNumber = async () => {
+    try {
+      // 🔥 Always fetch latest from server
+      const res = await axiosInstance.get("/zoho/quotations/");
+      const list = Array.isArray(res.data) ? res.data : res.data.results || [];
 
-    const numbers = quotations
-      .map((q) => q.quotation_number)
-      .filter(Boolean)
-      .map((num) => {
-        const parts = num.split("-");
-        return parseInt(parts[2]) || 0;
-      });
+      const year = new Date().getFullYear();
 
-    const nextNumber = numbers.length > 0 ? Math.max(...numbers) + 1 : 1;
+      const numbers = list
+        .map((q) => q.quotation_number)
+        .filter(Boolean)
+        .map((num) => {
+          const parts = num.split("-");
+          return parseInt(parts[2]) || 0;
+        });
 
-    const newQuoteNumber = `QUOTE-${year}-${String(nextNumber).padStart(4, "0")}`;
+      const nextNumber = numbers.length > 0 ? Math.max(...numbers) + 1 : 1;
 
-    setFormData((prev) => ({
-      ...prev,
-      quote_number: newQuoteNumber,
-    }));
+      const newQuoteNumber = `QUOTE-${year}-${String(nextNumber).padStart(4, "0")}`;
+
+      setFormData((prev) => ({
+        ...prev,
+        quote_number: newQuoteNumber,
+      }));
+    } catch (error) {
+      console.error("Error generating quote number:", error);
+    }
   };
 
   const validateForm = () => {
@@ -788,6 +796,14 @@ const Quotes = () => {
       toast.error("Please fill all required fields");
       return;
     }
+    const isDuplicate = quotations.some(
+      (q) => q.quotation_number === formData.quote_number,
+    );
+
+    if (isDuplicate) {
+      toast.error("Quote number already exists. Please refresh.");
+      return;
+    }
 
     setIsSubmitting(true);
 
@@ -1033,7 +1049,7 @@ const Quotes = () => {
     setFilterStatus("all");
   };
 
-  const handleNewQuotation = () => {
+  const handleNewQuotation = async () => {
     if (!canCreate) {
       toast.error("No permission to create quotation");
       return;
@@ -1041,7 +1057,9 @@ const Quotes = () => {
 
     setFormMode("add");
     resetForm();
-    generateQuoteNumber();
+
+    await generateQuoteNumber(); // 🔥 important
+
     setShowForm(true);
   };
 

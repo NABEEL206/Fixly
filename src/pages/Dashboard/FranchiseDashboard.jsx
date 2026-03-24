@@ -536,7 +536,7 @@ export default function FranchiseDashboard() {
       </div>
 
       {/* Second Row Stats Grid - 3 Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         {/* Completed Work Card - Teal */}
         <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 hover:shadow-xl transition-all duration-300 hover:scale-[1.02] animate-slide-up"
              style={{ animationDelay: '500ms' }}>
@@ -594,7 +594,7 @@ export default function FranchiseDashboard() {
         </div>
 
         {/* Work Assigned to GrowTag Card - Red */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 hover:shadow-xl transition-all duration-300 hover:scale-[1.02] animate-slide-up"
+        {/* <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 hover:shadow-xl transition-all duration-300 hover:scale-[1.02] animate-slide-up"
              style={{ animationDelay: '700ms' }}>
           <div className="flex items-start justify-between mb-4">
             <div className="p-3 bg-red-50 rounded-xl animate-pulse-slow">
@@ -619,7 +619,7 @@ export default function FranchiseDashboard() {
               }}
             ></div>
           </div>
-        </div>
+        </div> */}
       </div>
 
       {/* Charts Section */}

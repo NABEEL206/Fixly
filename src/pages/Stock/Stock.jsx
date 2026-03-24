@@ -343,7 +343,7 @@ const StockStats = ({ stockSummary }) => {
 };
 
 const Stock = () => {
-  const [activeTab, setActiveTab] = useState(STOCK_TYPES.FRANCHISE);
+  const [activeTab, setActiveTab] = useState(null);
   const [stockData, setStockData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedEntity, setSelectedEntity] = useState("all");
@@ -371,6 +371,17 @@ const Stock = () => {
 
   const { user } = useAuth();
   const role = user?.role;
+  useEffect(() => {
+    if (role === "FRANCHISE") {
+      setActiveTab(STOCK_TYPES.FRANCHISE);
+    } else if (role === "OTHER_SHOP") {
+      setActiveTab(STOCK_TYPES.OTHER_SHOP);
+    } else if (role === "GROW_TAG") {
+      setActiveTab(STOCK_TYPES.GROW_TAG);
+    } else if (role === "ADMIN") {
+      setActiveTab(STOCK_TYPES.FRANCHISE);
+    }
+  }, [role]);
 
   const canView = canAccess(role, PERMISSIONS.stock.view);
   const canCreate = canAccess(role, PERMISSIONS.stock.create);
@@ -386,6 +397,8 @@ const Stock = () => {
   // fetch counts data
   const fetchStockSummary = async () => {
     try {
+      if (!activeTab) return; // 🚀 prevent error
+
       const groupMap = {
         franchise: "franchise",
         other_shop: "othershop",
@@ -445,10 +458,14 @@ const Stock = () => {
 
   // Get dynamic options based on active tab
   const entityOptions = useMemo(() => {
+    const labelPrefix = activeTab
+      ? STOCK_TYPE_LABELS[activeTab].split(" ")[0]
+      : "Items";
+
     return [
       {
         value: "all",
-        label: `All ${STOCK_TYPE_LABELS[activeTab].split(" ")[0]}s`,
+        label: `All ${labelPrefix}s`,
       },
       ...getUniqueEntities(stockData, activeTab),
     ];
@@ -588,10 +605,32 @@ const Stock = () => {
       }
     };
 
+    // ✅ ROLE BASED TABS
+    const getAllowedTabs = () => {
+      switch (role) {
+        case "FRANCHISE":
+          return [STOCK_TYPES.FRANCHISE];
+
+        case "OTHER_SHOP":
+          return [STOCK_TYPES.OTHER_SHOP];
+
+        case "GROW_TAG":
+          return [STOCK_TYPES.GROW_TAG];
+
+        case "ADMIN":
+          return Object.values(STOCK_TYPES);
+
+        default:
+          return [];
+      }
+    };
+
+    const allowedTabs = getAllowedTabs();
+
     return (
       <div className="bg-white rounded-xl shadow-sm border mb-6">
         <div className="flex overflow-x-auto">
-          {Object.values(STOCK_TYPES).map((type) => {
+          {allowedTabs.map((type) => {
             const isActive = activeTab === type;
 
             return (
@@ -611,7 +650,11 @@ const Stock = () => {
                 {getTabIcon(type)}
                 <span>{STOCK_TYPE_LABELS[type]}</span>
                 <span
-                  className={`px-2 py-0.5 rounded-full text-xs ${isActive ? "bg-blue-200 text-blue-800" : "bg-gray-200 text-gray-600"}`}
+                  className={`px-2 py-0.5 rounded-full text-xs ${
+                    isActive
+                      ? "bg-blue-200 text-blue-800"
+                      : "bg-gray-200 text-gray-600"
+                  }`}
                 >
                   {stockData.filter((item) => filterByTab(item, type)).length}
                 </span>
@@ -624,6 +667,10 @@ const Stock = () => {
   };
 
   const FilterBar = () => {
+    const placeholderText = activeTab
+      ? STOCK_TYPE_LABELS[activeTab].split(" ")[0].toLowerCase()
+      : "entity";
+
     return (
       <div className="bg-white rounded-xl shadow-sm border p-4 mb-6">
         <div className="flex flex-wrap gap-3 items-center justify-end">
@@ -632,9 +679,7 @@ const Stock = () => {
             options={entityOptions}
             selectedValue={selectedEntity}
             onSelect={setSelectedEntity}
-            placeholder={STOCK_TYPE_LABELS[activeTab]
-              .split(" ")[0]
-              .toLowerCase()}
+            placeholder={placeholderText}
             icon={getEntityIcon()}
           />
 
