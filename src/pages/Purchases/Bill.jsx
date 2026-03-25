@@ -1,5 +1,5 @@
 // src/pages/Purchases/Bill.jsx
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   X,
   Plus,
@@ -22,27 +22,403 @@ import axiosInstance from "@/API/axiosInstance";
 import { PERMISSIONS } from "@/config/permissions";
 import { canAccess } from "@/utils/canAccess";
 import { useAuth } from "@/auth/AuthContext";
+import ReactDOM from "react-dom";
 
-// Utility function to remove leading zeros from numeric strings
-const removeLeadingZerosFromNumeric = (value) => {
-  if (!value && value !== 0) return value;
-  const stringValue = String(value);
-  if (stringValue === "0") return "0";
-  const trimmed = stringValue.replace(/^0+(?=\d)/, "");
-  if (trimmed === "" || trimmed === ".") return "0";
-  if (trimmed.includes(".")) {
-    const [whole, decimal] = trimmed.split(".");
-    const formattedWhole = whole.replace(/^0+(?=\d)/, "") || "0";
-    return `${formattedWhole}.${decimal}`;
-  }
-  return trimmed;
+// Portal component for rendering dropdown outside modal
+const Portal = ({ children }) => {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
+
+  if (!mounted) return null;
+
+  return ReactDOM.createPortal(children, document.body);
 };
 
-// Format number for display in input fields
-const formatNumberForInput = (value) => {
-  if (value === 0 || value === "0") return "0";
-  if (!value && value !== 0) return "";
-  return String(value);
+// Searchable Select Component for Vendors
+const SearchableVendorSelect = ({
+  options,
+  value,
+  onChange,
+  placeholder,
+  label,
+  error,
+  disabled = false,
+}) => {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  const filteredOptions = useMemo(() => {
+    if (!searchTerm) return options;
+    return options.filter((vendor) =>
+      vendor.name?.toLowerCase().includes(searchTerm.toLowerCase()),
+    );
+  }, [options, searchTerm]);
+
+  const selectedOption = options.find((opt) => opt.id === value);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        {label} <span className="text-red-500">*</span>
+      </label>
+      <button
+        type="button"
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        disabled={disabled}
+        className={`w-full px-3 py-2 border rounded-lg bg-white text-left flex items-center justify-between hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+          error ? "border-red-500" : "border-gray-300"
+        } ${disabled ? "bg-gray-50 cursor-not-allowed" : ""}`}
+      >
+        <span className="flex items-center gap-2">
+          <Building size={16} className="text-gray-400" />
+          <span className={selectedOption ? "text-gray-900" : "text-gray-400"}>
+            {selectedOption ? selectedOption.name : placeholder}
+          </span>
+        </span>
+        <ChevronDown size={16} className="text-gray-400" />
+      </button>
+
+      {isOpen && !disabled && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-80 overflow-hidden">
+          <div className="p-2 border-b border-gray-200">
+            <div className="relative">
+              <Search
+                size={14}
+                className="absolute left-3 top-2.5 text-gray-400"
+              />
+              <input
+                type="text"
+                placeholder="Search vendors..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                autoFocus
+              />
+            </div>
+          </div>
+
+          <div className="overflow-y-auto max-h-64">
+            {filteredOptions.length === 0 ? (
+              <div className="px-3 py-2 text-sm text-gray-500 text-center">
+                No vendors found
+              </div>
+            ) : (
+              filteredOptions.map((vendor) => (
+                <button
+                  key={vendor.id}
+                  type="button"
+                  onClick={() => {
+                    onChange(vendor.id);
+                    setIsOpen(false);
+                    setSearchTerm("");
+                  }}
+                  className="w-full px-3 py-2 text-left hover:bg-blue-50 transition-colors flex items-center gap-2"
+                >
+                  <Building size={14} className="text-gray-400" />
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-gray-900">
+                      {vendor.name}
+                    </div>
+                    {vendor.phone && (
+                      <div className="text-xs text-gray-500">
+                        {vendor.phone}
+                      </div>
+                    )}
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+      {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
+    </div>
+  );
+};
+
+// Searchable Item Select Component for table rows
+const SearchableItemSelect = ({ items, value, onChange, disabled = false, index }) => {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+  const [dropdownPosition, setDropdownPosition] = useState({
+    top: 0,
+    left: 0,
+    width: 0,
+  });
+  const buttonRef = useRef(null);
+  const dropdownRef = useRef(null);
+
+  const filteredItems = useMemo(() => {
+    if (!searchTerm) return items;
+    return items.filter((item) =>
+      item.name?.toLowerCase().includes(searchTerm.toLowerCase()),
+    );
+  }, [items, searchTerm]);
+
+  const selectedItem = items.find((item) => item.id === value);
+
+  const updatePosition = useCallback(() => {
+    if (buttonRef.current && isOpen) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.bottom + window.scrollY,
+        left: rect.left + window.scrollX,
+        width: rect.width,
+      });
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen) {
+      updatePosition();
+      window.addEventListener("scroll", updatePosition);
+      window.addEventListener("resize", updatePosition);
+    }
+
+    return () => {
+      window.removeEventListener("scroll", updatePosition);
+      window.removeEventListener("resize", updatePosition);
+    };
+  }, [isOpen, updatePosition]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(event.target)
+      ) {
+        setIsOpen(false);
+        setSearchTerm("");
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Helper function to format price safely
+  const formatPrice = (price) => {
+    if (price === null || price === undefined) return "0.00";
+    const numPrice = typeof price === 'string' ? parseFloat(price) : price;
+    return isNaN(numPrice) ? "0.00" : numPrice.toFixed(2);
+  };
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        disabled={disabled}
+        className={`w-full px-2 py-1.5 border rounded text-sm text-left flex items-center justify-between hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white ${
+          disabled ? "bg-gray-50 cursor-not-allowed" : ""
+        }`}
+        style={{ minHeight: "34px" }}
+      >
+        <span
+          className={
+            selectedItem ? "text-gray-900 truncate" : "text-gray-400 truncate"
+          }
+          style={{ maxWidth: "calc(100% - 20px)" }}
+        >
+          {selectedItem 
+            ? `${selectedItem.name} - ₹${formatPrice(selectedItem.selling_price)}` 
+            : "Select Item"}
+        </span>
+        <ChevronDown size={14} className="text-gray-400 flex-shrink-0 ml-1" />
+      </button>
+
+      {isOpen && !disabled && (
+        <Portal>
+          <div
+            ref={dropdownRef}
+            style={{
+              position: "absolute",
+              top: dropdownPosition.top,
+              left: dropdownPosition.left,
+              width: dropdownPosition.width,
+              minWidth: "250px",
+              maxHeight: "300px",
+              zIndex: 99999,
+              backgroundColor: "white",
+              border: "1px solid #e5e7eb",
+              borderRadius: "0.5rem",
+              boxShadow:
+                "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
+              overflow: "hidden",
+            }}
+          >
+            <div className="p-2 border-b border-gray-200 sticky top-0 bg-white">
+              <div className="relative">
+                <Search
+                  size={12}
+                  className="absolute left-2 top-2 text-gray-400"
+                />
+                <input
+                  type="text"
+                  placeholder="Search item..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-7 pr-2 py-1 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  autoFocus
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
+            </div>
+
+            <div className="overflow-y-auto" style={{ maxHeight: "250px" }}>
+              {filteredItems.length === 0 ? (
+                <div className="px-3 py-2 text-sm text-gray-500 text-center">
+                  No items found
+                </div>
+              ) : (
+                filteredItems.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      onChange(item.id);
+                      setIsOpen(false);
+                      setSearchTerm("");
+                    }}
+                    className="w-full px-3 py-2 text-left hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-b-0"
+                  >
+                    <div className="text-sm font-medium text-gray-900 truncate">
+                      {item.name}
+                    </div>
+                    {item.selling_price && (
+                      <div className="text-xs text-gray-500">
+                        ₹{formatPrice(item.selling_price)}
+                      </div>
+                    )}
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </Portal>
+      )}
+    </>
+  );
+};
+
+// Searchable Dropdown Component for Shops and Growtags
+const SearchableDropdown = ({
+  options,
+  value,
+  onChange,
+  placeholder,
+  label,
+  error,
+  disabled = false,
+  getDisplayValue,
+}) => {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  const filteredOptions = useMemo(() => {
+    if (!searchTerm) return options;
+    return options.filter((option) => {
+      const displayText = getDisplayValue(option).toLowerCase();
+      return displayText.includes(searchTerm.toLowerCase());
+    });
+  }, [options, searchTerm, getDisplayValue]);
+
+  const selectedOption = options.find((opt) => opt.id === value);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        {label} <span className="text-red-500">*</span>
+      </label>
+      <button
+        type="button"
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        disabled={disabled}
+        className={`w-full px-3 py-2 border rounded-lg bg-white text-left flex items-center justify-between hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+          error ? "border-red-500" : "border-gray-300"
+        } ${disabled ? "bg-gray-50 cursor-not-allowed" : ""}`}
+      >
+        <span className={selectedOption ? "text-gray-900" : "text-gray-400"}>
+          {selectedOption ? getDisplayValue(selectedOption) : placeholder}
+        </span>
+        <ChevronDown size={16} className="text-gray-400" />
+      </button>
+
+      {isOpen && !disabled && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-80 overflow-hidden">
+          <div className="p-2 border-b border-gray-200 sticky top-0 bg-white">
+            <div className="relative">
+              <Search
+                size={14}
+                className="absolute left-3 top-2.5 text-gray-400"
+              />
+              <input
+                type="text"
+                placeholder={`Search ${label.toLowerCase()}...`}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                autoFocus
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+          </div>
+
+          <div className="overflow-y-auto max-h-64">
+            {filteredOptions.length === 0 ? (
+              <div className="px-3 py-2 text-sm text-gray-500 text-center">
+                No {label.toLowerCase()} found
+              </div>
+            ) : (
+              filteredOptions.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => {
+                    onChange(option.id);
+                    setIsOpen(false);
+                    setSearchTerm("");
+                  }}
+                  className="w-full px-3 py-2 text-left hover:bg-blue-50 transition-colors"
+                >
+                  {getDisplayValue(option)}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+      {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
+    </div>
+  );
 };
 
 const STATUS_OPTIONS = [
@@ -91,103 +467,26 @@ const ACCOUNT_TYPES = [
   "Raw Materials",
 ];
 
-// ==================== SEARCHABLE DROPDOWN COMPONENT ====================
-const SearchableDropdown = ({
-  options,
-  value,
-  onChange,
-  placeholder,
-  label,
-  error,
-  disabled = false,
-  getDisplayValue,
-}) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const dropdownRef = useRef(null);
+// Utility function to remove leading zeros from numeric strings
+const removeLeadingZerosFromNumeric = (value) => {
+  if (!value && value !== 0) return value;
+  const stringValue = String(value);
+  if (stringValue === "0") return "0";
+  const trimmed = stringValue.replace(/^0+(?=\d)/, "");
+  if (trimmed === "" || trimmed === ".") return "0";
+  if (trimmed.includes(".")) {
+    const [whole, decimal] = trimmed.split(".");
+    const formattedWhole = whole.replace(/^0+(?=\d)/, "") || "0";
+    return `${formattedWhole}.${decimal}`;
+  }
+  return trimmed;
+};
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsOpen(false);
-        setSearchTerm("");
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const filteredOptions = options.filter((option) => {
-    const searchLower = searchTerm.toLowerCase();
-    const displayText = getDisplayValue(option).toLowerCase();
-    return displayText.includes(searchLower);
-  });
-
-  const selectedOption = options.find((opt) => opt.id === value);
-
-  return (
-    <div className="relative" ref={dropdownRef}>
-      <label className="block text-sm font-medium text-gray-700 mb-1">
-        {label} <span className="text-red-500">*</span>
-      </label>
-      <div
-        className={`w-full px-2 py-2 border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm cursor-pointer bg-white flex justify-between items-center ${
-          error ? "border-red-500" : "border-gray-300"
-        } ${disabled ? "bg-gray-100 cursor-not-allowed" : ""}`}
-        onClick={() => !disabled && setIsOpen(!isOpen)}
-      >
-        <span
-          className={
-            !selectedOption ? "text-gray-400" : "text-gray-900 truncate"
-          }
-        >
-          {selectedOption ? getDisplayValue(selectedOption) : placeholder}
-        </span>
-        <ChevronDown size={16} className="text-gray-400 flex-shrink-0" />
-      </div>
-
-      {isOpen && !disabled && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-          <div className="p-2 border-b sticky top-0 bg-white">
-            <div className="relative">
-              <Search
-                size={14}
-                className="absolute left-2 top-2.5 text-gray-400"
-              />
-              <input
-                type="text"
-                placeholder={`Search ${label.toLowerCase()}...`}
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-7 pr-2 py-1.5 border rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                onClick={(e) => e.stopPropagation()}
-              />
-            </div>
-          </div>
-          {filteredOptions.length === 0 ? (
-            <div className="px-3 py-2 text-sm text-gray-500 text-center">
-              No {label.toLowerCase()} found
-            </div>
-          ) : (
-            filteredOptions.map((option) => (
-              <div
-                key={option.id}
-                className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm truncate"
-                onClick={() => {
-                  onChange(option.id);
-                  setIsOpen(false);
-                  setSearchTerm("");
-                }}
-              >
-                {getDisplayValue(option)}
-              </div>
-            ))
-          )}
-        </div>
-      )}
-      {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
-    </div>
-  );
+// Format number for display in input fields
+const formatNumberForInput = (value) => {
+  if (value === 0 || value === "0") return "0";
+  if (!value && value !== 0) return "";
+  return String(value);
 };
 
 // ==================== PAYMENT MODAL COMPONENT ====================
@@ -370,7 +669,7 @@ const ViewBillModal = ({
   canEdit,
 }) => {
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-50 overflow-y-auto">
+    <div className="fixed inset-0  bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-50 overflow-y-auto">
       <div className="bg-white rounded-xl w-full max-w-5xl shadow-2xl my-4 sm:my-8 mx-2 sm:mx-4">
         <div className="px-4 sm:px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50">
           <div className="flex items-center justify-between">
@@ -611,7 +910,7 @@ const ViewBillModal = ({
                     <th className="px-3 sm:px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
                       Amount
                     </th>
-                  </tr>
+                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {formData.items && formData.items.length > 0 ? (
@@ -645,10 +944,7 @@ const ViewBillModal = ({
                     ))
                   ) : (
                     <tr>
-                      <td
-                        colSpan="5"
-                        className="px-3 sm:px-4 py-3 text-center text-gray-500"
-                      >
+                      <td colSpan="5" className="px-3 sm:px-4 py-3 text-center text-gray-500">
                         No items added
                       </td>
                     </tr>
@@ -828,7 +1124,7 @@ const Bill = () => {
         ? "Franchise"
         : shop.shop_type === "other_shop"
           ? "Other Shop"
-          : "Shop";
+          : "Other Shop";
     return `${icon} ${typeLabel} — ${shop.shopname}`;
   };
 
@@ -903,6 +1199,7 @@ const Bill = () => {
     fetchItems();
     fetchBills();
   }, []);
+  
   useEffect(() => {
     if (selectedBill) {
       setPaymentForm({
@@ -914,6 +1211,7 @@ const Bill = () => {
       setPaymentErrors({});
     }
   }, [selectedBill?.id]);
+  
   useEffect(() => {
     if (!role) return;
     setFormData((prev) => ({
@@ -926,10 +1224,12 @@ const Bill = () => {
 
   const toggleRow = (index) =>
     setExpandedRows((prev) => ({ ...prev, [index]: !prev[index] }));
+  
   const handleSelectAll = (checked) => {
     setSelectAll(checked);
     setSelectedBills(checked ? filteredBills.map((bill) => bill.id) : []);
   };
+  
   const handleSelectBill = (billId, checked) => {
     setSelectedBills((prev) =>
       checked ? [...prev, billId] : prev.filter((id) => id !== billId),
@@ -1147,10 +1447,6 @@ const Bill = () => {
     return null;
   };
 
-  const generateBillNumber = () =>
-    `BILL-${new Date().getFullYear()}-${Math.floor(Math.random() * 10000)
-      .toString()
-      .padStart(4, "0")}`;
   const calculateDueDate = (billDate) => {
     const date = new Date(billDate);
     date.setDate(date.getDate() + 30);
@@ -1159,8 +1455,7 @@ const Bill = () => {
 
   const validateForm = () => {
     const newErrors = {};
-    if (!formData.bill_number.trim())
-      newErrors.bill_number = "Bill Number is required";
+
     if (!formData.vendor) newErrors.vendor = "Vendor is required";
     if (!formData.owner_type) newErrors.owner_type = "Owner type is required";
     if (formData.owner_type === "shop" && !formData.shop)
@@ -1277,6 +1572,7 @@ const Bill = () => {
     }));
     if (errors.owner_type) setErrors((prev) => ({ ...prev, owner_type: "" }));
   };
+  
   const handleVendorChange = (vendorId) => {
     const vendor = vendors.find((v) => v.id === parseInt(vendorId));
     if (vendor) {
@@ -1302,10 +1598,12 @@ const Bill = () => {
       }));
     }
   };
+  
   const handleShopSelect = (shopId) => {
     setFormData({ ...formData, shop: shopId });
     if (errors.shop) setErrors((prev) => ({ ...prev, shop: "" }));
   };
+  
   const handleGrowtagSelect = (growtagId) => {
     setFormData({ ...formData, growtag: growtagId });
     if (errors.growtag) setErrors((prev) => ({ ...prev, growtag: "" }));
@@ -1327,8 +1625,20 @@ const Bill = () => {
         account: "Cost of Goods Sold",
         qty: 1,
       };
-      return { ...prev, items: updatedItems };
+      // Recalculate amount for this item
+      updatedItems[index].amount = calculateItemAmount(updatedItems[index]);
+      // Recalculate totals
+      const totals = calculateTotals(
+        updatedItems,
+        prev.tds_percent,
+        prev.shipping_charges,
+        prev.adjustment,
+        prev.amount_paid,
+      );
+      return { ...prev, items: updatedItems, ...totals };
     });
+    if (errors[`item_${index}_name`])
+      setErrors((prev) => ({ ...prev, [`item_${index}_name`]: "" }));
   };
 
   const handleInputChange = (e) => {
@@ -1386,6 +1696,7 @@ const Bill = () => {
         },
       ],
     }));
+    
   const removeItem = (index) => {
     if (formData.items.length === 1) {
       toast.error("At least one item is required");
@@ -1401,6 +1712,7 @@ const Bill = () => {
     );
     setFormData((prev) => ({ ...prev, items: newItems, ...totals }));
   };
+  
   const handleChargesChange = (field, value) => {
     const newValue = parseFloat(removeLeadingZerosFromNumeric(value)) || 0;
     const totals = calculateTotals(
@@ -1413,6 +1725,7 @@ const Bill = () => {
     setFormData((prev) => ({ ...prev, [field]: newValue, ...totals }));
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: "" }));
   };
+  
   const closePaymentModal = () => {
     setShowPaymentModal(false);
     setSelectedBill(null);
@@ -1937,7 +2250,7 @@ const Bill = () => {
       const dueDate = calculateDueDate(billDate);
       setFormData({
         ...initialFormState,
-        bill_number: generateBillNumber(),
+        bill_number: "", // Empty - backend will generate
         bill_date: billDate,
         due_date: dueDate,
         owner_type: role === "GROWTAG" ? "growtag" : "shop",
@@ -1958,6 +2271,7 @@ const Bill = () => {
     setSelectedBill(bill);
     setShowPaymentModal(true);
   };
+  
   const downloadBillPDF = async (billId) => {
     const loadingToast = toast.loading("Loading PDF...");
     try {
@@ -1986,6 +2300,7 @@ const Bill = () => {
     setFilterStatus("");
     setFilterPaymentStatus("");
   };
+  
   const filteredBills = bills.filter((bill) => {
     const matchesSearch =
       (bill.bill_number?.toLowerCase() || "").includes(
@@ -2328,15 +2643,12 @@ const Bill = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Actions
                   </th>
-                </tr>
+                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {isLoading ? (
                   <tr>
-                    <td
-                      colSpan="11"
-                      className="px-6 py-8 text-center text-gray-500"
-                    >
+                    <td colSpan="11" className="px-6 py-8 text-center text-gray-500">
                       <div className="flex items-center justify-center gap-2">
                         <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
                         <span>Loading bills...</span>
@@ -2345,10 +2657,7 @@ const Bill = () => {
                   </tr>
                 ) : filteredBills.length === 0 ? (
                   <tr>
-                    <td
-                      colSpan="11"
-                      className="px-6 py-8 text-center text-gray-500"
-                    >
+                    <td colSpan="11" className="px-6 py-8 text-center text-gray-500">
                       No bills found. Create your first one!
                     </td>
                   </tr>
@@ -2490,13 +2799,11 @@ const Bill = () => {
                     Required Fields
                   </h4>
                   <p className="text-xs sm:text-sm text-blue-700">
-                    <span className="font-medium">Required:</span> Bill Number,
-                    Vendor, Owner, Bill Date, Due Date, Bill To Address, Items
-                    (with Qty & Rate)
+                    <span className="font-medium">Required:</span> Vendor,
+                    Owner, Bill Date, Due Date, Bill To Address, Items (with Qty & Rate)
                   </p>
                   <p className="text-xs sm:text-sm text-blue-700 mt-1">
-                    <span className="font-medium">Optional:</span> Order Number,
-                    Shipping Address, Tax, Discount, TDS, Notes, Terms
+                    <span className="font-medium">Note:</span> Bill number is auto-generated by the system
                   </p>
                 </div>
               </div>
@@ -2509,21 +2816,20 @@ const Bill = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Bill Number <span className="text-red-500">*</span>
+                    Bill Number{" "}
+                    <span className="text-green-600 text-xs font-normal">
+                      (Auto-generated)
+                    </span>
                   </label>
                   <input
                     type="text"
                     name="bill_number"
                     value={formData.bill_number}
-                    onChange={handleInputChange}
-                    disabled={isSubmitting}
-                    className={`w-full px-3 py-2 border rounded-lg text-sm ${errors.bill_number ? "border-red-500" : "border-gray-300"}`}
+                    readOnly
+                    disabled
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed text-sm"
+                    placeholder="Will be generated by system"
                   />
-                  {errors.bill_number && (
-                    <p className="text-red-500 text-xs mt-1">
-                      {errors.bill_number}
-                    </p>
-                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -2655,84 +2961,76 @@ const Bill = () => {
               <h3 className="text-base sm:text-lg font-semibold mb-4">
                 Vendor Information
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Select Vendor <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={formData.vendor || ""}
-                    onChange={(e) => handleVendorChange(e.target.value)}
+              <div className="grid grid-cols-1 gap-4">
+                <div>
+                  <SearchableVendorSelect
+                    options={vendors}
+                    value={formData.vendor}
+                    onChange={handleVendorChange}
+                    placeholder="-- Select Vendor --"
+                    label="Select Vendor"
+                    error={errors.vendor}
                     disabled={isSubmitting}
-                    className={`w-full px-3 py-2 border rounded-lg text-sm ${errors.vendor ? "border-red-500" : "border-gray-300"}`}
-                  >
-                    <option value="">-- Select Vendor --</option>
-                    {vendors.map((vendor) => (
-                      <option key={vendor.id} value={vendor.id}>
-                        {vendor.name}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.vendor && (
-                    <p className="text-red-500 text-xs mt-1">{errors.vendor}</p>
-                  )}
+                  />
                 </div>
                 {formData.vendor && (
                   <>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Vendor Name
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.vendor_name}
-                        readOnly
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Vendor Email
-                      </label>
-                      <input
-                        type="email"
-                        value={formData.vendor_email}
-                        readOnly
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Vendor Phone
-                      </label>
-                      <input
-                        type="tel"
-                        value={formData.vendor_phone}
-                        readOnly
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Vendor GSTIN
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.vendor_gstin}
-                        readOnly
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-sm"
-                      />
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Vendor Address
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.vendor_address}
-                        readOnly
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-sm"
-                      />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Vendor Name
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.vendor_name}
+                          readOnly
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Vendor Email
+                        </label>
+                        <input
+                          type="email"
+                          value={formData.vendor_email}
+                          readOnly
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Vendor Phone
+                        </label>
+                        <input
+                          type="tel"
+                          value={formData.vendor_phone}
+                          readOnly
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Vendor GSTIN
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.vendor_gstin}
+                          readOnly
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-sm"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Vendor Address
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.vendor_address}
+                          readOnly
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-sm"
+                        />
+                      </div>
                     </div>
                   </>
                 )}
@@ -2840,30 +3138,15 @@ const Bill = () => {
                           <tr className="border-t hover:bg-gray-50">
                             <td className="px-3 py-2">
                               <div className="flex items-center justify-between">
-                                <select
-                                  value={item.item || ""}
-                                  onChange={(e) =>
-                                    handleItemSelection(index, e.target.value)
+                                <SearchableItemSelect
+                                  items={items}
+                                  value={item.item}
+                                  onChange={(value) =>
+                                    handleItemSelection(index, value)
                                   }
                                   disabled={isSubmitting}
-                                  className={`w-full px-2 py-1.5 border rounded text-sm ${errors[`item_${index}_name`] ? "border-red-500" : "border-gray-300"}`}
-                                >
-                                  <option value="">-- Select an item --</option>
-                                  {isLoadingItems ? (
-                                    <option disabled>Loading items...</option>
-                                  ) : items && items.length > 0 ? (
-                                    items.map((catalogItem) => (
-                                      <option
-                                        key={catalogItem.id}
-                                        value={catalogItem.id}
-                                      >
-                                        {catalogItem.name || "Unnamed Item"}
-                                      </option>
-                                    ))
-                                  ) : (
-                                    <option disabled>No items found</option>
-                                  )}
-                                </select>
+                                  index={index}
+                                />
                                 <button
                                   type="button"
                                   onClick={() => toggleRow(index)}
@@ -2881,7 +3164,7 @@ const Bill = () => {
                                   {errors[`item_${index}_name`]}
                                 </p>
                               )}
-                            </td>
+                             </td>
                             <td className="px-3 py-2">
                               <input
                                 type="text"
@@ -2897,7 +3180,7 @@ const Bill = () => {
                                 placeholder="Description"
                                 className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
                               />
-                            </td>
+                             </td>
                             <td className="px-3 py-2">
                               <select
                                 value={item.account || "Cost of Goods Sold"}
@@ -2917,7 +3200,7 @@ const Bill = () => {
                                   </option>
                                 ))}
                               </select>
-                            </td>
+                             </td>
                             <td className="px-3 py-2">
                               <input
                                 type="text"
@@ -2939,7 +3222,7 @@ const Bill = () => {
                                   {errors[`item_${index}_qty`]}
                                 </p>
                               )}
-                            </td>
+                             </td>
                             <td className="px-3 py-2">
                               <div className="relative">
                                 <span className="absolute left-2 top-2 text-gray-500">
@@ -2970,7 +3253,7 @@ const Bill = () => {
                                   {errors[`item_${index}_rate`]}
                                 </p>
                               )}
-                            </td>
+                             </td>
                             <td className="px-3 py-2">
                               <input
                                 type="text"
@@ -3000,7 +3283,7 @@ const Bill = () => {
                                   {errors[`item_${index}_tax_percent`]}
                                 </p>
                               )}
-                            </td>
+                             </td>
                             <td className="px-3 py-2">
                               <input
                                 type="text"
@@ -3032,10 +3315,10 @@ const Bill = () => {
                                   {errors[`item_${index}_discount_percent`]}
                                 </p>
                               )}
-                            </td>
+                             </td>
                             <td className="px-3 py-2 font-medium text-right text-sm">
                               ₹{item.amount.toFixed(2)}
-                            </td>
+                             </td>
                             {!viewMode && (
                               <td className="px-3 py-2">
                                 <button
@@ -3045,9 +3328,9 @@ const Bill = () => {
                                 >
                                   <Trash2 size={18} />
                                 </button>
-                              </td>
+                               </td>
                             )}
-                          </tr>
+                           </tr>
                           {expandedRows[index] && (
                             <tr className="bg-gray-50">
                               <td
@@ -3083,8 +3366,8 @@ const Bill = () => {
                                     </div>
                                   </div>
                                 </div>
-                              </td>
-                            </tr>
+                               </td>
+                             </tr>
                           )}
                         </React.Fragment>
                       ))
@@ -3095,8 +3378,8 @@ const Bill = () => {
                           className="px-3 py-4 text-center text-gray-500"
                         >
                           No items added. Click "Add Item" to add items.
-                        </td>
-                      </tr>
+                         </td>
+                       </tr>
                     )}
                   </tbody>
                 </table>

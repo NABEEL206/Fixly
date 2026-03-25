@@ -36,6 +36,7 @@ import toast from "react-hot-toast";
 import { PERMISSIONS } from "@/config/permissions";
 import { canAccess } from "@/utils/canAccess";
 import { useAuth } from "@/auth/AuthContext";
+import ReactDOM from "react-dom";
 
 // Helper function
 const format = (num) => Number(num || 0).toFixed(2);
@@ -1081,6 +1082,274 @@ const InvoiceViewModal = ({
   );
 };
 
+// Searchable Select Component
+const SearchableSelect = ({
+  options,
+  value,
+  onChange,
+  placeholder,
+  label,
+  error,
+  getOptionLabel,
+  getOptionValue,
+  icon: Icon,
+}) => {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  const filteredOptions = useMemo(() => {
+    if (!searchTerm) return options;
+    return options.filter((option) => {
+      const label = getOptionLabel(option).toLowerCase();
+      return label.includes(searchTerm.toLowerCase());
+    });
+  }, [options, searchTerm, getOptionLabel]);
+
+  const selectedOption = options.find((opt) => getOptionValue(opt) === value);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <label className="block text-sm font-medium mb-1">
+        {label} <span className="text-red-500">*</span>
+      </label>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={`w-full px-3 py-2 border rounded-lg bg-white text-left flex items-center justify-between hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+          error ? "border-red-500" : "border-gray-300"
+        }`}
+      >
+        <span className="flex items-center gap-2">
+          {Icon && <Icon size={16} className="text-gray-400" />}
+          <span className={selectedOption ? "text-gray-900" : "text-gray-400"}>
+            {selectedOption ? getOptionLabel(selectedOption) : placeholder}
+          </span>
+        </span>
+        <ChevronDown size={16} className="text-gray-400" />
+      </button>
+
+      {isOpen && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-80 overflow-hidden">
+          <div className="p-2 border-b border-gray-200">
+            <div className="relative">
+              <Search
+                size={14}
+                className="absolute left-3 top-2.5 text-gray-400"
+              />
+              <input
+                type="text"
+                placeholder={`Search ${label}...`}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                autoFocus
+              />
+            </div>
+          </div>
+
+          <div className="overflow-y-auto max-h-64">
+            {filteredOptions.length === 0 ? (
+              <div className="px-3 py-2 text-sm text-gray-500 text-center">
+                No {label.toLowerCase()} found
+              </div>
+            ) : (
+              filteredOptions.map((option) => (
+                <button
+                  key={getOptionValue(option)}
+                  type="button"
+                  onClick={() => {
+                    onChange(getOptionValue(option));
+                    setIsOpen(false);
+                    setSearchTerm("");
+                  }}
+                  className="w-full px-3 py-2 text-left hover:bg-blue-50 transition-colors flex items-center gap-2"
+                >
+                  {Icon && <Icon size={14} className="text-gray-400" />}
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-gray-900">
+                      {getOptionLabel(option)}
+                    </div>
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+      {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
+    </div>
+  );
+};
+
+// Searchable Item Select Component for table rows - FIXED with Portal
+const SearchableItemSelect = ({ items, value, onChange, index }) => {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+  const [dropdownPosition, setDropdownPosition] = useState({
+    top: 0,
+    left: 0,
+    width: 0,
+  });
+  const buttonRef = useRef(null);
+  const dropdownRef = useRef(null);
+
+  const filteredItems = useMemo(() => {
+    if (!searchTerm) return items;
+    return items.filter((item) =>
+      item.name?.toLowerCase().includes(searchTerm.toLowerCase()),
+    );
+  }, [items, searchTerm]);
+
+  const selectedItem = items.find((item) => item.id === value);
+
+  // Update dropdown position
+  const updatePosition = useCallback(() => {
+    if (buttonRef.current && isOpen) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.bottom + window.scrollY,
+        left: rect.left + window.scrollX,
+        width: rect.width,
+      });
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen) {
+      updatePosition();
+      window.addEventListener("scroll", updatePosition);
+      window.addEventListener("resize", updatePosition);
+    }
+
+    return () => {
+      window.removeEventListener("scroll", updatePosition);
+      window.removeEventListener("resize", updatePosition);
+    };
+  }, [isOpen, updatePosition]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(event.target)
+      ) {
+        setIsOpen(false);
+        setSearchTerm("");
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full px-2 py-1 border rounded text-left flex items-center justify-between hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+        style={{ minHeight: "32px" }}
+      >
+        <span
+          className={
+            selectedItem ? "text-gray-900 truncate" : "text-gray-400 truncate"
+          }
+          style={{ maxWidth: "calc(100% - 20px)" }}
+        >
+          {selectedItem ? selectedItem.name : "Select Item"}
+        </span>
+        <ChevronDown size={14} className="text-gray-400 flex-shrink-0 ml-1" />
+      </button>
+
+      {isOpen && (
+        <Portal>
+          <div
+            ref={dropdownRef}
+            style={{
+              position: "absolute",
+              top: dropdownPosition.top,
+              left: dropdownPosition.left,
+              width: dropdownPosition.width,
+              minWidth: "250px",
+              maxHeight: "300px",
+              zIndex: 99999,
+              backgroundColor: "white",
+              border: "1px solid #e5e7eb",
+              borderRadius: "0.5rem",
+              boxShadow:
+                "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
+              overflow: "hidden",
+            }}
+          >
+            {/* Search Input */}
+            <div className="p-2 border-b border-gray-200 sticky top-0 bg-white">
+              <div className="relative">
+                <Search
+                  size={12}
+                  className="absolute left-2 top-2 text-gray-400"
+                />
+                <input
+                  type="text"
+                  placeholder="Search item..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-7 pr-2 py-1 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  autoFocus
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
+            </div>
+
+            {/* Options List */}
+            <div className="overflow-y-auto" style={{ maxHeight: "250px" }}>
+              {filteredItems.length === 0 ? (
+                <div className="px-3 py-2 text-sm text-gray-500 text-center">
+                  No items found
+                </div>
+              ) : (
+                filteredItems.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      onChange(item.id);
+                      setIsOpen(false);
+                      setSearchTerm("");
+                    }}
+                    className="w-full px-3 py-2 text-left hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-b-0"
+                  >
+                    <div className="text-sm font-medium text-gray-900 truncate">
+                      {item.name}
+                    </div>
+                    {item.selling_price && (
+                      <div className="text-xs text-gray-500">
+                        ₹{item.selling_price}
+                      </div>
+                    )}
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </Portal>
+      )}
+    </>
+  );
+};
+
 // Initial state for invoice form
 const initialInvoiceState = {
   id: null,
@@ -1096,7 +1365,6 @@ const initialInvoiceState = {
   assign_id: null,
   assign_name: "",
 
-  invoice_number: "",
   status: "DRAFT",
   invoice_date: new Date().toISOString().split("T")[0],
   due_date: new Date(new Date().setDate(new Date().getDate() + 7))
@@ -1139,6 +1407,19 @@ const initialInvoiceState = {
   amount_paid: 0,
   balance_due: 0,
   payments: [],
+};
+// Portal component for rendering dropdown outside modal
+const Portal = ({ children }) => {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
+
+  if (!mounted) return null;
+
+  return ReactDOM.createPortal(children, document.body);
 };
 
 const Invoice = () => {
@@ -1218,8 +1499,8 @@ const Invoice = () => {
   };
 
   const getAssignTypeLabel = () => {
-    if (invoiceData.assign_type === "shop") return "Shop";
-    return "GrowTag Account";
+    if (invoiceData.assign_type === "shop") return "Shop ";
+    return "GrowTag ";
   };
 
   const getSelectedDisplayText = () => {
@@ -1419,20 +1700,6 @@ const Invoice = () => {
     } catch (error) {
       console.error("Fetch growtags error:", error);
     }
-  };
-
-  // Generate invoice number
-  const generateInvoiceNumber = () => {
-    const numbers = invoices
-      .map((inv) => {
-        const match = inv.invoice_number?.match(/INV-(\d+)/);
-        return match ? parseInt(match[1]) : 0;
-      })
-      .filter(Boolean);
-
-    const next = numbers.length ? Math.max(...numbers) + 1 : 1;
-
-    return `INV-${String(next).padStart(4, "0")}`;
   };
 
   // Fetch invoices from API
@@ -1835,24 +2102,24 @@ const Invoice = () => {
   // Validate form
   const validateForm = () => {
     const newErrors = {};
-    const duplicate = invoices.find(
-      (inv) =>
-        inv.invoice_number === invoiceData.invoice_number &&
-        inv.id !== invoiceData.id,
-    );
 
-    if (duplicate) {
-      newErrors.invoice_number = "Invoice number already exists";
+    // Only check for duplicate invoice numbers when editing
+    if (editIndex !== null && invoiceData.id) {
+      const duplicate = invoices.find(
+        (inv) =>
+          inv.invoice_number === invoiceData.invoice_number &&
+          inv.id !== invoiceData.id,
+      );
+
+      if (duplicate) {
+        newErrors.invoice_number = "Invoice number already exists";
+      }
     }
 
     if (!invoiceData.customer) {
       newErrors.customer = "Customer is required";
     } else if (isNaN(parseInt(invoiceData.customer))) {
       newErrors.customer = "Invalid customer selected";
-    }
-
-    if (!invoiceData.invoice_number) {
-      newErrors.invoice_number = "Invoice number is required";
     }
 
     if (!invoiceData.invoice_date) {
@@ -2124,6 +2391,7 @@ const Invoice = () => {
   };
 
   // Edit invoice
+  // Edit invoice
   const handleEdit = (invoice) => {
     if (!canEdit) {
       toast.error("No permission to edit");
@@ -2135,6 +2403,7 @@ const Invoice = () => {
     setInvoiceData({
       ...initialInvoiceState,
       ...invoice,
+      invoice_number: invoice.invoice_number, // Keep the existing invoice number
       items: invoice.items?.length ? invoice.items : initialInvoiceState.items,
 
       customer_phone: invoice.customer_phone || customer?.customer_phone || "",
@@ -2376,10 +2645,10 @@ const Invoice = () => {
         }
       }
 
-      // Set initial form data with generated invoice number
+      // Set initial form data - REMOVED invoice number generation
       setInvoiceData({
         ...initialInvoiceState,
-        invoice_number: generateInvoiceNumber(),
+        invoice_number: "", // Backend will generate this
         items: [
           {
             item_id: null,
@@ -2932,24 +3201,22 @@ const Invoice = () => {
               </div>
             )}
 
-            {/* Customer Selection */}
+            {/* Customer Selection - Using Searchable Select */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
               <div className="col-span-1">
-                <label className="block text-sm font-medium mb-1">
-                  Customer <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={invoiceData.customer || ""}
-                  onChange={(e) => handleCustomerChange(e.target.value)}
-                  className={`w-full px-3 py-2 border rounded-lg ${errors.customer ? "border-red-500" : "border-gray-300"}`}
-                >
-                  <option value="">Select Customer</option>
-                  {customers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.customer_name} - {c.customer_phone}
-                    </option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  options={customers}
+                  value={invoiceData.customer}
+                  onChange={handleCustomerChange}
+                  placeholder="-- Select Customer --"
+                  label="Customer"
+                  error={errors.customer}
+                  getOptionLabel={(customer) =>
+                    `${customer.customer_name} - ${customer.customer_phone}`
+                  }
+                  getOptionValue={(customer) => customer.id}
+                  icon={User}
+                />
               </div>
 
               {/* Unified Assign Field with Search */}
@@ -3126,21 +3393,16 @@ const Invoice = () => {
 
               <div className="col-span-1">
                 <label className="block text-sm font-medium mb-1">
-                  Invoice Number *
+                  Invoice Number{" "}
+                  <span className="text-green-600">(Auto-generated)</span>
                 </label>
                 <input
                   type="text"
                   value={invoiceData.invoice_number}
-                  onChange={(e) =>
-                    setInvoiceData({
-                      ...invoiceData,
-                      invoice_number: e.target.value,
-                    })
-                  }
-                  className={`w-full px-3 py-2 border rounded-lg ${
-                    errors.invoice_number ? "border-red-500" : "border-gray-300"
-                  }`}
-                  placeholder="INV-0001"
+                  placeholder="Will be generated by system"
+                  readOnly
+                  disabled
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
                 />
               </div>
 
@@ -3306,21 +3568,15 @@ const Invoice = () => {
                     {invoiceData.items.map((item, index) => (
                       <React.Fragment key={index}>
                         <tr className="border-t">
-                          <td className="px-4 py-2">
-                            <select
-                              value={item.item_id || ""}
-                              onChange={(e) =>
-                                updateItem(index, "item_id", e.target.value)
+                          <td className="px-4 py-2 relative">
+                            <SearchableItemSelect
+                              items={items}
+                              value={item.item_id}
+                              onChange={(value) =>
+                                updateItem(index, "item_id", value)
                               }
-                              className="w-full px-2 py-1 border rounded text-sm"
-                            >
-                              <option value="">Select Item</option>
-                              {items.map((i) => (
-                                <option key={i.id} value={i.id}>
-                                  {i.name}
-                                </option>
-                              ))}
-                            </select>
+                              index={index}
+                            />
                             {errors[`item_${index}`] && (
                               <div className="text-xs text-red-500 mt-1">
                                 {errors[`item_${index}`]}

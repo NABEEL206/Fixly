@@ -1,5 +1,10 @@
-// src/pages/Quotes.jsx
-import React, { useState, useEffect } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  useCallback,
+} from "react";
 import {
   Plus,
   Edit,
@@ -17,6 +22,8 @@ import {
   Save,
   Edit3,
   Settings,
+  User,
+  ChevronDown,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import axiosInstance from "@/API/axiosInstance";
@@ -24,6 +31,306 @@ import { useNavigate } from "react-router-dom";
 import { PERMISSIONS } from "@/config/permissions";
 import { canAccess } from "@/utils/canAccess";
 import { useAuth } from "@/auth/AuthContext";
+import ReactDOM from "react-dom";
+
+// Portal component for rendering dropdown outside modal
+const Portal = ({ children }) => {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
+
+  if (!mounted) return null;
+
+  return ReactDOM.createPortal(children, document.body);
+};
+
+// Searchable Select Component
+const SearchableSelect = ({
+  options,
+  value,
+  onChange,
+  placeholder,
+  label,
+  error,
+  getOptionLabel,
+  getOptionValue,
+  icon: Icon,
+  disabled = false,
+}) => {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  const filteredOptions = useMemo(() => {
+    if (!searchTerm) return options;
+    return options.filter((option) => {
+      const label = getOptionLabel(option).toLowerCase();
+      return label.includes(searchTerm.toLowerCase());
+    });
+  }, [options, searchTerm, getOptionLabel]);
+
+  const selectedOption = options.find((opt) => getOptionValue(opt) === value);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        {label} <span className="text-red-500">*</span>
+      </label>
+      <button
+        type="button"
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        disabled={disabled}
+        className={`w-full px-3 py-2 border rounded-lg bg-white text-left flex items-center justify-between hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+          error ? "border-red-500" : "border-gray-300"
+        } ${disabled ? "bg-gray-50 cursor-not-allowed" : ""}`}
+      >
+        <span className="flex items-center gap-2">
+          {Icon && <Icon size={16} className="text-gray-400" />}
+          <span className={selectedOption ? "text-gray-900" : "text-gray-400"}>
+            {selectedOption ? getOptionLabel(selectedOption) : placeholder}
+          </span>
+        </span>
+        <ChevronDown size={16} className="text-gray-400" />
+      </button>
+
+      {isOpen && !disabled && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-80 overflow-hidden">
+          <div className="p-2 border-b border-gray-200">
+            <div className="relative">
+              <Search
+                size={14}
+                className="absolute left-3 top-2.5 text-gray-400"
+              />
+              <input
+                type="text"
+                placeholder={`Search ${label}...`}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                autoFocus
+              />
+            </div>
+          </div>
+
+          <div className="overflow-y-auto max-h-64">
+            {filteredOptions.length === 0 ? (
+              <div className="px-3 py-2 text-sm text-gray-500 text-center">
+                No {label.toLowerCase()} found
+              </div>
+            ) : (
+              filteredOptions.map((option) => (
+                <button
+                  key={getOptionValue(option)}
+                  type="button"
+                  onClick={() => {
+                    onChange(getOptionValue(option));
+                    setIsOpen(false);
+                    setSearchTerm("");
+                  }}
+                  className="w-full px-3 py-2 text-left hover:bg-blue-50 transition-colors flex items-center gap-2"
+                >
+                  {Icon && <Icon size={14} className="text-gray-400" />}
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-gray-900">
+                      {getOptionLabel(option)}
+                    </div>
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+      {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
+    </div>
+  );
+};
+
+// Searchable Item Select Component for table rows
+const SearchableItemSelect = ({
+  items,
+  value,
+  onChange,
+  disabled = false,
+  index,
+}) => {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+  const [dropdownPosition, setDropdownPosition] = useState({
+    top: 0,
+    left: 0,
+    width: 0,
+  });
+  const buttonRef = useRef(null);
+  const dropdownRef = useRef(null);
+
+  const filteredItems = useMemo(() => {
+    if (!searchTerm) return items;
+    return items.filter((item) =>
+      item.name?.toLowerCase().includes(searchTerm.toLowerCase()),
+    );
+  }, [items, searchTerm]);
+
+  const selectedItem = items.find((item) => item.id === value);
+
+  const updatePosition = useCallback(() => {
+    if (buttonRef.current && isOpen) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.bottom + window.scrollY,
+        left: rect.left + window.scrollX,
+        width: rect.width,
+      });
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen) {
+      updatePosition();
+      window.addEventListener("scroll", updatePosition);
+      window.addEventListener("resize", updatePosition);
+    }
+
+    return () => {
+      window.removeEventListener("scroll", updatePosition);
+      window.removeEventListener("resize", updatePosition);
+    };
+  }, [isOpen, updatePosition]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(event.target)
+      ) {
+        setIsOpen(false);
+        setSearchTerm("");
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Helper function to format price safely
+  const formatPrice = (price) => {
+    if (price === null || price === undefined) return "0.00";
+    const numPrice = typeof price === "string" ? parseFloat(price) : price;
+    return isNaN(numPrice) ? "0.00" : numPrice.toFixed(2);
+  };
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        disabled={disabled}
+        className={`w-full min-w-[200px] px-2 py-1.5 border rounded text-sm text-left flex items-center justify-between hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white ${
+          disabled ? "bg-gray-50 cursor-not-allowed" : ""
+        }`}
+        style={{ minHeight: "34px" }}
+      >
+        <span
+          className={
+            selectedItem ? "text-gray-900 truncate" : "text-gray-400 truncate"
+          }
+          style={{ maxWidth: "calc(100% - 20px)" }}
+        >
+          {selectedItem
+            ? `${selectedItem.name} - ₹${formatPrice(selectedItem.selling_price)}`
+            : "Select Item"}
+        </span>
+        <ChevronDown size={14} className="text-gray-400 flex-shrink-0 ml-1" />
+      </button>
+
+      {isOpen && !disabled && (
+        <Portal>
+          <div
+            ref={dropdownRef}
+            style={{
+              position: "absolute",
+              top: dropdownPosition.top,
+              left: dropdownPosition.left,
+              width: dropdownPosition.width,
+              minWidth: "250px",
+              maxHeight: "300px",
+              zIndex: 99999,
+              backgroundColor: "white",
+              border: "1px solid #e5e7eb",
+              borderRadius: "0.5rem",
+              boxShadow:
+                "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
+              overflow: "hidden",
+            }}
+          >
+            <div className="p-2 border-b border-gray-200 sticky top-0 bg-white">
+              <div className="relative">
+                <Search
+                  size={12}
+                  className="absolute left-2 top-2 text-gray-400"
+                />
+                <input
+                  type="text"
+                  placeholder="Search item..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-7 pr-2 py-1 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  autoFocus
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
+            </div>
+
+            <div className="overflow-y-auto" style={{ maxHeight: "250px" }}>
+              {filteredItems.length === 0 ? (
+                <div className="px-3 py-2 text-sm text-gray-500 text-center">
+                  No items found
+                </div>
+              ) : (
+                filteredItems.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      onChange(item.id);
+                      setIsOpen(false);
+                      setSearchTerm("");
+                    }}
+                    className="w-full px-3 py-2 text-left hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-b-0"
+                  >
+                    <div className="text-sm font-medium text-gray-900 truncate">
+                      {item.name}
+                    </div>
+                    {item.selling_price !== undefined && (
+                      <div className="text-xs text-gray-500">
+                        ₹{formatPrice(item.selling_price)}
+                      </div>
+                    )}
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </Portal>
+      )}
+    </>
+  );
+};
 
 const STATUS_OPTIONS = [
   { value: "DRAFT", label: "Draft" },
@@ -47,13 +354,10 @@ const SERVICE_CHARGE_OPTIONS = [
 const removeLeadingZeros = (value) => {
   if (value === "" || value === null || value === undefined) return "";
 
-  // Convert to string
   const stringValue = String(value);
 
-  // If it's just "0", keep it
   if (stringValue === "0") return "0";
 
-  // Remove leading zeros
   return stringValue.replace(/^0+(?=\d)/, "");
 };
 
@@ -63,23 +367,19 @@ const formatNumberInput = (value) => {
 
   const stringValue = String(value);
 
-  // If it's a decimal number, handle carefully
   if (stringValue.includes(".")) {
     const [whole, decimal] = stringValue.split(".");
     const formattedWhole = whole.replace(/^0+(?=\d)/, "") || "0";
     return `${formattedWhole}.${decimal}`;
   }
 
-  // Remove leading zeros for whole numbers
   return stringValue.replace(/^0+(?=\d)/, "") || "0";
 };
 
 const Quotes = () => {
-  // Company registered state - constant
   const COMPANY_STATE = "Kerala";
   const navigate = useNavigate();
 
-  // States for list view
   const [quotations, setQuotations] = useState([]);
   const [filteredQuotations, setFilteredQuotations] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -93,16 +393,14 @@ const Quotes = () => {
   const [selectedQuotes, setSelectedQuotes] = useState([]);
   const [selectAll, setSelectAll] = useState(false);
 
-  // States for form view
   const [showForm, setShowForm] = useState(false);
-  const [formMode, setFormMode] = useState("add"); // "add", "edit", "view"
+  const [formMode, setFormMode] = useState("add");
   const [selectedQuotation, setSelectedQuotation] = useState(null);
   const [attachedFile, setAttachedFile] = useState(null);
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFetchingDetails, setIsFetchingDetails] = useState(false);
 
-  // Form state
   const [formData, setFormData] = useState({
     id: null,
     customer: null,
@@ -143,8 +441,7 @@ const Quotes = () => {
     total_tax: 0,
     shipping_charge: 0,
     adjustment: 0,
-    // Service charge fields
-    service_charge_type: "none", // "none", "fixed", "percentage"
+    service_charge_type: "none",
     service_charge_value: 0,
     service_charge_amount: 0,
     grand_total: 0,
@@ -157,6 +454,7 @@ const Quotes = () => {
   const canCreate = canAccess(role, PERMISSIONS.quotes.create);
   const canEdit = canAccess(role, PERMISSIONS.quotes.edit);
   const canDelete = canAccess(role, PERMISSIONS.quotes.delete);
+
   if (!canView) {
     return (
       <div className="p-10 text-center text-red-500 font-semibold">
@@ -165,7 +463,6 @@ const Quotes = () => {
     );
   }
 
-  // Determine tax treatment based on place of supply vs company state
   const getTaxTreatment = (placeOfSupply) => {
     if (!placeOfSupply)
       return {
@@ -190,15 +487,12 @@ const Quotes = () => {
     };
   };
 
-  // Get current tax treatment
   const taxTreatment = getTaxTreatment(formData.place_of_supply);
 
-  // Load initial data
   useEffect(() => {
     loadInitialData();
   }, []);
 
-  // Recalculate all items when place of supply changes
   useEffect(() => {
     if (formData.items.length > 0) {
       const newItems = formData.items.map((item) => {
@@ -224,7 +518,6 @@ const Quotes = () => {
     formData.service_charge_value,
   ]);
 
-  // Filter quotations based on search and status
   useEffect(() => {
     let filtered = quotations;
 
@@ -245,13 +538,11 @@ const Quotes = () => {
     setCurrentPage(1);
   }, [searchTerm, quotations, filterStatus]);
 
-  // Reset selected quotes when filtered quotations change
   useEffect(() => {
     setSelectedQuotes([]);
     setSelectAll(false);
   }, [filteredQuotations]);
 
-  // Pagination calculation
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentItems = filteredQuotations.slice(
@@ -274,10 +565,7 @@ const Quotes = () => {
       await fetchQuotations();
     } catch (error) {
       console.error("Error loading initial data:", error);
-
-      // network handled globally
       if (!error.response) return;
-
       toast.error("Error loading data");
     } finally {
       setLoading(false);
@@ -309,33 +597,27 @@ const Quotes = () => {
       return [];
     } catch (error) {
       console.error("Error fetching items:", error);
-
-      if (!error.response) throw error; // network handled globally
-
+      if (!error.response) throw error;
       toast.error("Failed to fetch items");
       throw error;
     } finally {
       setItemsLoading(false);
     }
   };
+
   const fetchQuotations = async () => {
     try {
       const res = await axiosInstance.get("/zoho/quotations/");
       const data = res.data;
-
       const list = Array.isArray(data) ? data : data.results || [];
-
       setQuotations(list);
     } catch (error) {
       console.error("Error fetching quotations:", error);
-
       if (!error.response) return;
-
       toast.error("Failed to load quotations");
     }
   };
 
-  // Fetch single quotation details
   const fetchQuotationDetails = async (id) => {
     try {
       const res = await axiosInstance.get(`/zoho/quotations/${id}/`);
@@ -365,14 +647,12 @@ const Quotes = () => {
             cgst: 0,
             sgst: 0,
           })) || [],
-
         subtotal: parseFloat(data.sub_total || 0),
         discount_type:
           data.discount_type === "PERCENT" ? "percentage" : "fixed",
         discount_value: parseFloat(data.discount_value || 0),
         discount_amount: parseFloat(data.discount_amount || 0),
         taxable_amount: parseFloat(data.taxable_amount || 0),
-
         total_igst: 0,
         total_cgst: 0,
         total_sgst: 0,
@@ -380,22 +660,17 @@ const Quotes = () => {
           (sum, g) => sum + parseFloat(g.tax || 0),
           0,
         ),
-
         shipping_charge: parseFloat(data.shipping_charge || 0),
         adjustment: parseFloat(data.adjustment || 0),
-
         service_charge_type:
           data.service_charge_type === "AMOUNT"
             ? "fixed"
             : data.service_charge_type === "PERCENTAGE"
               ? "percentage"
               : "none",
-
         service_charge_value: parseFloat(data.service_charge_value || 0),
         service_charge_amount: parseFloat(data.service_charge_total || 0),
-
         grand_total: parseFloat(data.grand_total || 0),
-
         terms_conditions: data.terms_and_conditions || "",
         notes: data.notes || "",
       };
@@ -403,21 +678,17 @@ const Quotes = () => {
       return mappedData;
     } catch (error) {
       console.error("Error fetching quotation details:", error);
-
       if (!error.response) return null;
-
       toast.error("Failed to load quotation details");
       return null;
     }
   };
 
-  // Load detailed data when needed (for view or edit)
   const loadDetailedData = async (id) => {
     setIsFetchingDetails(true);
     try {
       const detailedData = await fetchQuotationDetails(id);
       if (detailedData) {
-        // Update the specific quotation in the list with detailed data
         setQuotations((prev) =>
           prev.map((q) => (q.id === id ? { ...q, ...detailedData } : q)),
         );
@@ -432,35 +703,6 @@ const Quotes = () => {
     }
   };
 
-  const generateQuoteNumber = async () => {
-    try {
-      // 🔥 Always fetch latest from server
-      const res = await axiosInstance.get("/zoho/quotations/");
-      const list = Array.isArray(res.data) ? res.data : res.data.results || [];
-
-      const year = new Date().getFullYear();
-
-      const numbers = list
-        .map((q) => q.quotation_number)
-        .filter(Boolean)
-        .map((num) => {
-          const parts = num.split("-");
-          return parseInt(parts[2]) || 0;
-        });
-
-      const nextNumber = numbers.length > 0 ? Math.max(...numbers) + 1 : 1;
-
-      const newQuoteNumber = `QUOTE-${year}-${String(nextNumber).padStart(4, "0")}`;
-
-      setFormData((prev) => ({
-        ...prev,
-        quote_number: newQuoteNumber,
-      }));
-    } catch (error) {
-      console.error("Error generating quote number:", error);
-    }
-  };
-
   const validateForm = () => {
     const newErrors = {};
 
@@ -470,10 +712,6 @@ const Quotes = () => {
 
     if (!formData.place_of_supply) {
       newErrors.place_of_supply = "Place of supply is required";
-    }
-
-    if (!formData.quote_number) {
-      newErrors.quote_number = "Quote number is required";
     }
 
     if (!formData.quote_date) {
@@ -508,9 +746,10 @@ const Quotes = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleCustomerChange = (e) => {
-    const customerId = parseInt(e.target.value);
-    const selectedCustomer = customers.find((c) => c.id === customerId);
+  const handleCustomerChange = (customerId) => {
+    const selectedCustomer = customers.find(
+      (c) => c.id === parseInt(customerId),
+    );
     setFormData({
       ...formData,
       customer: selectedCustomer,
@@ -591,9 +830,7 @@ const Quotes = () => {
         newItems[index].gst_rate = gstRate;
       }
     } else {
-      // Handle number fields to remove leading zeros
       if (field === "quantity" || field === "rate") {
-        // Remove leading zeros but keep as string for input
         const formattedValue = removeLeadingZeros(value);
         newItems[index][field] =
           formattedValue === "" ? 0 : parseFloat(formattedValue) || 0;
@@ -706,7 +943,6 @@ const Quotes = () => {
     const shipping = parseFloat(formData.shipping_charge) || 0;
     const adjustment = parseFloat(formData.adjustment) || 0;
 
-    // Calculate service charge
     const serviceChargeAmount = calculateServiceCharge(discountedSubtotal);
 
     const grandTotal =
@@ -735,7 +971,6 @@ const Quotes = () => {
   };
 
   const handleServiceChargeChange = (field, value) => {
-    // Remove leading zeros for service charge value
     if (field === "service_charge_value") {
       const formattedValue = removeLeadingZeros(value);
       setFormData((prev) => ({
@@ -781,7 +1016,6 @@ const Quotes = () => {
   };
 
   const handleSaveQuotation = async () => {
-    // 🔐 PERMISSION CHECK
     if (formMode === "add" && !canCreate) {
       toast.error("No permission to create quotation");
       return;
@@ -794,14 +1028,6 @@ const Quotes = () => {
 
     if (!validateForm()) {
       toast.error("Please fill all required fields");
-      return;
-    }
-    const isDuplicate = quotations.some(
-      (q) => q.quotation_number === formData.quote_number,
-    );
-
-    if (isDuplicate) {
-      toast.error("Quote number already exists. Please refresh.");
       return;
     }
 
@@ -820,27 +1046,21 @@ const Quotes = () => {
         status: formData.status?.toUpperCase(),
         company_state: COMPANY_STATE,
         supply_type: "GOODS",
-
         reference_number: formData.reference_number || "",
         notes: formData.notes || "",
         terms_and_conditions: formData.terms_conditions || "",
-
         discount_type:
           formData.discount_type === "percentage" ? "PERCENT" : "AMOUNT",
-
         discount_value: formData.discount_value || 0,
         shipping_charge: formData.shipping_charge || 0,
-
         service_charge_type:
           formData.service_charge_type === "fixed"
             ? "AMOUNT"
             : formData.service_charge_type === "percentage"
               ? "PERCENTAGE"
               : "NONE",
-
         service_charge_value: formData.service_charge_value || 0,
         adjustment: formData.adjustment || 0,
-
         lines: formData.items.map((item) => ({
           item: item.item_id || item.item?.id,
           description: item.description || "",
@@ -867,9 +1087,7 @@ const Quotes = () => {
       setShowForm(false);
     } catch (error) {
       console.error("Save quotation error:", error);
-
       if (!error.response) return;
-
       toast.error(error.response?.data?.detail || "Error saving quotation", {
         id: loadingToast,
       });
@@ -914,9 +1132,7 @@ const Quotes = () => {
                   });
                 } catch (error) {
                   console.error("Error deleting quotation:", error);
-
                   if (!error.response) return;
-
                   toast.error("Error deleting quotation", {
                     id: loadingToast,
                   });
@@ -985,9 +1201,7 @@ const Quotes = () => {
                   );
                 } catch (error) {
                   console.error("Bulk delete error:", error);
-
                   if (!error.response) return;
-
                   toast.error("Error deleting quotations", {
                     id: loadingToast,
                   });
@@ -1057,9 +1271,6 @@ const Quotes = () => {
 
     setFormMode("add");
     resetForm();
-
-    await generateQuoteNumber(); // 🔥 important
-
     setShowForm(true);
   };
 
@@ -1211,14 +1422,12 @@ const Quotes = () => {
       {!showForm ? (
         /* List View */
         <div className="max-w-7xl mx-auto">
-          {/* Header */}
           <div className="mb-6">
             <div className="flex justify-between items-center">
               <h1 className="text-3xl font-bold text-gray-800">Quotations</h1>
 
               {(canCreate || (canDelete && selectedQuotes.length > 0)) && (
                 <div className="flex gap-3">
-                  {/* BULK DELETE */}
                   {canDelete && selectedQuotes.length > 0 && (
                     <button
                       onClick={handleBulkDelete}
@@ -1228,7 +1437,6 @@ const Quotes = () => {
                     </button>
                   )}
 
-                  {/* CREATE */}
                   {canCreate && (
                     <button
                       onClick={handleNewQuotation}
@@ -1242,7 +1450,6 @@ const Quotes = () => {
             </div>
           </div>
 
-          {/* Filters */}
           <div className="bg-white rounded-lg shadow mb-6">
             <div className="p-4 border-b">
               <div className="flex flex-col md:flex-row gap-4">
@@ -1291,7 +1498,6 @@ const Quotes = () => {
               </div>
             </div>
 
-            {/* Table */}
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50">
@@ -1402,7 +1608,6 @@ const Quotes = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
                           <div className="flex gap-2">
-                            {/* VIEW */}
                             {canView && (
                               <button
                                 onClick={() => handleViewQuotation(quotation)}
@@ -1412,7 +1617,6 @@ const Quotes = () => {
                               </button>
                             )}
 
-                            {/* EDIT */}
                             {canEdit && (
                               <button
                                 onClick={() => handleEditQuotation(quotation)}
@@ -1422,7 +1626,6 @@ const Quotes = () => {
                               </button>
                             )}
 
-                            {/* PDF */}
                             {canView && (
                               <button
                                 onClick={() => handleDownloadPDF(quotation.id)}
@@ -1432,7 +1635,6 @@ const Quotes = () => {
                               </button>
                             )}
 
-                            {/* DELETE → ADMIN ONLY */}
                             {canDelete && (
                               <button
                                 onClick={() =>
@@ -1444,7 +1646,6 @@ const Quotes = () => {
                               </button>
                             )}
 
-                            {/* CONVERT */}
                             {quotation.status === "CONVERTED" ? (
                               <span className="px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded-full">
                                 Converted
@@ -1473,7 +1674,6 @@ const Quotes = () => {
               </table>
             </div>
 
-            {/* Pagination */}
             {filteredQuotations.length > 0 && (
               <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
                 <div className="text-sm text-gray-600">
@@ -1528,7 +1728,6 @@ const Quotes = () => {
       ) : (
         /* Form View */
         <div className="max-w-7xl mx-auto bg-white rounded-xl shadow">
-          {/* Form Header */}
           <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50">
             <div className="flex items-center justify-between">
               <div className="flex items-center">
@@ -1562,9 +1761,7 @@ const Quotes = () => {
             </div>
           </div>
 
-          {/* Form Body */}
           <div className="p-6 max-h-[calc(100vh-200px)] overflow-y-auto">
-            {/* Info Box */}
             <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
               <div className="flex items-start">
                 <div className="flex-shrink-0">
@@ -1584,37 +1781,26 @@ const Quotes = () => {
             </div>
 
             <div className="space-y-6">
-              {/* Basic Information */}
               <div>
                 <h3 className="text-lg font-semibold mb-4">
                   Basic Information
                 </h3>
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                   <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Customer <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                        errors.customer ? "border-red-500" : "border-gray-300"
-                      } ${formMode === "view" ? "bg-gray-50" : ""}`}
+                    <SearchableSelect
+                      options={customers}
                       value={formData.customer?.id || ""}
                       onChange={handleCustomerChange}
+                      placeholder="-- Select Customer --"
+                      label="Customer"
+                      error={errors.customer}
+                      getOptionLabel={(customer) =>
+                        `${customer.customer_name} - ${customer.customer_phone}`
+                      }
+                      getOptionValue={(customer) => customer.id}
+                      icon={User}
                       disabled={formMode === "view" || isSubmitting}
-                    >
-                      <option value="">Select a customer</option>
-                      {customers.map((customer) => (
-                        <option key={customer.id} value={customer.id}>
-                          {customer.customer_name} - {customer.area},{" "}
-                          {customer.state} - {customer.pincode}
-                        </option>
-                      ))}
-                    </select>
-                    {errors.customer && (
-                      <p className="mt-1 text-xs text-red-600">
-                        {errors.customer}
-                      </p>
-                    )}
+                    />
                   </div>
 
                   <div className="col-span-2">
@@ -1681,29 +1867,19 @@ const Quotes = () => {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Quote Number <span className="text-red-500">*</span>
+                      Quote Number{" "}
+                      <span className="text-green-600 text-xs font-normal">
+                        (Auto-generated)
+                      </span>
                     </label>
                     <input
                       type="text"
-                      className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                        errors.quote_number
-                          ? "border-red-500"
-                          : "border-gray-300"
-                      } ${formMode === "view" ? "bg-gray-50" : ""}`}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-100 text-gray-600 cursor-not-allowed"
                       value={formData.quote_number}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          quote_number: e.target.value,
-                        })
-                      }
-                      disabled={formMode === "view" || isSubmitting}
+                      readOnly
+                      disabled
+                      placeholder="Will be generated by system"
                     />
-                    {errors.quote_number && (
-                      <p className="mt-1 text-xs text-red-600">
-                        {errors.quote_number}
-                      </p>
-                    )}
                   </div>
 
                   <div>
@@ -1802,7 +1978,6 @@ const Quotes = () => {
                 </div>
               </div>
 
-              {/* Items */}
               <div>
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-lg font-semibold">
@@ -1868,34 +2043,19 @@ const Quotes = () => {
                       {formData.items.map((row, index) => (
                         <tr key={index} className="hover:bg-gray-50">
                           <td className="px-4 py-3">
-                            <select
-                              className={`w-full min-w-[200px] px-2 py-1.5 border rounded text-sm ${
-                                errors[`item_${index}`]
-                                  ? "border-red-500"
-                                  : "border-gray-300"
-                              } ${formMode === "view" ? "bg-gray-50" : ""}`}
+                            <SearchableItemSelect
+                              items={items}
                               value={row.item_id}
-                              onChange={(e) =>
-                                handleItemChange(
-                                  index,
-                                  "item_id",
-                                  e.target.value,
-                                )
+                              onChange={(value) =>
+                                handleItemChange(index, "item_id", value)
                               }
                               disabled={
                                 formMode === "view" ||
                                 isSubmitting ||
                                 itemsLoading
                               }
-                            >
-                              <option value="">Select item</option>
-                              {items.map((item) => (
-                                <option key={item.id} value={item.id}>
-                                  {item.name} - ₹
-                                  {parseFloat(item.selling_price).toFixed(2)}
-                                </option>
-                              ))}
-                            </select>
+                              index={index}
+                            />
                             {errors[`item_${index}`] && (
                               <p className="text-red-500 text-xs mt-1">
                                 {errors[`item_${index}`]}
@@ -1938,7 +2098,6 @@ const Quotes = () => {
                               value={row.quantity || ""}
                               onChange={(e) => {
                                 const rawValue = e.target.value;
-                                // Remove leading zeros but keep as string for input
                                 const formattedValue =
                                   removeLeadingZeros(rawValue);
                                 handleItemChange(
@@ -1948,7 +2107,6 @@ const Quotes = () => {
                                 );
                               }}
                               onBlur={(e) => {
-                                // Ensure it's a valid number on blur
                                 const numValue =
                                   parseFloat(e.target.value) || 0;
                                 if (numValue !== row.quantity) {
@@ -1976,13 +2134,11 @@ const Quotes = () => {
                               value={row.rate || ""}
                               onChange={(e) => {
                                 const rawValue = e.target.value;
-                                // Remove leading zeros but keep as string for input
                                 const formattedValue =
                                   removeLeadingZeros(rawValue);
                                 handleItemChange(index, "rate", formattedValue);
                               }}
                               onBlur={(e) => {
-                                // Ensure it's a valid number on blur
                                 const numValue =
                                   parseFloat(e.target.value) || 0;
                                 if (numValue !== row.rate) {
@@ -2041,7 +2197,6 @@ const Quotes = () => {
                 </div>
               </div>
 
-              {/* Terms, Notes, and Summary */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="space-y-4">
                   <div>
@@ -2175,7 +2330,6 @@ const Quotes = () => {
                       )}
                     </div>
 
-                    {/* Service Charge Section */}
                     <div className="flex justify-between items-center text-sm">
                       <span className="text-gray-600 flex items-center gap-1">
                         <Settings size={14} className="text-gray-500" />
@@ -2356,7 +2510,6 @@ const Quotes = () => {
             </div>
           </div>
 
-          {/* Form Footer */}
           <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-between items-center">
             <div>
               {formMode === "view" && canEdit && (

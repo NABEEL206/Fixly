@@ -1,5 +1,11 @@
 // src/pages/Purchases/PurchaseOrder.jsx
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  useMemo,
+} from "react";
 import {
   X,
   Plus,
@@ -21,25 +27,328 @@ import toast from "react-hot-toast";
 import { PERMISSIONS } from "@/config/permissions";
 import { canAccess } from "@/utils/canAccess";
 import { useAuth } from "@/auth/AuthContext";
+import ReactDOM from "react-dom";
+
+// Portal component for rendering dropdown outside modal
+const Portal = ({ children }) => {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
+
+  if (!mounted) return null;
+
+  return ReactDOM.createPortal(children, document.body);
+};
+
+// Searchable Select Component for Vendors
+const SearchableVendorSelect = ({
+  options,
+  value,
+  onChange,
+  placeholder,
+  label,
+  error,
+  disabled = false,
+}) => {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  const filteredOptions = useMemo(() => {
+    if (!searchTerm) return options;
+    return options.filter((vendor) =>
+      vendor.name?.toLowerCase().includes(searchTerm.toLowerCase()),
+    );
+  }, [options, searchTerm]);
+
+  const selectedOption = options.find((opt) => opt.id === value);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        {label} <span className="text-red-500">*</span>
+      </label>
+      <button
+        type="button"
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        disabled={disabled}
+        className={`w-full px-3 py-2 border rounded-lg bg-white text-left flex items-center justify-between hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+          error ? "border-red-500" : "border-gray-300"
+        } ${disabled ? "bg-gray-50 cursor-not-allowed" : ""}`}
+      >
+        <span className="flex items-center gap-2">
+          <Building size={16} className="text-gray-400" />
+          <span className={selectedOption ? "text-gray-900" : "text-gray-400"}>
+            {selectedOption ? selectedOption.name : placeholder}
+          </span>
+        </span>
+        <ChevronDown size={16} className="text-gray-400" />
+      </button>
+
+      {isOpen && !disabled && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-80 overflow-hidden">
+          <div className="p-2 border-b border-gray-200">
+            <div className="relative">
+              <Search
+                size={14}
+                className="absolute left-3 top-2.5 text-gray-400"
+              />
+              <input
+                type="text"
+                placeholder="Search vendors..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                autoFocus
+              />
+            </div>
+          </div>
+
+          <div className="overflow-y-auto max-h-64">
+            {filteredOptions.length === 0 ? (
+              <div className="px-3 py-2 text-sm text-gray-500 text-center">
+                No vendors found
+              </div>
+            ) : (
+              filteredOptions.map((vendor) => (
+                <button
+                  key={vendor.id}
+                  type="button"
+                  onClick={() => {
+                    onChange(vendor.id);
+                    setIsOpen(false);
+                    setSearchTerm("");
+                  }}
+                  className="w-full px-3 py-2 text-left hover:bg-blue-50 transition-colors flex items-center gap-2"
+                >
+                  <Building size={14} className="text-gray-400" />
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-gray-900">
+                      {vendor.name}
+                    </div>
+                    {vendor.phone && (
+                      <div className="text-xs text-gray-500">
+                        {vendor.phone}
+                      </div>
+                    )}
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+      {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
+    </div>
+  );
+};
+
+// Searchable Item Select Component for table rows
+const SearchableItemSelect = ({
+  items,
+  value,
+  onChange,
+  disabled = false,
+  index,
+}) => {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+  const [dropdownPosition, setDropdownPosition] = useState({
+    top: 0,
+    left: 0,
+    width: 0,
+  });
+  const buttonRef = useRef(null);
+  const dropdownRef = useRef(null);
+
+  const filteredItems = useMemo(() => {
+    if (!searchTerm) return items;
+    return items.filter((item) =>
+      item.name?.toLowerCase().includes(searchTerm.toLowerCase()),
+    );
+  }, [items, searchTerm]);
+
+  const selectedItem = items.find((item) => item.id === value);
+
+  const updatePosition = useCallback(() => {
+    if (buttonRef.current && isOpen) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.bottom + window.scrollY,
+        left: rect.left + window.scrollX,
+        width: rect.width,
+      });
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen) {
+      updatePosition();
+      window.addEventListener("scroll", updatePosition);
+      window.addEventListener("resize", updatePosition);
+    }
+
+    return () => {
+      window.removeEventListener("scroll", updatePosition);
+      window.removeEventListener("resize", updatePosition);
+    };
+  }, [isOpen, updatePosition]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(event.target)
+      ) {
+        setIsOpen(false);
+        setSearchTerm("");
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Helper function to format price safely
+  const formatPrice = (price) => {
+    if (price === null || price === undefined) return "0.00";
+    const numPrice = typeof price === "string" ? parseFloat(price) : price;
+    return isNaN(numPrice) ? "0.00" : numPrice.toFixed(2);
+  };
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        disabled={disabled}
+        className={`w-full min-w-[200px] px-2 py-1.5 border rounded text-sm text-left flex items-center justify-between hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white ${
+          disabled ? "bg-gray-50 cursor-not-allowed" : ""
+        }`}
+        style={{ minHeight: "34px" }}
+      >
+        <span
+          className={
+            selectedItem ? "text-gray-900 truncate" : "text-gray-400 truncate"
+          }
+          style={{ maxWidth: "calc(100% - 20px)" }}
+        >
+          {selectedItem
+            ? `${selectedItem.name} - ₹${formatPrice(selectedItem.selling_price || selectedItem.cost_price)}`
+            : "Select Item"}
+        </span>
+        <ChevronDown size={14} className="text-gray-400 flex-shrink-0 ml-1" />
+      </button>
+
+      {isOpen && !disabled && (
+        <Portal>
+          <div
+            ref={dropdownRef}
+            style={{
+              position: "absolute",
+              top: dropdownPosition.top,
+              left: dropdownPosition.left,
+              width: dropdownPosition.width,
+              minWidth: "250px",
+              maxHeight: "300px",
+              zIndex: 99999,
+              backgroundColor: "white",
+              border: "1px solid #e5e7eb",
+              borderRadius: "0.5rem",
+              boxShadow:
+                "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
+              overflow: "hidden",
+            }}
+          >
+            <div className="p-2 border-b border-gray-200 sticky top-0 bg-white">
+              <div className="relative">
+                <Search
+                  size={12}
+                  className="absolute left-2 top-2 text-gray-400"
+                />
+                <input
+                  type="text"
+                  placeholder="Search item..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-7 pr-2 py-1 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  autoFocus
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
+            </div>
+
+            <div className="overflow-y-auto" style={{ maxHeight: "250px" }}>
+              {filteredItems.length === 0 ? (
+                <div className="px-3 py-2 text-sm text-gray-500 text-center">
+                  No items found
+                </div>
+              ) : (
+                filteredItems.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      onChange(item.id);
+                      setIsOpen(false);
+                      setSearchTerm("");
+                    }}
+                    className="w-full px-3 py-2 text-left hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-b-0"
+                  >
+                    <div className="text-sm font-medium text-gray-900 truncate">
+                      {item.name}
+                    </div>
+                    {(item.selling_price || item.cost_price) && (
+                      <div className="text-xs text-gray-500">
+                        ₹{formatPrice(item.selling_price || item.cost_price)}
+                      </div>
+                    )}
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </Portal>
+      )}
+    </>
+  );
+};
+
+const STATUS_OPTIONS = [
+  { value: "DRAFT", label: "Draft" },
+  { value: "SENT", label: "Sent" },
+  { value: "RECEIVED", label: "Received" },
+  { value: "CANCELLED", label: "Cancelled" },
+];
 
 // Utility function to ensure only numbers are entered and remove leading zeros
 const processNumericInput = (value, allowDecimal = true, maxLength = null) => {
   if (!value && value !== 0) return "";
 
-  // Convert to string
   let stringValue = String(value);
 
-  // Remove any non-numeric characters except decimal point if allowed
   if (allowDecimal) {
-    // Allow digits and at most one decimal point
     const matches = stringValue.match(/^(\d*\.?\d*)/);
     stringValue = matches ? matches[1] : "";
   } else {
-    // Only digits
     stringValue = stringValue.replace(/[^\d]/g, "");
   }
 
-  // Apply max length if specified
   if (maxLength && stringValue.length > maxLength) {
     stringValue = stringValue.slice(0, maxLength);
   }
@@ -53,16 +362,10 @@ const removeLeadingZeros = (value) => {
 
   const stringValue = String(value);
 
-  // If it's just "0", keep it
   if (stringValue === "0") return "0";
-
-  // If it's a decimal number starting with 0
   if (stringValue.startsWith("0.")) return stringValue;
 
-  // Remove leading zeros but keep the rest
   const trimmed = stringValue.replace(/^0+(?=\d)/, "");
-
-  // If empty after trimming, return "0"
   return trimmed || "0";
 };
 
@@ -72,23 +375,6 @@ const formatNumberForInput = (value) => {
   if (!value && value !== 0) return "";
   return String(value);
 };
-
-// Validate if string contains only numbers (and optional decimal)
-const isValidNumber = (value, allowDecimal = true) => {
-  if (!value && value !== 0) return true;
-  const stringValue = String(value);
-  if (allowDecimal) {
-    return /^\d*\.?\d*$/.test(stringValue);
-  }
-  return /^\d*$/.test(stringValue);
-};
-
-const STATUS_OPTIONS = [
-  { value: "DRAFT", label: "Draft" },
-  { value: "SENT", label: "Sent" },
-  { value: "RECEIVED", label: "Received" },
-  { value: "CANCELLED", label: "Cancelled" },
-];
 
 const PurchaseOrder = () => {
   const [showForm, setShowForm] = useState(false);
@@ -105,19 +391,14 @@ const PurchaseOrder = () => {
   const [shops, setShops] = useState([]);
   const [growtags, setGrowtags] = useState([]);
 
-  // Bulk selection states
   const [selectedPOs, setSelectedPOs] = useState([]);
   const [selectAll, setSelectAll] = useState(false);
-
-  // Cache for detailed purchase orders
   const [poDetailsCache, setPoDetailsCache] = useState({});
 
-  // Assign To dropdown states
   const [assignSearchTerm, setAssignSearchTerm] = useState("");
   const [showAssignDropdown, setShowAssignDropdown] = useState(false);
   const assignDropdownRef = useRef(null);
 
-  // Use ref to track toast ID
   const toastIdRef = useRef(null);
 
   const initialFormState = {
@@ -160,7 +441,6 @@ const PurchaseOrder = () => {
   const canEdit = canAccess(role, PERMISSIONS.purchaseOrders.edit);
   const canDelete = canAccess(role, PERMISSIONS.purchaseOrders.delete);
 
-  // Helper functions for Assign To dropdown
   const getFilteredAssignItems = () => {
     if (formData.assign_type === "shop") {
       return shops.filter((shop) =>
@@ -193,8 +473,8 @@ const PurchaseOrder = () => {
   };
 
   const getAssignTypeLabel = () => {
-    if (formData.assign_type === "shop") return "Shop / Store";
-    return "GrowTag Account";
+    if (formData.assign_type === "shop") return "Shop";
+    return "GrowTag ";
   };
 
   const getSelectedDisplayText = () => {
@@ -226,7 +506,6 @@ const PurchaseOrder = () => {
     }));
   }, [role]);
 
-  // Click outside handler for assign dropdown
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (
@@ -248,7 +527,6 @@ const PurchaseOrder = () => {
     );
   }
 
-  // Get unique createdBy values for filter
   const uniqueCreatedBy = React.useMemo(() => {
     const set = new Set();
     purchaseOrders.forEach((po) => {
@@ -257,7 +535,6 @@ const PurchaseOrder = () => {
     return Array.from(set).sort();
   }, [purchaseOrders]);
 
-  // Get unique status values for filter
   const uniqueStatuses = React.useMemo(() => {
     const set = new Set();
     purchaseOrders.forEach((po) => {
@@ -266,7 +543,6 @@ const PurchaseOrder = () => {
     return Array.from(set).sort();
   }, [purchaseOrders]);
 
-  // Fetch vendors and items on component mount
   useEffect(() => {
     fetchVendors();
     fetchItems();
@@ -275,13 +551,11 @@ const PurchaseOrder = () => {
     fetchGrowtags();
   }, []);
 
-  // Reset selectedPOs when filtered PO list changes
   useEffect(() => {
     setSelectedPOs([]);
     setSelectAll(false);
   }, [searchTerm, filterStatus, filterCreatedBy, purchaseOrders.length]);
 
-  // Fetch vendors from API
   const fetchVendors = async () => {
     try {
       const response = await axiosInstance.get("/api/vendors/");
@@ -299,15 +573,11 @@ const PurchaseOrder = () => {
       setVendors(vendorsList);
     } catch (error) {
       console.error("Fetch vendors error:", error);
-
-      // Network error handled globally
       if (!error.response) return;
-
       toast.error("Failed to load vendors");
     }
   };
 
-  // Fetch items from API
   const fetchItems = async () => {
     try {
       const response = await axiosInstance.get("/zoho/local-items/");
@@ -325,9 +595,7 @@ const PurchaseOrder = () => {
       setItems(itemsList);
     } catch (error) {
       console.error("Fetch items error:", error);
-
       if (!error.response) return;
-
       toast.error("Failed to load items");
     }
   };
@@ -352,10 +620,8 @@ const PurchaseOrder = () => {
     }
   };
 
-  // Fetch single purchase order details
   const fetchPurchaseOrderDetails = async (id) => {
     try {
-      // Check cache first
       if (poDetailsCache[id]) {
         return poDetailsCache[id];
       }
@@ -364,7 +630,6 @@ const PurchaseOrder = () => {
       const data = response.data;
       const order = data.data || data;
 
-      // Transform the detailed data with proper itemId
       let itemsArray = [];
       if (order?.items && Array.isArray(order.items)) {
         itemsArray = order.items.map((item) => ({
@@ -382,7 +647,6 @@ const PurchaseOrder = () => {
 
       const vendorDetails = order?.vendor_details || {};
 
-      // Determine assign_type and assign_id
       let assign_type = "shop";
       let assign_id = null;
       let assign_name = "";
@@ -427,7 +691,6 @@ const PurchaseOrder = () => {
         assign_name: assign_name,
       };
 
-      // Update cache
       setPoDetailsCache((prev) => ({
         ...prev,
         [id]: detailedOrder,
@@ -440,7 +703,6 @@ const PurchaseOrder = () => {
     }
   };
 
-  // Fetch purchase orders from API
   const fetchPurchaseOrders = async () => {
     setIsLoading(true);
     try {
@@ -496,20 +758,16 @@ const PurchaseOrder = () => {
       setPurchaseOrders(transformedOrders);
     } catch (error) {
       console.error("Fetch purchase orders error:", error);
-
       if (!error.response) return;
-
       if (error.response?.status === 401 || error.response?.status === 403) {
         return;
       }
-
       toast.error("Failed to load purchase orders");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Load detailed data when needed
   const loadDetailedData = async (id) => {
     const detailedData = await fetchPurchaseOrderDetails(id);
     if (detailedData) {
@@ -521,17 +779,6 @@ const PurchaseOrder = () => {
     return null;
   };
 
-  // Generate PO Number
-  const generatePONumber = () => {
-    const prefix = "PO";
-    const date = new Date().getFullYear();
-    const random = Math.floor(Math.random() * 10000)
-      .toString()
-      .padStart(4, "0");
-    return `${prefix}-${date}-${random}`;
-  };
-
-  // Handle vendor selection
   const handleVendorChange = (vendorId) => {
     const vendor = vendors.find((v) => v.id === parseInt(vendorId));
     if (vendor) {
@@ -558,7 +805,6 @@ const PurchaseOrder = () => {
     }
   };
 
-  // Handle item selection from catalog
   const handleItemSelection = (index, itemId) => {
     const selectedItem = items.find((i) => i.id === parseInt(itemId));
 
@@ -599,30 +845,17 @@ const PurchaseOrder = () => {
     }
   };
 
-  // Handle manual description change
   const handleDescriptionChange = (index, value) => {
     handleItemChange(index, "description", value);
   };
 
-  // Validate Form
   const validateForm = () => {
     const newErrors = {};
-
-    if (!formData.poNumber.trim()) {
-      newErrors.poNumber = "PO Number is required";
-    }
-    const duplicatePO = purchaseOrders.find(
-      (po) => po.poNumber === formData.poNumber && po.id !== formData.id,
-    );
-
-    if (duplicatePO) {
-      newErrors.poNumber = "PO Number already exists";
-    }
 
     if (!formData.vendorName.trim()) {
       newErrors.vendorName = "Vendor selection is required";
     }
-    // Assign To validation
+
     if (!formData.assign_id) {
       newErrors.assign_id = "Please select Assign To";
     }
@@ -664,7 +897,6 @@ const PurchaseOrder = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  // Calculate item amount
   const calculateItemAmount = (item) => {
     const baseAmount = item.quantity * item.unitPrice;
     const discountAmount = (baseAmount * item.discount) / 100;
@@ -673,7 +905,6 @@ const PurchaseOrder = () => {
     return amountAfterDiscount + taxAmount;
   };
 
-  // Calculate totals
   const calculateTotals = (items, shippingCharges, adjustment) => {
     let subtotal = 0;
     let totalTax = 0;
@@ -698,13 +929,11 @@ const PurchaseOrder = () => {
     return { subtotal, totalTax, totalDiscount, grandTotal };
   };
 
-  // Handle input change for main form fields
   const handleInputChange = (e) => {
     const { name, value } = e.target;
 
     let processedValue = value;
     if (["shippingCharges", "adjustment"].includes(name)) {
-      // Allow only numbers and decimal point
       processedValue = processNumericInput(value, true, 10);
     }
 
@@ -718,34 +947,27 @@ const PurchaseOrder = () => {
     }
   };
 
-  // Handle item field changes - UPDATED to only allow numbers
   const handleItemChange = (index, field, value) => {
     const newItems = [...formData.items];
 
-    // Process numeric fields to only allow numbers
     if (["quantity", "unitPrice", "tax", "discount"].includes(field)) {
-      // Determine if decimal is allowed
-      const allowDecimal = field !== "quantity"; // Quantity should be whole numbers only
+      const allowDecimal = field !== "quantity";
       const maxLength = field === "quantity" ? 6 : 10;
 
-      // Process the input to only allow valid characters
       let processedValue = processNumericInput(value, allowDecimal, maxLength);
 
-      // Remove leading zeros for display
       if (field === "quantity") {
         processedValue = removeLeadingZeros(processedValue);
       }
 
       newItems[index][field] = processedValue;
 
-      // Parse to number for calculations
       const numericValue = parseFloat(processedValue) || 0;
       newItems[index][field + "Numeric"] = numericValue;
     } else {
       newItems[index][field] = value;
     }
 
-    // Recalculate amount using numeric values
     const itemForCalculation = {
       ...newItems[index],
       quantity: parseFloat(newItems[index].quantity) || 0,
@@ -773,15 +995,12 @@ const PurchaseOrder = () => {
     }
   };
 
-  // Handle blur for numeric fields to ensure proper formatting
   const handleNumericBlur = (index, field, value) => {
     const newItems = [...formData.items];
     const numericValue = parseFloat(value) || 0;
 
-    // Format the number properly on blur (remove leading zeros)
     let formattedValue = numericValue.toString();
 
-    // For quantity, ensure it's a whole number
     if (field === "quantity") {
       formattedValue = Math.floor(numericValue).toString();
     }
@@ -811,7 +1030,6 @@ const PurchaseOrder = () => {
     }));
   };
 
-  // Add new item
   const addItem = () => {
     setFormData((prev) => ({
       ...prev,
@@ -831,7 +1049,6 @@ const PurchaseOrder = () => {
     }));
   };
 
-  // Remove item
   const removeItem = (index) => {
     if (formData.items.length === 1) {
       toast.error("At least one item is required");
@@ -852,9 +1069,7 @@ const PurchaseOrder = () => {
     }));
   };
 
-  // Handle charges change
   const handleChargesChange = (field, value) => {
-    // Allow only numbers and decimal point
     let processedValue = processNumericInput(value, true, 10);
 
     setFormData((prev) => ({
@@ -862,7 +1077,6 @@ const PurchaseOrder = () => {
       [field]: processedValue,
     }));
 
-    // Use the numeric value for calculations
     const numericValue = parseFloat(processedValue) || 0;
     const newData = { ...formData, [field]: numericValue };
     const totals = calculateTotals(
@@ -877,7 +1091,6 @@ const PurchaseOrder = () => {
     }));
   };
 
-  // Transform form data to API format
   const transformToAPIFormat = (data) => {
     const apiData = {
       po_number: data.poNumber,
@@ -901,7 +1114,6 @@ const PurchaseOrder = () => {
       notes: data.notes || null,
     };
 
-    // Add assign fields
     if (data.assign_type === "shop" && data.assign_id) {
       apiData.assigned_shop = data.assign_id;
     }
@@ -913,7 +1125,6 @@ const PurchaseOrder = () => {
     return apiData;
   };
 
-  // Create Purchase Order
   const createPO = async () => {
     if (!canCreate) {
       toast.error("You don't have permission to create purchase order");
@@ -935,7 +1146,6 @@ const PurchaseOrder = () => {
     try {
       const apiData = transformToAPIFormat(formData);
 
-      // Make sure assign fields are included
       if (formData.assign_type === "shop" && formData.assign_id) {
         apiData.assigned_shop = formData.assign_id;
       }
@@ -1043,7 +1253,6 @@ const PurchaseOrder = () => {
     }
   };
 
-  // Update Purchase Order
   const updatePO = async () => {
     if (!canEdit) {
       toast.error("You don't have permission to edit purchase order");
@@ -1065,7 +1274,6 @@ const PurchaseOrder = () => {
     try {
       const apiData = transformToAPIFormat(formData);
 
-      // Make sure assign fields are included in update
       if (formData.assign_type === "shop" && formData.assign_id) {
         apiData.assigned_shop = formData.assign_id;
       }
@@ -1177,7 +1385,6 @@ const PurchaseOrder = () => {
     }
   };
 
-  // Delete Single Purchase Order
   const deletePO = (id) => {
     if (!canDelete) {
       toast.error("You don't have permission to delete purchase order");
@@ -1259,7 +1466,6 @@ const PurchaseOrder = () => {
     toastIdRef.current = deleteToastId;
   };
 
-  // Bulk Delete Purchase Orders
   const handleBulkDelete = () => {
     if (selectedPOs.length === 0) {
       toast.error("No purchase orders selected");
@@ -1358,7 +1564,6 @@ const PurchaseOrder = () => {
     toastIdRef.current = deleteToastId;
   };
 
-  // Handle select all
   const handleSelectAll = (e) => {
     const checked = e.target.checked;
     setSelectAll(checked);
@@ -1369,7 +1574,6 @@ const PurchaseOrder = () => {
     }
   };
 
-  // Handle single select
   const handleSelectPO = (id) => {
     setSelectedPOs((prev) => {
       if (prev.includes(id)) {
@@ -1381,7 +1585,6 @@ const PurchaseOrder = () => {
     setSelectAll(false);
   };
 
-  // Edit Purchase Order
   const editPO = async (po) => {
     try {
       if (!items.length) {
@@ -1442,7 +1645,6 @@ const PurchaseOrder = () => {
     }
   };
 
-  // View Purchase Order
   const viewPO = async (po) => {
     if (toastIdRef.current) {
       toast.dismiss(toastIdRef.current);
@@ -1475,7 +1677,6 @@ const PurchaseOrder = () => {
     }
   };
 
-  // Reset Form
   const resetForm = () => {
     setFormData(initialFormState);
     setShowForm(false);
@@ -1487,7 +1688,6 @@ const PurchaseOrder = () => {
     setShowAssignDropdown(false);
   };
 
-  // New PO with async data loading
   const newPO = async () => {
     if (toastIdRef.current) {
       toast.dismiss(toastIdRef.current);
@@ -1526,7 +1726,7 @@ const PurchaseOrder = () => {
 
       setFormData({
         ...initialFormState,
-        poNumber: generatePONumber(),
+        poNumber: "",
         poDate: poDate,
         expectedDeliveryDate: deliveryDate,
         assign_type: role === "GROWTAG" ? "growtag" : "shop",
@@ -1557,14 +1757,12 @@ const PurchaseOrder = () => {
     }
   };
 
-  // Clear filters
   const clearFilters = () => {
     setSearchTerm("");
     setFilterStatus("");
     setFilterCreatedBy("");
   };
 
-  // Filter POs
   const filteredPOs = purchaseOrders.filter((po) => {
     const matchesSearch =
       (po.poNumber?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
@@ -1600,7 +1798,6 @@ const PurchaseOrder = () => {
     }
   };
 
-  // View Modal Component
   const ViewModal = () => (
     <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
       <div className="bg-white rounded-xl w-full max-w-5xl shadow-2xl my-8">
@@ -2246,8 +2443,8 @@ const PurchaseOrder = () => {
                     Required Fields
                   </h4>
                   <p className="text-sm text-blue-700">
-                    <span className="font-medium">Required:</span> PO Number,
-                    Vendor, Delivery Date, Items (with Qty & Unit Price)
+                    <span className="font-medium">Required:</span> Vendor,
+                    Assign To, Delivery Date, Items (with Qty & Unit Price)
                   </p>
                   <p className="text-sm text-blue-700 mt-1">
                     <span className="font-medium">Note:</span> Quantity fields
@@ -2264,23 +2461,20 @@ const PurchaseOrder = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    PO Number <span className="text-red-500">*</span>
+                    PO Number{" "}
+                    <span className="text-green-600 text-xs font-normal">
+                      (Auto-generated)
+                    </span>
                   </label>
                   <input
                     type="text"
                     name="poNumber"
                     value={formData.poNumber}
-                    onChange={handleInputChange}
-                    disabled={isSubmitting}
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      errors.poNumber ? "border-red-500" : "border-gray-300"
-                    }`}
+                    readOnly
+                    disabled
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
+                    placeholder="Will be generated by system"
                   />
-                  {errors.poNumber && (
-                    <p className="text-red-500 text-xs mt-1">
-                      {errors.poNumber}
-                    </p>
-                  )}
                 </div>
 
                 <div>
@@ -2354,15 +2548,13 @@ const PurchaseOrder = () => {
                   </select>
                 </div>
 
-                {/* IMPROVED ASSIGN TO SECTION WITH ICONS AND SEARCH */}
-                {/* IMPROVED ASSIGN TO SECTION WITH ICONS AND SEARCH - MANDATORY */}
+                {/* ASSIGN TO SECTION WITH SEARCH */}
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Assign To <span className="text-red-500">*</span>
                   </label>
 
                   <div className="flex gap-2">
-                    {/* TYPE SELECTOR with icons */}
                     <select
                       value={formData.assign_type}
                       onChange={(e) => {
@@ -2374,7 +2566,6 @@ const PurchaseOrder = () => {
                         }));
                         setAssignSearchTerm("");
                         setShowAssignDropdown(false);
-                        // Clear assign_id error when type changes
                         if (errors.assign_id) {
                           setErrors((prev) => ({ ...prev, assign_id: "" }));
                         }
@@ -2383,28 +2574,21 @@ const PurchaseOrder = () => {
                         errors.assign_id ? "border-red-500" : "border-gray-300"
                       }`}
                     >
-                      {/* ADMIN → can see both options */}
                       {role === "ADMIN" && (
                         <>
                           <option value="shop">🏪 Shop</option>
                           <option value="growtag">🏷️ GrowTag</option>
                         </>
                       )}
-
-                      {/* FRANCHISE / OTHER SHOP → only shop */}
                       {(role === "FRANCHISE" || role === "OTHERSHOP") && (
                         <option value="shop">🏪 Shop</option>
                       )}
-
-                      {/* GROWTAG → only growtag */}
                       {role === "GROWTAG" && (
                         <option value="growtag">🏷️ GrowTag</option>
                       )}
                     </select>
 
-                    {/* CUSTOM SEARCHABLE DROPDOWN */}
                     <div className="relative flex-1" ref={assignDropdownRef}>
-                      {/* Dropdown Trigger Button */}
                       <button
                         type="button"
                         onClick={() =>
@@ -2430,10 +2614,8 @@ const PurchaseOrder = () => {
                         <ChevronDown size={16} className="text-gray-400" />
                       </button>
 
-                      {/* Dropdown Menu */}
                       {showAssignDropdown && (
                         <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-80 overflow-hidden">
-                          {/* Search Input */}
                           <div className="p-2 border-b border-gray-200">
                             <div className="relative">
                               <Search
@@ -2453,7 +2635,6 @@ const PurchaseOrder = () => {
                             </div>
                           </div>
 
-                          {/* Options List */}
                           <div className="overflow-y-auto max-h-64">
                             {getFilteredAssignItems().length === 0 ? (
                               <div className="px-3 py-2 text-sm text-gray-500 text-center">
@@ -2478,7 +2659,6 @@ const PurchaseOrder = () => {
                                         });
                                         setShowAssignDropdown(false);
                                         setAssignSearchTerm("");
-                                        // Clear error when selection is made
                                         if (errors.assign_id) {
                                           setErrors((prev) => ({
                                             ...prev,
@@ -2512,7 +2692,6 @@ const PurchaseOrder = () => {
                                         });
                                         setShowAssignDropdown(false);
                                         setAssignSearchTerm("");
-                                        // Clear error when selection is made
                                         if (errors.assign_id) {
                                           setErrors((prev) => ({
                                             ...prev,
@@ -2527,8 +2706,6 @@ const PurchaseOrder = () => {
                                         <div className="text-sm font-medium text-gray-900">
                                           {item.name}
                                         </div>
-                                        <div className="text-xs text-gray-500">
-                                        </div>
                                       </div>
                                     </button>
                                   );
@@ -2541,15 +2718,12 @@ const PurchaseOrder = () => {
                     </div>
                   </div>
 
-                  {/* Show selected item info */}
                   {formData.assign_id && (
                     <div className="mt-2 text-xs text-green-600 bg-green-50 p-2 rounded-md flex items-center gap-1">
                       <span>✓</span>
                       <span>Assigned to: {getSelectedDisplayText()}</span>
                     </div>
                   )}
-
-                  {/* Show error message */}
                   {errors.assign_id && (
                     <p className="text-red-500 text-xs mt-1">
                       {errors.assign_id}
@@ -2559,72 +2733,60 @@ const PurchaseOrder = () => {
               </div>
             </div>
 
-            {/* Vendor Information */}
+            {/* Vendor Information with Searchable Select */}
             <div className="mb-6">
               <h3 className="text-lg font-semibold mb-4">Vendor Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Select Vendor <span className="text-red-500">*</span>
-                  </label>
-                  <select
+              <div className="grid grid-cols-1 gap-4">
+                <div>
+                  <SearchableVendorSelect
+                    options={vendors}
                     value={formData.vendorId}
-                    onChange={(e) => handleVendorChange(e.target.value)}
+                    onChange={handleVendorChange}
+                    placeholder="-- Select Vendor --"
+                    label="Select Vendor"
+                    error={errors.vendorName}
                     disabled={isSubmitting}
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      errors.vendorName ? "border-red-500" : "border-gray-300"
-                    }`}
-                  >
-                    <option value="">-- Select Vendor --</option>
-                    {vendors.map((vendor) => (
-                      <option key={vendor.id} value={vendor.id}>
-                        {vendor.name}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.vendorName && (
-                    <p className="text-red-500 text-xs mt-1">
-                      {errors.vendorName}
-                    </p>
-                  )}
+                  />
                 </div>
 
                 {formData.vendorId && (
                   <>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Vendor Email
-                      </label>
-                      <input
-                        type="email"
-                        value={formData.vendorEmail}
-                        readOnly
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100"
-                      />
-                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Vendor Email
+                        </label>
+                        <input
+                          type="email"
+                          value={formData.vendorEmail}
+                          readOnly
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100"
+                        />
+                      </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Vendor Phone
-                      </label>
-                      <input
-                        type="tel"
-                        value={formData.vendorPhone}
-                        readOnly
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100"
-                      />
-                    </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Vendor Phone
+                        </label>
+                        <input
+                          type="tel"
+                          value={formData.vendorPhone}
+                          readOnly
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100"
+                        />
+                      </div>
 
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Vendor Address
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.vendorAddress}
-                        readOnly
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100"
-                      />
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Vendor Address
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.vendorAddress}
+                          readOnly
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100"
+                        />
+                      </div>
                     </div>
                   </>
                 )}
@@ -2672,7 +2834,7 @@ const PurchaseOrder = () => {
               </div>
             </div>
 
-            {/* Items */}
+            {/* Items with Searchable Item Select */}
             <div className="mb-6">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-semibold">Items</h3>
@@ -2725,27 +2887,15 @@ const PurchaseOrder = () => {
                       formData.items.map((item, index) => (
                         <tr key={index} className="border-t">
                           <td className="px-3 py-2">
-                            <select
-                              key={items.length}
-                              value={item.itemId ? String(item.itemId) : ""}
-                              onChange={(e) =>
-                                handleItemSelection(index, e.target.value)
+                            <SearchableItemSelect
+                              items={items}
+                              value={item.itemId}
+                              onChange={(value) =>
+                                handleItemSelection(index, value)
                               }
-                              className="w-full px-2 py-1.5 border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            >
-                              <option value="">Select Item</option>
-                              {items.map((itm) => (
-                                <option key={itm.id} value={String(itm.id)}>
-                                  {itm.name}
-                                </option>
-                              ))}
-                            </select>
-                            {item.itemId && (
-                              <p className="text-xs text-gray-500 mt-1">
-                                Selected: {item.itemName} - ₹
-                                {parseFloat(item.unitPrice).toFixed(2)}
-                              </p>
-                            )}
+                              disabled={isSubmitting}
+                              index={index}
+                            />
                             {errors[`item_${index}_itemName`] && (
                               <p className="text-red-500 text-xs mt-1">
                                 {errors[`item_${index}_itemName`]}
