@@ -15,6 +15,7 @@ import {
   ChevronUp,
   CreditCard,
   FileText,
+  Menu,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import axiosInstance from "@/API/axiosInstance";
@@ -25,27 +26,15 @@ import { useAuth } from "@/auth/AuthContext";
 // Utility function to remove leading zeros from numeric strings
 const removeLeadingZerosFromNumeric = (value) => {
   if (!value && value !== 0) return value;
-
-  // Convert to string if it's a number
   const stringValue = String(value);
-
-  // If it's just "0", keep it
   if (stringValue === "0") return "0";
-
-  // Remove leading zeros but keep the number
   const trimmed = stringValue.replace(/^0+(?=\d)/, "");
-
-  // If the result is empty or just a decimal point, return "0"
   if (trimmed === "" || trimmed === ".") return "0";
-
-  // If it's a decimal number, ensure proper format
   if (trimmed.includes(".")) {
     const [whole, decimal] = trimmed.split(".");
-    // Remove leading zeros from whole part
     const formattedWhole = whole.replace(/^0+(?=\d)/, "") || "0";
     return `${formattedWhole}.${decimal}`;
   }
-
   return trimmed;
 };
 
@@ -54,21 +43,6 @@ const formatNumberForInput = (value) => {
   if (value === 0 || value === "0") return "0";
   if (!value && value !== 0) return "";
   return String(value);
-};
-
-// Handle numeric input with leading zero removal
-const handleNumericInput = (value, currentValue, setter) => {
-  // Remove leading zeros
-  const processed = removeLeadingZerosFromNumeric(value);
-
-  // Update the field with the processed value
-  setter(processed);
-};
-
-// Handle blur for numeric fields
-const handleNumericBlur = (value, setter) => {
-  const numValue = parseFloat(value) || 0;
-  setter(numValue.toString());
 };
 
 const STATUS_OPTIONS = [
@@ -101,12 +75,9 @@ const getOwnerTypeOptionsByRole = (role) => {
       { value: "growtag", label: "GrowTag" },
     ];
   }
-
   if (role === "GROWTAG") {
     return [{ value: "growtag", label: "GrowTag" }];
   }
-
-  // FRANCHISE + OTHER SHOP
   return [{ value: "shop", label: "Shop" }];
 };
 
@@ -119,6 +90,105 @@ const ACCOUNT_TYPES = [
   "Inventory",
   "Raw Materials",
 ];
+
+// ==================== SEARCHABLE DROPDOWN COMPONENT ====================
+const SearchableDropdown = ({
+  options,
+  value,
+  onChange,
+  placeholder,
+  label,
+  error,
+  disabled = false,
+  getDisplayValue,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+        setSearchTerm("");
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredOptions = options.filter((option) => {
+    const searchLower = searchTerm.toLowerCase();
+    const displayText = getDisplayValue(option).toLowerCase();
+    return displayText.includes(searchLower);
+  });
+
+  const selectedOption = options.find((opt) => opt.id === value);
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        {label} <span className="text-red-500">*</span>
+      </label>
+      <div
+        className={`w-full px-2 py-2 border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm cursor-pointer bg-white flex justify-between items-center ${
+          error ? "border-red-500" : "border-gray-300"
+        } ${disabled ? "bg-gray-100 cursor-not-allowed" : ""}`}
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+      >
+        <span
+          className={
+            !selectedOption ? "text-gray-400" : "text-gray-900 truncate"
+          }
+        >
+          {selectedOption ? getDisplayValue(selectedOption) : placeholder}
+        </span>
+        <ChevronDown size={16} className="text-gray-400 flex-shrink-0" />
+      </div>
+
+      {isOpen && !disabled && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+          <div className="p-2 border-b sticky top-0 bg-white">
+            <div className="relative">
+              <Search
+                size={14}
+                className="absolute left-2 top-2.5 text-gray-400"
+              />
+              <input
+                type="text"
+                placeholder={`Search ${label.toLowerCase()}...`}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-7 pr-2 py-1.5 border rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+          </div>
+          {filteredOptions.length === 0 ? (
+            <div className="px-3 py-2 text-sm text-gray-500 text-center">
+              No {label.toLowerCase()} found
+            </div>
+          ) : (
+            filteredOptions.map((option) => (
+              <div
+                key={option.id}
+                className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm truncate"
+                onClick={() => {
+                  onChange(option.id);
+                  setIsOpen(false);
+                  setSearchTerm("");
+                }}
+              >
+                {getDisplayValue(option)}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+      {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
+    </div>
+  );
+};
 
 // ==================== PAYMENT MODAL COMPONENT ====================
 const PaymentModal = ({
@@ -133,17 +203,16 @@ const PaymentModal = ({
   if (!selectedBill) return null;
 
   return (
-    <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center p-4 z-[60]">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
       <div className="bg-white rounded-xl w-full max-w-md shadow-2xl">
-        {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-green-50 to-emerald-50">
+        <div className="px-4 sm:px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-green-50 to-emerald-50">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
               <div className="bg-green-600 p-2 rounded-lg mr-3">
-                <CreditCard className="text-white" size={24} />
+                <CreditCard className="text-white" size={20} />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-gray-800">
+                <h3 className="text-base sm:text-lg font-semibold text-gray-800">
                   Record Payment
                 </h3>
                 <p className="text-xs text-gray-500 mt-1">
@@ -153,26 +222,24 @@ const PaymentModal = ({
             </div>
             <button
               onClick={closePaymentModal}
-              className="text-gray-400 hover:text-gray-600 p-2 rounded-lg hover:bg-white/50 transition-colors"
+              className="text-gray-400 hover:text-gray-600 p-2 rounded-lg"
             >
               <X size={20} />
             </button>
           </div>
         </div>
 
-        {/* Modal Body */}
-        <div className="p-6">
-          {/* Bill Summary */}
+        <div className="p-4 sm:p-6">
           <div className="mb-6 p-4 bg-gray-50 rounded-lg">
             <div className="flex justify-between items-center mb-2">
               <span className="text-sm text-gray-600">Total Amount:</span>
-              <span className="text-lg font-bold text-gray-900">
+              <span className="text-base sm:text-lg font-bold text-gray-900">
                 ₹{selectedBill?.total?.toFixed(2)}
               </span>
             </div>
             <div className="flex justify-between items-center mb-2">
               <span className="text-sm text-gray-600">Amount Paid:</span>
-              <span className="text-lg font-bold text-green-600">
+              <span className="text-base sm:text-lg font-bold text-green-600">
                 ₹{selectedBill?.amount_paid?.toFixed(2)}
               </span>
             </div>
@@ -180,13 +247,12 @@ const PaymentModal = ({
               <span className="text-sm font-medium text-gray-700">
                 Balance Due:
               </span>
-              <span className="text-xl font-bold text-red-600">
+              <span className="text-base sm:text-xl font-bold text-red-600">
                 ₹{selectedBill?.balance_due?.toFixed(2)}
               </span>
             </div>
           </div>
 
-          {/* Payment Form */}
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -197,17 +263,8 @@ const PaymentModal = ({
                 name="payment_date"
                 value={paymentForm.payment_date}
                 onChange={handlePaymentInputChange}
-                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 ${
-                  paymentErrors.payment_date
-                    ? "border-red-500"
-                    : "border-gray-300"
-                }`}
+                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
               />
-              {paymentErrors.payment_date && (
-                <p className="text-red-500 text-xs mt-1">
-                  {paymentErrors.payment_date}
-                </p>
-              )}
             </div>
 
             <div>
@@ -226,31 +283,18 @@ const PaymentModal = ({
                       e.target.value,
                     );
                     handlePaymentInputChange({
-                      target: {
-                        name: "amount",
-                        value: processed,
-                      },
+                      target: { name: "amount", value: processed },
                     });
                   }}
                   onBlur={(e) => {
                     const numValue = parseFloat(e.target.value) || 0;
                     handlePaymentInputChange({
-                      target: {
-                        name: "amount",
-                        value: numValue.toString(),
-                      },
+                      target: { name: "amount", value: numValue.toString() },
                     });
                   }}
-                  className={`w-full pl-8 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 ${
-                    paymentErrors.amount ? "border-red-500" : "border-gray-300"
-                  }`}
+                  className="w-full pl-8 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
               </div>
-              {paymentErrors.amount && (
-                <p className="text-red-500 text-xs mt-1">
-                  {paymentErrors.amount}
-                </p>
-              )}
             </div>
 
             <div>
@@ -261,9 +305,7 @@ const PaymentModal = ({
                 name="method"
                 value={paymentForm.method}
                 onChange={handlePaymentInputChange}
-                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 ${
-                  paymentErrors.method ? "border-red-500" : "border-gray-300"
-                }`}
+                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
               >
                 {PAYMENT_METHODS.map((method) => (
                   <option key={method.value} value={method.value}>
@@ -271,11 +313,6 @@ const PaymentModal = ({
                   </option>
                 ))}
               </select>
-              {paymentErrors.method && (
-                <p className="text-red-500 text-xs mt-1">
-                  {paymentErrors.method}
-                </p>
-              )}
             </div>
 
             <div>
@@ -294,31 +331,25 @@ const PaymentModal = ({
           </div>
         </div>
 
-        {/* Modal Footer */}
-        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50">
+        <div className="px-4 sm:px-6 py-4 border-t border-gray-100 bg-gray-50">
           <div className="flex justify-end gap-3">
             <button
               onClick={closePaymentModal}
-              className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
             >
               Cancel
             </button>
             <button
               onClick={recordPayment}
               disabled={isSubmitting}
-              className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 flex items-center gap-2 disabled:opacity-50"
             >
               {isSubmitting ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  <span>Recording...</span>
-                </>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
               ) : (
-                <>
-                  <CreditCard size={16} />
-                  <span>Record Payment</span>
-                </>
+                <CreditCard size={16} />
               )}
+              Record Payment
             </button>
           </div>
         </div>
@@ -327,7 +358,7 @@ const PaymentModal = ({
   );
 };
 
-// ==================== VIEW MODAL COMPONENT (Payment button removed) ====================
+// ==================== VIEW MODAL COMPONENT ====================
 const ViewBillModal = ({
   formData,
   shops,
@@ -339,15 +370,14 @@ const ViewBillModal = ({
   canEdit,
 }) => {
   return (
-    <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-      <div className="bg-white rounded-xl w-full max-w-5xl shadow-2xl my-8">
-        {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-50 overflow-y-auto">
+      <div className="bg-white rounded-xl w-full max-w-5xl shadow-2xl my-4 sm:my-8 mx-2 sm:mx-4">
+        <div className="px-4 sm:px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
               <div className="bg-blue-600 p-2 rounded-lg mr-3">
                 <svg
-                  className="w-6 h-6 text-white"
+                  className="w-5 h-5 sm:w-6 sm:h-6 text-white"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -361,7 +391,7 @@ const ViewBillModal = ({
                 </svg>
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-gray-800">
+                <h3 className="text-base sm:text-lg font-semibold text-gray-800">
                   Bill Details
                 </h3>
                 <p className="text-xs text-gray-500 mt-1">
@@ -371,23 +401,20 @@ const ViewBillModal = ({
             </div>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 p-2 rounded-lg hover:bg-white/50 transition-colors"
-              title="Close"
+              className="text-gray-400 hover:text-gray-600 p-2 rounded-lg"
             >
               <X size={20} />
             </button>
           </div>
         </div>
 
-        {/* Modal Body */}
-        <div className="p-6 max-h-[calc(100vh-200px)] overflow-y-auto">
-          {/* Bill Info & Status */}
-          <div className="flex items-start justify-between mb-6 pb-4 border-b">
-            <div>
-              <h4 className="text-2xl font-bold text-gray-900 mb-2">
+        <div className="p-4 sm:p-6 max-h-[calc(100vh-200px)] overflow-y-auto">
+          <div className="flex flex-col sm:flex-row items-start justify-between mb-6 pb-4 border-b">
+            <div className="mb-3 sm:mb-0">
+              <h4 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">
                 {formData.bill_number}
               </h4>
-              <div className="flex items-center gap-4 text-sm text-gray-600">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm text-gray-600">
                 <span>Bill Date: {formData.bill_date}</span>
                 <span>•</span>
                 <span>Due Date: {formData.due_date}</span>
@@ -400,19 +427,18 @@ const ViewBillModal = ({
             </div>
             <div className="flex gap-2">
               <span
-                className={`px-3 py-1 text-sm rounded-full font-medium ${getStatusColor(formData.status)}`}
+                className={`px-2 sm:px-3 py-1 text-xs rounded-full font-medium ${getStatusColor(formData.status)}`}
               >
                 {formData.status}
               </span>
               <span
-                className={`px-3 py-1 text-sm rounded-full font-medium ${getPaymentStatusColor(formData.payment_status)}`}
+                className={`px-2 sm:px-3 py-1 text-xs rounded-full font-medium ${getPaymentStatusColor(formData.payment_status)}`}
               >
                 {formData.payment_status}
               </span>
             </div>
           </div>
 
-          {/* ===== NEW: Assigned Shop Information ===== */}
           {(formData.assigned_shop || formData.assigned_shop_name) && (
             <div className="mb-6">
               <h5 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide flex items-center">
@@ -420,7 +446,7 @@ const ViewBillModal = ({
                 Assigned To
               </h5>
               <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg p-4 border border-purple-100">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
                     <p className="text-xs font-medium text-gray-500 mb-1">
                       Shop Name
@@ -446,36 +472,17 @@ const ViewBillModal = ({
                     </p>
                   </div>
                 </div>
-                {formData.assigned_shop_type === "franchise" && (
-                  <div className="mt-3 pt-3 border-t border-purple-200">
-                    <p className="text-xs text-purple-600 flex items-center">
-                      <svg
-                        className="w-4 h-4 mr-1"
-                        fill="currentColor"
-                        viewBox="0 0 20 20"
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
-                      This is a franchise shop
-                    </p>
-                  </div>
-                )}
               </div>
             </div>
           )}
 
-          {/* Owner Information */}
           <div className="mb-6">
             <h5 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide flex items-center">
               <User size={16} className="mr-2" />
               Owner Information
             </h5>
             <div className="bg-gray-50 rounded-lg p-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs font-medium text-gray-500 mb-1">
                     Owner Type
@@ -500,14 +507,13 @@ const ViewBillModal = ({
             </div>
           </div>
 
-          {/* Vendor Information */}
           <div className="mb-6">
             <h5 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide flex items-center">
               <Building size={16} className="mr-2" />
               Vendor Information
             </h5>
             <div className="bg-gray-50 rounded-lg p-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs font-medium text-gray-500 mb-1">
                     Vendor Name
@@ -540,7 +546,7 @@ const ViewBillModal = ({
                     {formData.vendor_gstin || "N/A"}
                   </p>
                 </div>
-                <div className="md:col-span-2">
+                <div className="sm:col-span-2">
                   <p className="text-xs font-medium text-gray-500 mb-1">
                     Address
                   </p>
@@ -552,13 +558,12 @@ const ViewBillModal = ({
             </div>
           </div>
 
-          {/* Shipping & Billing */}
           {(formData.ship_to || formData.bill_to) && (
             <div className="mb-6">
               <h5 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
                 Shipping & Billing
               </h5>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {formData.ship_to && (
                   <div className="bg-gray-50 rounded-lg p-4">
                     <p className="text-xs font-medium text-gray-500 mb-2">
@@ -583,37 +588,27 @@ const ViewBillModal = ({
             </div>
           )}
 
-          {/* Items */}
           <div className="mb-6">
             <h5 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
               Items
             </h5>
             <div className="overflow-x-auto border rounded-lg">
-              <table className="w-full">
+              <table className="w-full min-w-[600px]">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                       Item
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                       Description
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Account
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-3 sm:px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
                       Qty
                     </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-3 sm:px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
                       Rate
                     </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                      Tax %
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                      Disc %
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-3 sm:px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
                       Amount
                     </th>
                   </tr>
@@ -622,7 +617,7 @@ const ViewBillModal = ({
                   {formData.items && formData.items.length > 0 ? (
                     formData.items.map((item, index) => (
                       <tr key={index}>
-                        <td className="px-4 py-3">
+                        <td className="px-3 sm:px-4 py-3">
                           <p className="text-sm font-medium text-gray-900">
                             {item.name || "N/A"}
                           </p>
@@ -632,29 +627,18 @@ const ViewBillModal = ({
                             </p>
                           )}
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-3 sm:px-4 py-3">
                           <p className="text-sm text-gray-600">
                             {item.description || "-"}
                           </p>
                         </td>
-                        <td className="px-4 py-3">
-                          <p className="text-sm text-gray-600">
-                            {item.account || "Cost of Goods Sold"}
-                          </p>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-900 text-right">
+                        <td className="px-3 sm:px-4 py-3 text-sm text-gray-900 text-right">
                           {item.qty}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-900 text-right">
+                        <td className="px-3 sm:px-4 py-3 text-sm text-gray-900 text-right">
                           ₹{parseFloat(item.rate).toFixed(2)}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-900 text-right">
-                          {item.tax_percent}%
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-900 text-right">
-                          {item.discount_percent}%
-                        </td>
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900 text-right">
+                        <td className="px-3 sm:px-4 py-3 text-sm font-medium text-gray-900 text-right">
                           ₹{parseFloat(item.amount).toFixed(2)}
                         </td>
                       </tr>
@@ -662,8 +646,8 @@ const ViewBillModal = ({
                   ) : (
                     <tr>
                       <td
-                        colSpan="8"
-                        className="px-4 py-3 text-center text-gray-500"
+                        colSpan="5"
+                        className="px-3 sm:px-4 py-3 text-center text-gray-500"
                       >
                         No items added
                       </td>
@@ -674,7 +658,6 @@ const ViewBillModal = ({
             </div>
           </div>
 
-          {/* Payments */}
           {formData.payments && formData.payments.length > 0 && (
             <div className="mb-6">
               <h5 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide flex items-center">
@@ -682,19 +665,16 @@ const ViewBillModal = ({
                 Payment History
               </h5>
               <div className="overflow-x-auto border rounded-lg">
-                <table className="w-full">
+                <table className="w-full min-w-[400px]">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                         Date
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                         Method
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Reference
-                      </th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                      <th className="px-3 sm:px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
                         Amount
                       </th>
                     </tr>
@@ -702,16 +682,13 @@ const ViewBillModal = ({
                   <tbody className="bg-white divide-y divide-gray-200">
                     {formData.payments.map((payment, index) => (
                       <tr key={index}>
-                        <td className="px-4 py-3 text-sm text-gray-900">
+                        <td className="px-3 sm:px-4 py-3 text-sm text-gray-900">
                           {payment.payment_date}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-900">
+                        <td className="px-3 sm:px-4 py-3 text-sm text-gray-900">
                           {payment.method}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">
-                          {payment.reference || "-"}
-                        </td>
-                        <td className="px-4 py-3 text-sm font-medium text-green-600 text-right">
+                        <td className="px-3 sm:px-4 py-3 text-sm font-medium text-green-600 text-right">
                           ₹{payment.amount.toFixed(2)}
                         </td>
                       </tr>
@@ -722,10 +699,9 @@ const ViewBillModal = ({
             </div>
           )}
 
-          {/* Totals */}
           <div className="mb-6">
             <div className="flex justify-end">
-              <div className="w-full md:w-1/2 bg-gray-50 rounded-lg p-4 space-y-2">
+              <div className="w-full sm:w-1/2 bg-gray-50 rounded-lg p-4 space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Subtotal:</span>
                   <span className="font-medium">
@@ -750,18 +726,6 @@ const ViewBillModal = ({
                   </span>
                   <span className="font-medium text-red-600">
                     -₹{parseFloat(formData.tds_amount).toFixed(2)}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Shipping:</span>
-                  <span className="font-medium">
-                    ₹{parseFloat(formData.shipping_charges).toFixed(2)}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Adjustment:</span>
-                  <span className="font-medium">
-                    ₹{parseFloat(formData.adjustment).toFixed(2)}
                   </span>
                 </div>
                 <div className="flex justify-between pt-2 border-t-2 border-gray-300">
@@ -789,56 +753,22 @@ const ViewBillModal = ({
               </div>
             </div>
           </div>
-
-          {/* Terms & Notes */}
-          {(formData.terms_and_conditions || formData.notes) && (
-            <div className="mb-6">
-              <h5 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
-                Additional Information
-              </h5>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {formData.terms_and_conditions && (
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <p className="text-xs font-medium text-gray-500 mb-2">
-                      Terms & Conditions
-                    </p>
-                    <p className="text-sm text-gray-900 whitespace-pre-line">
-                      {formData.terms_and_conditions}
-                    </p>
-                  </div>
-                )}
-                {formData.notes && (
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <p className="text-xs font-medium text-gray-500 mb-2">
-                      Notes
-                    </p>
-                    <p className="text-sm text-gray-900 whitespace-pre-line">
-                      {formData.notes}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* Modal Footer - Payment button removed */}
-        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50">
+        <div className="px-4 sm:px-6 py-4 border-t border-gray-100 bg-gray-50">
           <div className="flex justify-between items-center">
-            <div className="flex gap-2">
-              {canEdit && (
-                <button
-                  onClick={onEdit}
-                  className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg flex items-center"
-                >
-                  <Edit size={16} className="mr-2" />
-                  Edit Bill
-                </button>
-              )}
-            </div>
+            {canEdit && (
+              <button
+                onClick={onEdit}
+                className="px-3 sm:px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg flex items-center"
+              >
+                <Edit size={16} className="mr-2" />
+                Edit Bill
+              </button>
+            )}
             <button
               onClick={onClose}
-              className="px-5 py-2 text-sm font-medium bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+              className="px-4 sm:px-5 py-2 text-sm font-medium bg-gray-600 text-white rounded-lg hover:bg-gray-700"
             >
               Close
             </button>
@@ -869,12 +799,10 @@ const Bill = () => {
   const [isFetchingDetails, setIsFetchingDetails] = useState(false);
   const [isLoadingItems, setIsLoadingItems] = useState(false);
   const [expandedRows, setExpandedRows] = useState({});
-
-  // NEW: State for bulk delete
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedBills, setSelectedBills] = useState([]);
   const [selectAll, setSelectAll] = useState(false);
 
-  // Payment form state
   const [paymentForm, setPaymentForm] = useState({
     payment_date: new Date().toISOString().split("T")[0],
     amount: "",
@@ -882,8 +810,6 @@ const Bill = () => {
     reference: "",
   });
   const [paymentErrors, setPaymentErrors] = useState({});
-
-  // Cache for detailed bills
   const [billDetailsCache, setBillDetailsCache] = useState({});
   const { user } = useAuth();
   const role = user?.role;
@@ -893,6 +819,21 @@ const Bill = () => {
   const canEdit = canAccess(role, PERMISSIONS.bills.edit);
   const canDelete = canAccess(role, PERMISSIONS.bills.delete);
 
+  const getShopDisplayValue = (shop) => {
+    const shopType = shop.shop_type?.toLowerCase();
+    const icon =
+      shopType === "franchise" ? "🏬" : shopType === "other_shop" ? "🛍️" : "🏪";
+    const typeLabel =
+      shop.shop_type === "franchise"
+        ? "Franchise"
+        : shop.shop_type === "other_shop"
+          ? "Other Shop"
+          : "Shop";
+    return `${icon} ${typeLabel} — ${shop.shopname}`;
+  };
+
+  const getGrowtagDisplayValue = (growtag) => `🏷️ ${growtag.name}`;
+
   if (!canView) {
     return (
       <div className="p-10 text-center text-red-500 font-semibold">
@@ -900,52 +841,15 @@ const Bill = () => {
       </div>
     );
   }
-  // ===== DOWNLOAD BILL PDF =====
-  const downloadBillPDF = async (billId) => {
-    try {
-      const response = await axiosInstance.get(
-        `/purchase-bills/${billId}/pdf/`, // ✅ correct endpoint
-        {
-          responseType: "blob", // 🔥 IMPORTANT for file
-        },
-      );
-
-      // Create file URL
-      const url = window.URL.createObjectURL(
-        new Blob([response.data], { type: "application/pdf" }),
-      );
-
-      // Create download link
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", `bill_${billId}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-
-      // Cleanup
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error("PDF error:", error);
-
-      if (error.response?.status === 401) {
-        toast.error("Unauthorized! Please login again");
-      } else if (error.response?.status === 404) {
-        toast.error("PDF API not found");
-      } else {
-        toast.error("Download failed");
-      }
-    }
-  };
 
   const initialFormState = {
     id: null,
     owner_type: "shop",
     shop: null,
     growtag: null,
-    assigned_shop: null, // NEW
-    assigned_shop_name: "", // NEW
-    assigned_shop_type: "", // NEW
+    assigned_shop: null,
+    assigned_shop_name: "",
+    assigned_shop_type: "",
     status: "DRAFT",
     vendor: null,
     bill_number: "",
@@ -953,16 +857,13 @@ const Bill = () => {
     bill_date: new Date().toISOString().split("T")[0],
     due_date: "",
     payment_status: "UNPAID",
-    // Vendor snapshot fields
     vendor_name: "",
     vendor_email: "",
     vendor_phone: "",
     vendor_gstin: "",
     vendor_address: "",
-    // Shipping/Billing
     ship_to: "",
     bill_to: "",
-    // Items
     items: [
       {
         id: null,
@@ -977,7 +878,6 @@ const Bill = () => {
         amount: 0,
       },
     ],
-    // Totals
     subtotal: 0,
     total_discount: 0,
     total_tax: 0,
@@ -996,7 +896,6 @@ const Bill = () => {
   const [formData, setFormData] = useState(initialFormState);
   const [errors, setErrors] = useState({});
 
-  // Fetch data on component mount
   useEffect(() => {
     fetchVendors();
     fetchShops();
@@ -1004,8 +903,6 @@ const Bill = () => {
     fetchItems();
     fetchBills();
   }, []);
-
-  // Initialize payment form when selectedBill changes
   useEffect(() => {
     if (selectedBill) {
       setPaymentForm({
@@ -1017,314 +914,105 @@ const Bill = () => {
       setPaymentErrors({});
     }
   }, [selectedBill?.id]);
-
   useEffect(() => {
     if (!role) return;
-
     setFormData((prev) => ({
       ...prev,
       owner_type: role === "GROWTAG" ? "growtag" : "shop",
+      shop: role !== "GROWTAG" ? null : prev.shop,
+      growtag: role === "GROWTAG" ? prev.growtag : null,
     }));
   }, [role]);
 
-  // Toggle expanded row
-  const toggleRow = (index) => {
-    setExpandedRows((prev) => ({
-      ...prev,
-      [index]: !prev[index],
-    }));
-  };
-
-  // NEW: Handle select all bills
+  const toggleRow = (index) =>
+    setExpandedRows((prev) => ({ ...prev, [index]: !prev[index] }));
   const handleSelectAll = (checked) => {
     setSelectAll(checked);
-    if (checked) {
-      setSelectedBills(filteredBills.map((bill) => bill.id));
-    } else {
-      setSelectedBills([]);
-    }
+    setSelectedBills(checked ? filteredBills.map((bill) => bill.id) : []);
   };
-
-  // NEW: Handle single bill selection
   const handleSelectBill = (billId, checked) => {
-    if (checked) {
-      setSelectedBills((prev) => [...prev, billId]);
-    } else {
-      setSelectedBills((prev) => prev.filter((id) => id !== billId));
-      setSelectAll(false);
-    }
-  };
-
-  // NEW: Bulk delete bills
-  const handleBulkDelete = () => {
-    if (!canDelete) {
-      toast.error("You don't have permission to delete bills");
-      return;
-    }
-    if (selectedBills.length === 0) {
-      toast.error("Please select at least one bill to delete");
-      return;
-    }
-
-    toast(
-      (t) => (
-        <div className="flex flex-col gap-3">
-          <p className="text-sm font-semibold text-gray-800">
-            Delete {selectedBills.length} selected{" "}
-            {selectedBills.length === 1 ? "bill" : "bills"}?
-          </p>
-          <p className="text-xs text-gray-500">This action cannot be undone.</p>
-          <div className="flex justify-end gap-2">
-            <button
-              onClick={() => toast.dismiss(t.id)}
-              className="px-3 py-1.5 bg-gray-200 rounded-md text-sm hover:bg-gray-300 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={async () => {
-                toast.dismiss(t.id);
-                const loadingToast = toast.loading(
-                  `Deleting ${selectedBills.length} ${selectedBills.length === 1 ? "bill" : "bills"}...`,
-                );
-
-                try {
-                  // Delete bills sequentially
-                  const results = await Promise.allSettled(
-                    selectedBills.map((id) =>
-                      axiosInstance.delete(`/api/bills/${id}/`),
-                    ),
-                  );
-
-                  const successful = results.filter(
-                    (r) => r.status === "fulfilled",
-                  ).length;
-                  const failed = results.filter(
-                    (r) => r.status === "rejected",
-                  ).length;
-
-                  // Clear cache for deleted bills
-                  setBillDetailsCache((prev) => {
-                    const newCache = { ...prev };
-                    selectedBills.forEach((id) => delete newCache[id]);
-                    return newCache;
-                  });
-
-                  // Remove deleted bills from state
-                  setBills((prev) =>
-                    prev.filter((bill) => !selectedBills.includes(bill.id)),
-                  );
-
-                  // Clear selection
-                  setSelectedBills([]);
-                  setSelectAll(false);
-
-                  if (failed === 0) {
-                    toast.success(
-                      `Successfully deleted ${successful} ${successful === 1 ? "bill" : "bills"}`,
-                      {
-                        id: loadingToast,
-                      },
-                    );
-                  } else {
-                    toast.success(
-                      `Deleted ${successful} ${successful === 1 ? "bill" : "bills"}, ${failed} failed`,
-                      {
-                        id: loadingToast,
-                      },
-                    );
-                  }
-                } catch (error) {
-                  console.error("Bulk delete error:", error);
-                  toast.error("Failed to delete some bills", {
-                    id: loadingToast,
-                  });
-                }
-              }}
-              className="px-3 py-1.5 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 transition-colors"
-            >
-              Delete {selectedBills.length}
-            </button>
-          </div>
-        </div>
-      ),
-      { duration: Infinity },
+    setSelectedBills((prev) =>
+      checked ? [...prev, billId] : prev.filter((id) => id !== billId),
     );
+    setSelectAll(false);
   };
 
-  // Fetch vendors from API
   const fetchVendors = async () => {
     try {
       const response = await axiosInstance.get("/api/vendors/");
       const data = response.data;
-      let vendorsList = [];
-
-      if (Array.isArray(data)) {
-        vendorsList = data;
-      } else if (data?.data && Array.isArray(data.data)) {
-        vendorsList = data.data;
-      } else if (data?.results) {
-        vendorsList = data.results;
-      }
-
-      setVendors(vendorsList);
+      setVendors(
+        Array.isArray(data) ? data : data?.data || data?.results || [],
+      );
     } catch (error) {
       console.error("Fetch vendors error:", error);
-
-      if (!error.response) return;
-
-      if (error.response.status !== 401 && error.response.status !== 403) {
+      if (error.response?.status !== 401 && error.response?.status !== 403)
         toast.error("Failed to load vendors");
-      }
     }
   };
 
-  // Fetch shops from API
   const fetchShops = async () => {
     try {
       const response = await axiosInstance.get("/api/shops/");
       const data = response.data;
-      let shopsList = [];
-
-      if (Array.isArray(data)) {
-        shopsList = data;
-      } else if (data?.data && Array.isArray(data.data)) {
-        shopsList = data.data;
-      } else if (data?.results) {
-        shopsList = data.results;
-      }
-
-      setShops(shopsList);
+      setShops(Array.isArray(data) ? data : data?.data || data?.results || []);
     } catch (error) {
       console.error("Fetch shops error:", error);
     }
   };
 
-  // Fetch growtags from API
   const fetchGrowtags = async () => {
     try {
       const response = await axiosInstance.get("/api/growtags/");
       const data = response.data;
-      let growtagsList = [];
-
-      if (Array.isArray(data)) {
-        growtagsList = data;
-      } else if (data?.data && Array.isArray(data.data)) {
-        growtagsList = data.data;
-      } else if (data?.results) {
-        growtagsList = data.results;
-      }
-
-      setGrowtags(growtagsList);
+      setGrowtags(
+        Array.isArray(data) ? data : data?.data || data?.results || [],
+      );
     } catch (error) {
       console.error("Fetch growtags error:", error);
     }
   };
 
-  // Fetch items from API
   const fetchItems = async () => {
     setIsLoadingItems(true);
     try {
       const response = await axiosInstance.get("/zoho/local-items/");
       const data = response.data;
-      let itemsList = [];
-
-      if (Array.isArray(data)) {
-        itemsList = data;
-      } else if (data?.data && Array.isArray(data.data)) {
-        itemsList = data.data;
-      } else if (data?.results) {
-        itemsList = data.results;
-      }
-
-      // Transform items to a consistent format
+      let itemsList = Array.isArray(data)
+        ? data
+        : data?.data || data?.results || [];
       const transformedItems = itemsList.map((item) => ({
         id: item.id,
         name: item.name,
-        sku: item.sku,
-        unit: item.unit,
         selling_price: parseFloat(item.selling_price) || 0,
-        cost_price: parseFloat(item.cost_price) || 0,
-        service_charge: parseFloat(item.service_charge) || 0,
-        tax_preference: item.tax_preference,
-        gst_treatment: item.gst_treatment,
-        hsn_or_sac: item.hsn_or_sac,
         sales_description: item.sales_description || "",
-        purchase_description: item.purchase_description || "",
-        is_purchasable: item.is_purchasable,
-        is_sellable: item.is_sellable,
         is_active: item.is_active,
-        product_type: item.product_type,
-        sync_status: item.sync_status,
       }));
-
-      const filteredItems = transformedItems.filter((item) => item.is_active);
-
-      setItems(filteredItems);
+      setItems(transformedItems.filter((item) => item.is_active));
     } catch (error) {
       console.error("Fetch items error:", error);
-
-      if (!error.response) return;
-
-      if (error.response.status !== 401 && error.response.status !== 403) {
+      if (error.response?.status !== 401 && error.response?.status !== 403)
         toast.error("Failed to load items");
-      }
     } finally {
       setIsLoadingItems(false);
     }
   };
 
-  // Fetch single bill details - UPDATED to include assigned shop fields
   const fetchBillDetails = async (id) => {
     try {
-      // Check cache first
-      if (billDetailsCache[id]) {
-        return billDetailsCache[id];
-      }
-
+      if (billDetailsCache[id]) return billDetailsCache[id];
       const response = await axiosInstance.get(`/api/bills/${id}/`);
-      const data = response.data;
-      const bill = data.data || data;
-
-      // Transform the detailed data
-      let itemsArray = [];
-      if (bill?.items && Array.isArray(bill.items)) {
-        itemsArray = bill.items.map((item) => ({
-          id: item?.id || null,
-          item: item?.item || null,
-          name: item?.name || "",
-          description: item?.description || "",
-          account: item?.account || "Cost of Goods Sold",
-          qty: parseFloat(item?.qty) || 1,
-          rate: parseFloat(item?.rate) || 0,
-          tax_percent: parseFloat(item?.tax_percent) || 0,
-          discount_percent: parseFloat(item?.discount_percent) || 0,
-          amount: parseFloat(item?.amount) || 0,
-        }));
-      }
-
-      let paymentsArray = [];
-      if (bill?.payments && Array.isArray(bill.payments)) {
-        paymentsArray = bill.payments.map((payment) => ({
-          id: payment?.id || null,
-          payment_date: payment?.payment_date || "",
-          amount: parseFloat(payment?.amount) || 0,
-          method: payment?.method || "",
-          reference: payment?.reference || "",
-          created_at: payment?.created_at || "",
-        }));
-      }
-
+      const bill = response.data.data || response.data;
       const detailedBill = {
-        id: bill?.id || null,
+        id: bill?.id,
         owner_type: bill?.owner_type || "shop",
-        shop: bill?.shop || null,
-        growtag: bill?.growtag || null,
-        assigned_shop: bill?.assigned_shop || null, // NEW
-        assigned_shop_name: bill?.assigned_shop_name || "", // NEW
-        assigned_shop_type: bill?.assigned_shop_type || "", // NEW
+        shop: bill?.shop,
+        growtag: bill?.growtag,
+        assigned_shop: bill?.assigned_shop,
+        assigned_shop_name: bill?.assigned_shop_name || "",
+        assigned_shop_type: bill?.assigned_shop_type || "",
         status: bill?.status || "DRAFT",
-        vendor: bill?.vendor || null,
+        vendor: bill?.vendor,
         bill_number: bill?.bill_number || "",
         order_number: bill?.order_number || "",
         bill_date: bill?.bill_date || "",
@@ -1337,8 +1025,27 @@ const Bill = () => {
         vendor_address: bill?.vendor_address || "",
         ship_to: bill?.ship_to || "",
         bill_to: bill?.bill_to || "",
-        items: itemsArray,
-        payments: paymentsArray,
+        items:
+          bill?.items?.map((item) => ({
+            id: item?.id,
+            item: item?.item,
+            name: item?.name || "",
+            description: item?.description || "",
+            account: item?.account || "Cost of Goods Sold",
+            qty: parseFloat(item?.qty) || 1,
+            rate: parseFloat(item?.rate) || 0,
+            tax_percent: parseFloat(item?.tax_percent) || 0,
+            discount_percent: parseFloat(item?.discount_percent) || 0,
+            amount: parseFloat(item?.amount) || 0,
+          })) || [],
+        payments:
+          bill?.payments?.map((payment) => ({
+            id: payment?.id,
+            payment_date: payment?.payment_date || "",
+            amount: parseFloat(payment?.amount) || 0,
+            method: payment?.method || "",
+            reference: payment?.reference || "",
+          })) || [],
         subtotal: parseFloat(bill?.subtotal) || 0,
         total_discount: parseFloat(bill?.total_discount) || 0,
         total_tax: parseFloat(bill?.total_tax) || 0,
@@ -1352,156 +1059,83 @@ const Bill = () => {
         notes: bill?.notes || "",
         terms_and_conditions: bill?.terms_and_conditions || "",
       };
-
-      // Update cache
-      setBillDetailsCache((prev) => ({
-        ...prev,
-        [id]: detailedBill,
-      }));
-
+      setBillDetailsCache((prev) => ({ ...prev, [id]: detailedBill }));
       return detailedBill;
     } catch (error) {
       console.error(`Fetch bill details error for ID ${id}:`, error);
-      if (error.response?.status !== 401 && error.response?.status !== 403) {
-        toast.error("Failed to load bill details");
-      }
       return null;
     }
   };
 
-  // Fetch bills from API - UPDATED to include assigned shop fields
   const fetchBills = async () => {
     setIsLoading(true);
-
     try {
       const response = await axiosInstance.get("/api/bills/");
       const data = response.data;
-      let billsList = [];
-
-      if (Array.isArray(data)) {
-        billsList = data;
-      } else if (data?.data && Array.isArray(data.data)) {
-        billsList = data.data;
-      } else if (data?.results) {
-        billsList = data.results;
-      }
-
-      // Transform API data
-      const transformedBills = billsList.map((bill) => {
-        const cachedDetail = billDetailsCache[bill?.id];
-
-        if (cachedDetail) {
-          return cachedDetail;
-        }
-
-        let paymentsArray = [];
-        if (bill?.payments && Array.isArray(bill.payments)) {
-          paymentsArray = bill.payments.map((payment) => ({
-            id: payment?.id || null,
-            payment_date: payment?.payment_date || "",
-            amount: parseFloat(payment?.amount) || 0,
-            method: payment?.method || "",
-            reference: payment?.reference || "",
-            created_at: payment?.created_at || "",
-          }));
-        }
-
-        return {
-          id: bill?.id || null,
-          owner_type: bill?.owner_type || "shop",
-          shop: bill?.shop || null,
-          growtag: bill?.growtag || null,
-          assigned_shop: bill?.assigned_shop || null, // NEW
-          assigned_shop_name: bill?.assigned_shop_name || "", // NEW
-          assigned_shop_type: bill?.assigned_shop_type || "", // NEW
-          status: bill?.status || "DRAFT",
-          vendor: bill?.vendor || null,
-          bill_number: bill?.bill_number || "",
-          order_number: bill?.order_number || "",
-          bill_date: bill?.bill_date || "",
-          due_date: bill?.due_date || "",
-          payment_status: bill?.payment_status || "UNPAID",
-          vendor_name: bill?.vendor_name || "",
-          vendor_email: bill?.vendor_email || "",
-          vendor_phone: bill?.vendor_phone || "",
-          vendor_gstin: bill?.vendor_gstin || "",
-          vendor_address: bill?.vendor_address || "",
-          ship_to: bill?.ship_to || "",
-          bill_to: bill?.bill_to || "",
-          items: [],
-          payments: paymentsArray,
-          subtotal: parseFloat(bill?.subtotal) || 0,
-          total_discount: parseFloat(bill?.total_discount) || 0,
-          total_tax: parseFloat(bill?.total_tax) || 0,
-          tds_percent: parseFloat(bill?.tds_percent) || 0,
-          tds_amount: parseFloat(bill?.tds_amount) || 0,
-          shipping_charges: parseFloat(bill?.shipping_charges || 0) || 0,
-          adjustment: parseFloat(bill?.adjustment || 0) || 0,
-          total: parseFloat(bill?.total) || 0,
-          amount_paid: parseFloat(bill?.amount_paid) || 0,
-          balance_due: parseFloat(bill?.balance_due) || 0,
-          notes: bill?.notes || "",
-          terms_and_conditions: bill?.terms_and_conditions || "",
-        };
-      });
-
+      let billsList = Array.isArray(data)
+        ? data
+        : data?.data || data?.results || [];
+      const transformedBills = billsList.map(
+        (bill) =>
+          billDetailsCache[bill?.id] || {
+            id: bill?.id,
+            owner_type: bill?.owner_type || "shop",
+            shop: bill?.shop,
+            growtag: bill?.growtag,
+            assigned_shop: bill?.assigned_shop,
+            assigned_shop_name: bill?.assigned_shop_name || "",
+            assigned_shop_type: bill?.assigned_shop_type || "",
+            status: bill?.status || "DRAFT",
+            vendor: bill?.vendor,
+            bill_number: bill?.bill_number || "",
+            order_number: bill?.order_number || "",
+            bill_date: bill?.bill_date || "",
+            due_date: bill?.due_date || "",
+            payment_status: bill?.payment_status || "UNPAID",
+            vendor_name: bill?.vendor_name || "",
+            vendor_email: bill?.vendor_email || "",
+            vendor_phone: bill?.vendor_phone || "",
+            vendor_gstin: bill?.vendor_gstin || "",
+            vendor_address: bill?.vendor_address || "",
+            ship_to: bill?.ship_to || "",
+            bill_to: bill?.bill_to || "",
+            items: [],
+            payments:
+              bill?.payments?.map((payment) => ({
+                id: payment?.id,
+                payment_date: payment?.payment_date || "",
+                amount: parseFloat(payment?.amount) || 0,
+                method: payment?.method || "",
+                reference: payment?.reference || "",
+              })) || [],
+            subtotal: parseFloat(bill?.subtotal) || 0,
+            total_discount: parseFloat(bill?.total_discount) || 0,
+            total_tax: parseFloat(bill?.total_tax) || 0,
+            tds_percent: parseFloat(bill?.tds_percent) || 0,
+            tds_amount: parseFloat(bill?.tds_amount) || 0,
+            shipping_charges: parseFloat(bill?.shipping_charges || 0) || 0,
+            adjustment: parseFloat(bill?.adjustment || 0) || 0,
+            total: parseFloat(bill?.total) || 0,
+            amount_paid: parseFloat(bill?.amount_paid) || 0,
+            balance_due: parseFloat(bill?.balance_due) || 0,
+            notes: bill?.notes || "",
+            terms_and_conditions: bill?.terms_and_conditions || "",
+          },
+      );
       setBills(transformedBills);
     } catch (error) {
       console.error("Fetch bills error:", error);
-
-      if (!error.response) return; // network handled globally
-
-      if (error.response.status !== 401 && error.response.status !== 403) {
+      if (error.response?.status !== 401 && error.response?.status !== 403)
         toast.error("Failed to load bills");
-      }
     } finally {
       setIsLoading(false);
     }
   };
 
-  // ===== FIXED: Refresh single bill after payment =====
-  const refreshBillAfterPayment = async (billId) => {
-    try {
-      // Clear cache for this bill
-      setBillDetailsCache((prev) => {
-        const newCache = { ...prev };
-        delete newCache[billId];
-        return newCache;
-      });
-
-      // Fetch fresh data
-      const freshBill = await fetchBillDetails(billId);
-
-      if (freshBill) {
-        // Update bills list
-        setBills((prev) =>
-          prev.map((bill) => (bill.id === freshBill.id ? freshBill : bill)),
-        );
-
-        // Update selectedBill if this is the currently selected bill
-        setSelectedBill((prevSelected) => {
-          if (prevSelected && prevSelected.id === freshBill.id) {
-            return freshBill;
-          }
-          return prevSelected;
-        });
-
-        // Update form data if we're viewing/editing this bill
-        if (formData.id === freshBill.id) {
-          setFormData(freshBill);
-        }
-      }
-    } catch (error) {
-      console.error("Error refreshing bill:", error);
-    }
-  };
-
-  // Load detailed data when needed
   const loadDetailedData = async (id) => {
     setIsFetchingDetails(true);
     const detailedData = await fetchBillDetails(id);
     setIsFetchingDetails(false);
-
     if (detailedData) {
       setBills((prev) =>
         prev.map((bill) =>
@@ -1513,144 +1147,83 @@ const Bill = () => {
     return null;
   };
 
-  // Generate Bill Number
-  const generateBillNumber = () => {
-    const prefix = "BILL";
-    const date = new Date().getFullYear();
-    const random = Math.floor(Math.random() * 10000)
+  const generateBillNumber = () =>
+    `BILL-${new Date().getFullYear()}-${Math.floor(Math.random() * 10000)
       .toString()
-      .padStart(4, "0");
-    return `${prefix}-${date}-${random}`;
-  };
-
-  // Calculate due date (30 days from bill date as default)
+      .padStart(4, "0")}`;
   const calculateDueDate = (billDate) => {
     const date = new Date(billDate);
     date.setDate(date.getDate() + 30);
     return date.toISOString().split("T")[0];
   };
 
-  // Validate Form
   const validateForm = () => {
     const newErrors = {};
-
-    if (!formData.bill_number.trim()) {
+    if (!formData.bill_number.trim())
       newErrors.bill_number = "Bill Number is required";
-    }
-
-    if (!formData.vendor) {
-      newErrors.vendor = "Vendor is required";
-    }
-
-    if (!formData.owner_type) {
-      newErrors.owner_type = "Owner type is required";
-    }
-
-    if (formData.owner_type === "shop" && !formData.shop) {
+    if (!formData.vendor) newErrors.vendor = "Vendor is required";
+    if (!formData.owner_type) newErrors.owner_type = "Owner type is required";
+    if (formData.owner_type === "shop" && !formData.shop)
       newErrors.shop = "Shop is required when owner type is shop";
-    }
-
-    if (formData.owner_type === "growtag" && !formData.growtag) {
+    if (formData.owner_type === "growtag" && !formData.growtag)
       newErrors.growtag = "Growtag is required when owner type is growtag";
-    }
-
-    if (!formData.bill_date) {
-      newErrors.bill_date = "Bill Date is required";
-    }
-
-    if (!formData.due_date) {
-      newErrors.due_date = "Due Date is required";
-    } else if (new Date(formData.due_date) < new Date(formData.bill_date)) {
+    if (!formData.bill_date) newErrors.bill_date = "Bill Date is required";
+    if (!formData.due_date) newErrors.due_date = "Due Date is required";
+    else if (new Date(formData.due_date) < new Date(formData.bill_date))
       newErrors.due_date = "Due date cannot be before bill date";
-    }
-
-    if (!formData.bill_to.trim()) {
+    if (!formData.bill_to.trim())
       newErrors.bill_to = "Bill To address is required";
-    }
-
-    // Validate items
-    if (formData.items.length === 0) {
+    if (formData.items.length === 0)
       newErrors.items = "At least one item is required";
-    } else {
+    else {
       formData.items.forEach((item, index) => {
-        if (!item.name.trim()) {
+        if (!item.name.trim())
           newErrors[`item_${index}_name`] = "Item name is required";
-        }
-        if (item.qty <= 0) {
+        if (item.qty <= 0)
           newErrors[`item_${index}_qty`] = "Quantity must be greater than 0";
-        }
-        if (item.rate < 0) {
+        if (item.rate < 0)
           newErrors[`item_${index}_rate`] = "Rate cannot be negative";
-        }
-        if (item.tax_percent < 0 || item.tax_percent > 100) {
+        if (item.tax_percent < 0 || item.tax_percent > 100)
           newErrors[`item_${index}_tax_percent`] =
             "Tax must be between 0 and 100";
-        }
-        if (item.discount_percent < 0 || item.discount_percent > 100) {
+        if (item.discount_percent < 0 || item.discount_percent > 100)
           newErrors[`item_${index}_discount_percent`] =
             "Discount must be between 0 and 100";
-        }
       });
     }
-
-    if (formData.tds_percent < 0 || formData.tds_percent > 100) {
+    if (formData.tds_percent < 0 || formData.tds_percent > 100)
       newErrors.tds_percent = "TDS must be between 0 and 100";
-    }
-
-    if (formData.amount_paid < 0) {
+    if (formData.amount_paid < 0)
       newErrors.amount_paid = "Amount paid cannot be negative";
-    }
-
-    if (formData.amount_paid > formData.total) {
+    if (formData.amount_paid > formData.total)
       newErrors.amount_paid = "Amount paid cannot exceed total";
-    }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  // Validate Payment Form
   const validatePaymentForm = () => {
     const newErrors = {};
-
-    if (!paymentForm.payment_date) {
+    if (!paymentForm.payment_date)
       newErrors.payment_date = "Payment date is required";
-    }
-
-    if (!paymentForm.amount || parseFloat(paymentForm.amount) <= 0) {
+    if (!paymentForm.amount || parseFloat(paymentForm.amount) <= 0)
       newErrors.amount = "Valid amount is required";
-    } else if (
+    else if (
       parseFloat(paymentForm.amount) > parseFloat(selectedBill?.balance_due)
-    ) {
+    )
       newErrors.amount = `Amount cannot exceed balance due (₹${selectedBill?.balance_due?.toFixed(2)})`;
-    }
-
-    if (!paymentForm.method) {
-      newErrors.method = "Payment method is required";
-    }
-
+    if (!paymentForm.method) newErrors.method = "Payment method is required";
     setPaymentErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  // Calculate item amount
   const calculateItemAmount = (item) => {
-    const qty = parseFloat(item.qty) || 0;
-    const rate = parseFloat(item.rate) || 0;
-    const baseAmount = qty * rate;
-
-    const discountPercent = parseFloat(item.discount_percent) || 0;
-    const discountAmount = (baseAmount * discountPercent) / 100;
-
+    const baseAmount = item.qty * item.rate;
+    const discountAmount = (baseAmount * item.discount_percent) / 100;
     const amountAfterDiscount = baseAmount - discountAmount;
-
-    const taxPercent = parseFloat(item.tax_percent) || 0;
-    const taxAmount = (amountAfterDiscount * taxPercent) / 100;
-
+    const taxAmount = (amountAfterDiscount * item.tax_percent) / 100;
     return amountAfterDiscount + taxAmount;
   };
 
-  // Calculate totals
   const calculateTotals = (
     items,
     tdsPercent,
@@ -1658,50 +1231,32 @@ const Bill = () => {
     adjustment,
     amountPaid,
   ) => {
-    let subtotal = 0;
-    let totalTax = 0;
-    let totalDiscount = 0;
-
+    let subtotal = 0,
+      totalTax = 0,
+      totalDiscount = 0;
     items.forEach((item) => {
-      const qty = parseFloat(item.qty) || 0;
-      const rate = parseFloat(item.rate) || 0;
-      const baseAmount = qty * rate;
-
+      const baseAmount = item.qty * item.rate;
       subtotal += baseAmount;
-
-      const discountPercent = parseFloat(item.discount_percent) || 0;
-      totalDiscount += (baseAmount * discountPercent) / 100;
-
+      totalDiscount += (baseAmount * item.discount_percent) / 100;
       const amountAfterDiscount =
-        baseAmount - (baseAmount * discountPercent) / 100;
-      const taxPercent = parseFloat(item.tax_percent) || 0;
-      totalTax += (amountAfterDiscount * taxPercent) / 100;
+        baseAmount - (baseAmount * item.discount_percent) / 100;
+      totalTax += (amountAfterDiscount * item.tax_percent) / 100;
     });
-
-    const tdsAmount = (subtotal * (parseFloat(tdsPercent) || 0)) / 100;
+    const tdsAmount = (subtotal * tdsPercent) / 100;
     const total =
       subtotal -
       totalDiscount +
       totalTax -
       tdsAmount +
-      parseFloat(shippingCharges || 0) +
-      parseFloat(adjustment || 0);
-    const balanceDue = total - parseFloat(amountPaid || 0);
-
-    // Determine payment status
-    const paid = parseFloat(amountPaid) || 0;
-    const grandTotal = parseFloat(total) || 0;
-
+      shippingCharges +
+      adjustment;
+    const balanceDue = total - amountPaid;
+    const paid = amountPaid;
+    const grandTotal = total;
     let paymentStatus = "UNPAID";
-
-    if (paid === 0) {
-      paymentStatus = "UNPAID";
-    } else if (paid < grandTotal) {
-      paymentStatus = "PARTIALLY_PAID";
-    } else {
-      paymentStatus = "PAID";
-    }
-
+    if (paid === 0) paymentStatus = "UNPAID";
+    else if (paid < grandTotal) paymentStatus = "PARTIALLY_PAID";
+    else paymentStatus = "PAID";
     return {
       subtotal,
       totalTax,
@@ -1713,7 +1268,6 @@ const Bill = () => {
     };
   };
 
-  // Handle owner type change
   const handleOwnerTypeChange = (value) => {
     setFormData((prev) => ({
       ...prev,
@@ -1721,12 +1275,8 @@ const Bill = () => {
       shop: null,
       growtag: null,
     }));
-    if (errors.owner_type) {
-      setErrors((prev) => ({ ...prev, owner_type: "" }));
-    }
+    if (errors.owner_type) setErrors((prev) => ({ ...prev, owner_type: "" }));
   };
-
-  // Handle vendor selection
   const handleVendorChange = (vendorId) => {
     const vendor = vendors.find((v) => v.id === parseInt(vendorId));
     if (vendor) {
@@ -1739,9 +1289,7 @@ const Bill = () => {
         vendor_address: vendor.address || "",
         vendor_gstin: vendor.gstin || "",
       }));
-      if (errors.vendor) {
-        setErrors((prev) => ({ ...prev, vendor: "" }));
-      }
+      if (errors.vendor) setErrors((prev) => ({ ...prev, vendor: "" }));
     } else {
       setFormData((prev) => ({
         ...prev,
@@ -1754,91 +1302,59 @@ const Bill = () => {
       }));
     }
   };
+  const handleShopSelect = (shopId) => {
+    setFormData({ ...formData, shop: shopId });
+    if (errors.shop) setErrors((prev) => ({ ...prev, shop: "" }));
+  };
+  const handleGrowtagSelect = (growtagId) => {
+    setFormData({ ...formData, growtag: growtagId });
+    if (errors.growtag) setErrors((prev) => ({ ...prev, growtag: "" }));
+  };
 
-  // Handle item selection from catalog
   const handleItemSelection = (index, selectedItemId) => {
     const selectedItem = items.find(
       (item) => String(item.id) === String(selectedItemId),
     );
-
     if (!selectedItem) return;
-
     setFormData((prev) => {
       const updatedItems = [...prev.items];
-
       updatedItems[index] = {
         ...updatedItems[index],
         item: selectedItem.id,
         name: selectedItem.name,
         description: selectedItem.sales_description || "",
-
-        // ✅ IMPORTANT: use SELLING PRICE
         rate: selectedItem.selling_price || 0,
-
-        // optional
         account: "Cost of Goods Sold",
         qty: 1,
       };
-
-      return {
-        ...prev,
-        items: updatedItems,
-      };
+      return { ...prev, items: updatedItems };
     });
   };
 
-  // Handle input change
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-
     let updates = { [name]: value };
-
-    // Auto-calculate due date when bill date changes
-    if (name === "bill_date") {
-      updates.due_date = calculateDueDate(value);
-    }
-
-    setFormData((prev) => ({
-      ...prev,
-      ...updates,
-    }));
-
-    if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: "" }));
-    }
+    if (name === "bill_date") updates.due_date = calculateDueDate(value);
+    setFormData((prev) => ({ ...prev, ...updates }));
+    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
-  // Handle payment input change
   const handlePaymentInputChange = (e) => {
     const { name, value } = e.target;
-    setPaymentForm((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-    if (paymentErrors[name]) {
+    setPaymentForm((prev) => ({ ...prev, [name]: value }));
+    if (paymentErrors[name])
       setPaymentErrors((prev) => ({ ...prev, [name]: "" }));
-    }
   };
 
-  // Handle item change - UPDATED to remove leading zeros
   const handleItemChange = (index, field, value) => {
     const newItems = [...formData.items];
-
-    if (
-      field === "qty" ||
-      field === "rate" ||
-      field === "tax_percent" ||
-      field === "discount_percent"
-    ) {
-      // Remove leading zeros for numeric fields
+    if (["qty", "rate", "tax_percent", "discount_percent"].includes(field)) {
       const processedValue = removeLeadingZerosFromNumeric(value);
       newItems[index][field] = parseFloat(processedValue) || 0;
     } else {
       newItems[index][field] = value;
     }
-
     newItems[index].amount = calculateItemAmount(newItems[index]);
-
     const totals = calculateTotals(
       newItems,
       formData.tds_percent,
@@ -1846,20 +1362,12 @@ const Bill = () => {
       formData.adjustment,
       formData.amount_paid,
     );
-
-    setFormData((prev) => ({
-      ...prev,
-      items: newItems,
-      ...totals,
-    }));
-
-    if (errors[`item_${index}_${field}`]) {
+    setFormData((prev) => ({ ...prev, items: newItems, ...totals }));
+    if (errors[`item_${index}_${field}`])
       setErrors((prev) => ({ ...prev, [`item_${index}_${field}`]: "" }));
-    }
   };
 
-  // Add new item
-  const addItem = () => {
+  const addItem = () =>
     setFormData((prev) => ({
       ...prev,
       items: [
@@ -1878,15 +1386,11 @@ const Bill = () => {
         },
       ],
     }));
-  };
-
-  // Remove item
   const removeItem = (index) => {
     if (formData.items.length === 1) {
       toast.error("At least one item is required");
       return;
     }
-
     const newItems = formData.items.filter((_, i) => i !== index);
     const totals = calculateTotals(
       newItems,
@@ -1895,20 +1399,10 @@ const Bill = () => {
       formData.adjustment,
       formData.amount_paid,
     );
-
-    setFormData((prev) => ({
-      ...prev,
-      items: newItems,
-      ...totals,
-    }));
+    setFormData((prev) => ({ ...prev, items: newItems, ...totals }));
   };
-
-  // Handle charges change - UPDATED to remove leading zeros
   const handleChargesChange = (field, value) => {
-    // Remove leading zeros from the input
-    const processedValue = removeLeadingZerosFromNumeric(value);
-    const newValue = parseFloat(processedValue) || 0;
-
+    const newValue = parseFloat(removeLeadingZerosFromNumeric(value)) || 0;
     const totals = calculateTotals(
       formData.items,
       field === "tds_percent" ? newValue : formData.tds_percent,
@@ -1916,24 +1410,13 @@ const Bill = () => {
       field === "adjustment" ? newValue : formData.adjustment,
       field === "amount_paid" ? newValue : formData.amount_paid,
     );
-
-    setFormData((prev) => ({
-      ...prev,
-      [field]: newValue,
-      ...totals,
-    }));
-
-    if (errors[field]) {
-      setErrors((prev) => ({ ...prev, [field]: "" }));
-    }
+    setFormData((prev) => ({ ...prev, [field]: newValue, ...totals }));
+    if (errors[field]) setErrors((prev) => ({ ...prev, [field]: "" }));
   };
-
-  // Close payment modal function
   const closePaymentModal = () => {
     setShowPaymentModal(false);
     setSelectedBill(null);
     setPaymentErrors({});
-
     setPaymentForm({
       payment_date: new Date().toISOString().split("T")[0],
       amount: "",
@@ -1942,62 +1425,43 @@ const Bill = () => {
     });
   };
 
-  // ===== FIXED: Record Payment =====
   const recordPayment = async () => {
     if (!selectedBill) {
       toast.error("No bill selected");
       return;
     }
-
     if (!validatePaymentForm()) {
       toast.error("Fix errors");
       return;
     }
-
     setIsSubmitting(true);
     const loadingToast = toast.loading("Recording payment...");
-
     try {
       let entered = Number(paymentForm.amount);
       let balance = Number(selectedBill.balance_due);
-
-      // 🔥 HARD FIX (NO FLOAT ISSUE)
       entered = Math.round(entered * 100);
       balance = Math.round(balance * 100);
-
       const finalAmount = Math.min(entered, balance) / 100;
-
-      console.log("FINAL SAFE:", finalAmount);
-
       const paymentData = {
         payment_date: paymentForm.payment_date,
-        amount: finalAmount.toFixed(2), // ALWAYS SAFE
+        amount: finalAmount.toFixed(2),
         method: paymentForm.method,
         reference: paymentForm.reference || "",
       };
-
       await axiosInstance.post(
         `/api/bills/${selectedBill.id}/add-payment/`,
         paymentData,
       );
-
-      // ✅ use FINAL API amount (IMPORTANT)
       const paidAmount = parseFloat(paymentData.amount);
-
-      // 🔥 UPDATE TABLE
       setBills((prev) =>
         prev.map((bill) => {
           if (bill.id !== selectedBill.id) return bill;
-
           const newAmountPaid = parseFloat(bill.amount_paid) + paidAmount;
-
           const newBalance = parseFloat(bill.balance_due) - paidAmount;
-
           let newStatus = "UNPAID";
           if (newAmountPaid === 0) newStatus = "UNPAID";
           else if (newBalance > 0) newStatus = "PARTIALLY_PAID";
           else newStatus = "PAID";
-
           return {
             ...bill,
             amount_paid: newAmountPaid,
@@ -2006,20 +1470,14 @@ const Bill = () => {
           };
         }),
       );
-
-      // 🔥 UPDATE VIEW MODAL (THIS IS WHAT YOU ASKED)
       setSelectedBill((prev) => {
         if (!prev) return prev;
-
         const newAmountPaid = parseFloat(prev.amount_paid) + paidAmount;
-
         const newBalance = parseFloat(prev.balance_due) - paidAmount;
-
         let newStatus = "UNPAID";
         if (newAmountPaid === 0) newStatus = "UNPAID";
         else if (newBalance > 0) newStatus = "PARTIALLY_PAID";
         else newStatus = "PAID";
-
         return {
           ...prev,
           amount_paid: newAmountPaid,
@@ -2028,12 +1486,9 @@ const Bill = () => {
         };
       });
       toast.success("Payment recorded!", { id: loadingToast });
-
       setShowPaymentModal(false);
       setSelectedBill(null);
     } catch (error) {
-      console.log("ERROR RESPONSE:", error.response?.data);
-
       toast.error(
         error.response?.data?.amount ||
           error.response?.data?.detail ||
@@ -2045,56 +1500,46 @@ const Bill = () => {
     }
   };
 
-  // Transform form data to API format
-  const transformToAPIFormat = (data) => {
-    return {
-      owner_type: data.owner_type,
-      shop: data.owner_type === "shop" ? data.shop : null,
-      growtag: data.owner_type === "growtag" ? data.growtag : null,
+  const transformToAPIFormat = (data) => ({
+    owner_type: data.owner_type,
+    shop: data.owner_type === "shop" ? data.shop : null,
+    growtag: data.owner_type === "growtag" ? data.growtag : null,
+    status: data.status,
+    vendor: data.vendor,
+    bill_number: data.bill_number,
+    order_number: data.order_number || "",
+    bill_date: data.bill_date,
+    due_date: data.due_date,
+    payment_status: data.payment_status,
+    vendor_name: data.vendor_name,
+    vendor_email: data.vendor_email,
+    vendor_phone: data.vendor_phone,
+    vendor_gstin: data.vendor_gstin,
+    vendor_address: data.vendor_address,
+    ship_to: data.ship_to,
+    bill_to: data.bill_to,
+    items: data.items.map((item) => ({
+      item: item.item,
+      name: item.name,
+      description: item.description,
+      account: item.account,
+      qty: item.qty,
+      rate: item.rate,
+      tax_percent: item.tax_percent,
+      discount_percent: item.discount_percent,
+    })),
+    subtotal: data.subtotal,
+    total_discount: data.total_discount,
+    total_tax: data.total_tax,
+    tds_percent: data.tds_percent,
+    shipping_charges: data.shipping_charges,
+    adjustment: data.adjustment,
+    total: data.total,
+    amount_paid: data.amount_paid,
+    notes: data.notes,
+    terms_and_conditions: data.terms_and_conditions,
+  });
 
-      status: data.status,
-      vendor: data.vendor,
-      bill_number: data.bill_number,
-      order_number: data.order_number || "",
-      bill_date: data.bill_date,
-      due_date: data.due_date,
-      payment_status: data.payment_status,
-
-      vendor_name: data.vendor_name,
-      vendor_email: data.vendor_email,
-      vendor_phone: data.vendor_phone,
-      vendor_gstin: data.vendor_gstin,
-      vendor_address: data.vendor_address,
-
-      ship_to: data.ship_to,
-      bill_to: data.bill_to,
-
-      items: data.items.map((item) => ({
-        item: item.item,
-        name: item.name,
-        description: item.description,
-        account: item.account,
-        qty: item.qty,
-        rate: item.rate,
-        tax_percent: item.tax_percent,
-        discount_percent: item.discount_percent,
-      })),
-
-      subtotal: data.subtotal,
-      total_discount: data.total_discount,
-      total_tax: data.total_tax,
-      tds_percent: data.tds_percent,
-      shipping_charges: data.shipping_charges,
-      adjustment: data.adjustment,
-      total: data.total,
-      amount_paid: data.amount_paid,
-
-      notes: data.notes,
-      terms_and_conditions: data.terms_and_conditions,
-    };
-  };
-
-  // Create Bill
   const createBill = async () => {
     if (!canCreate) {
       toast.error("You don't have permission to create bill");
@@ -2104,56 +1549,22 @@ const Bill = () => {
       toast.error("Please fix all errors before submitting");
       return;
     }
-
     setIsSubmitting(true);
     const loadingToast = toast.loading("Creating bill...");
-
     try {
       const apiData = transformToAPIFormat(formData);
       const response = await axiosInstance.post("/api/bills/", apiData);
-
-      const responseData = response.data;
-      const newBill = responseData.data || responseData;
-
-      // Transform response to frontend format
-      let itemsArray = [];
-      if (newBill?.items && Array.isArray(newBill.items)) {
-        itemsArray = newBill.items.map((item) => ({
-          id: item?.id || null,
-          item: item?.item || null,
-          name: item?.name || "",
-          description: item?.description || "",
-          account: item?.account || "Cost of Goods Sold",
-          qty: parseFloat(item?.qty) || 1,
-          rate: parseFloat(item?.rate) || 0,
-          tax_percent: parseFloat(item?.tax_percent) || 0,
-          discount_percent: parseFloat(item?.discount_percent) || 0,
-          amount: parseFloat(item?.amount) || 0,
-        }));
-      }
-
-      let paymentsArray = [];
-      if (newBill?.payments && Array.isArray(newBill.payments)) {
-        paymentsArray = newBill.payments.map((payment) => ({
-          id: payment?.id || null,
-          payment_date: payment?.payment_date || "",
-          amount: parseFloat(payment?.amount) || 0,
-          method: payment?.method || "",
-          reference: payment?.reference || "",
-          created_at: payment?.created_at || "",
-        }));
-      }
-
+      const newBill = response.data.data || response.data;
       const transformedBill = {
-        id: newBill?.id || null,
+        id: newBill?.id,
         owner_type: newBill?.owner_type || "shop",
-        shop: newBill?.shop || null,
-        growtag: newBill?.growtag || null,
-        assigned_shop: newBill?.assigned_shop || null, // NEW
-        assigned_shop_name: newBill?.assigned_shop_name || "", // NEW
-        assigned_shop_type: newBill?.assigned_shop_type || "", // NEW
+        shop: newBill?.shop,
+        growtag: newBill?.growtag,
+        assigned_shop: newBill?.assigned_shop,
+        assigned_shop_name: newBill?.assigned_shop_name || "",
+        assigned_shop_type: newBill?.assigned_shop_type || "",
         status: newBill?.status || "DRAFT",
-        vendor: newBill?.vendor || null,
+        vendor: newBill?.vendor,
         bill_number: newBill?.bill_number || "",
         order_number: newBill?.order_number || "",
         bill_date: newBill?.bill_date || "",
@@ -2166,8 +1577,27 @@ const Bill = () => {
         vendor_address: newBill?.vendor_address || formData.vendor_address,
         ship_to: newBill?.ship_to || "",
         bill_to: newBill?.bill_to || "",
-        items: itemsArray,
-        payments: paymentsArray,
+        items:
+          newBill?.items?.map((item) => ({
+            id: item?.id,
+            item: item?.item,
+            name: item?.name || "",
+            description: item?.description || "",
+            account: item?.account || "Cost of Goods Sold",
+            qty: parseFloat(item?.qty) || 1,
+            rate: parseFloat(item?.rate) || 0,
+            tax_percent: parseFloat(item?.tax_percent) || 0,
+            discount_percent: parseFloat(item?.discount_percent) || 0,
+            amount: parseFloat(item?.amount) || 0,
+          })) || [],
+        payments:
+          newBill?.payments?.map((payment) => ({
+            id: payment?.id,
+            payment_date: payment?.payment_date || "",
+            amount: parseFloat(payment?.amount) || 0,
+            method: payment?.method || "",
+            reference: payment?.reference || "",
+          })) || [],
         subtotal: parseFloat(newBill?.subtotal) || 0,
         total_discount: parseFloat(newBill?.total_discount) || 0,
         total_tax: parseFloat(newBill?.total_tax) || 0,
@@ -2181,58 +1611,29 @@ const Bill = () => {
         notes: newBill?.notes || "",
         terms_and_conditions: newBill?.terms_and_conditions || "",
       };
-
-      // Update cache
       setBillDetailsCache((prev) => ({
         ...prev,
         [transformedBill.id]: transformedBill,
       }));
-
       setBills((prev) => [transformedBill, ...prev]);
-
-      toast.success(responseData.message || "Bill created successfully!", {
-        id: loadingToast,
-      });
+      toast.success("Bill created successfully!", { id: loadingToast });
       resetForm();
     } catch (error) {
       console.error("Create bill error:", error);
-
-      if (!error.response) {
-        toast.dismiss(loadingToast);
-        return;
-      }
-
-      if (error.response?.status === 401 || error.response?.status === 403) {
-        toast.dismiss(loadingToast);
-        return;
-      }
-
       if (error.response?.status === 400) {
         const apiErrors = error.response.data;
-        const errorMessages = [];
-
-        Object.keys(apiErrors).forEach((key) => {
-          if (Array.isArray(apiErrors[key])) {
-            errorMessages.push(`${key}: ${apiErrors[key].join(", ")}`);
-          } else if (typeof apiErrors[key] === "string") {
-            errorMessages.push(apiErrors[key]);
-          }
-        });
-
-        toast.error(errorMessages.join("\n") || "Validation failed", {
-          id: loadingToast,
-        });
+        const errorMessages = Object.keys(apiErrors)
+          .map((key) => `${key}: ${apiErrors[key]}`)
+          .join(", ");
+        toast.error(errorMessages || "Validation failed", { id: loadingToast });
       } else {
-        toast.error(error.response?.data?.message || "Failed to create bill", {
-          id: loadingToast,
-        });
+        toast.error("Failed to create bill", { id: loadingToast });
       }
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Update Bill
   const updateBill = async () => {
     if (!canEdit) {
       toast.error("You don't have permission to edit bill");
@@ -2242,59 +1643,25 @@ const Bill = () => {
       toast.error("Please fix all errors before updating");
       return;
     }
-
     setIsSubmitting(true);
     const loadingToast = toast.loading("Updating bill...");
-
     try {
       const apiData = transformToAPIFormat(formData);
       const response = await axiosInstance.put(
         `/api/bills/${formData.id}/`,
         apiData,
       );
-
-      const responseData = response.data;
-      const updatedBill = responseData.data || responseData;
-
-      // Transform response to frontend format
-      let itemsArray = [];
-      if (updatedBill?.items && Array.isArray(updatedBill.items)) {
-        itemsArray = updatedBill.items.map((item) => ({
-          id: item?.id || null,
-          item: item?.item || null,
-          name: item?.name || "",
-          description: item?.description || "",
-          account: item?.account || "Cost of Goods Sold",
-          qty: parseFloat(item?.qty) || 1,
-          rate: parseFloat(item?.rate) || 0,
-          tax_percent: parseFloat(item?.tax_percent) || 0,
-          discount_percent: parseFloat(item?.discount_percent) || 0,
-          amount: parseFloat(item?.amount) || 0,
-        }));
-      }
-
-      let paymentsArray = [];
-      if (updatedBill?.payments && Array.isArray(updatedBill.payments)) {
-        paymentsArray = updatedBill.payments.map((payment) => ({
-          id: payment?.id || null,
-          payment_date: payment?.payment_date || "",
-          amount: parseFloat(payment?.amount) || 0,
-          method: payment?.method || "",
-          reference: payment?.reference || "",
-          created_at: payment?.created_at || "",
-        }));
-      }
-
+      const updatedBill = response.data.data || response.data;
       const transformedBill = {
-        id: updatedBill?.id || null,
+        id: updatedBill?.id,
         owner_type: updatedBill?.owner_type || "shop",
-        shop: updatedBill?.shop || null,
-        growtag: updatedBill?.growtag || null,
-        assigned_shop: updatedBill?.assigned_shop || null, // NEW
-        assigned_shop_name: updatedBill?.assigned_shop_name || "", // NEW
-        assigned_shop_type: updatedBill?.assigned_shop_type || "", // NEW
+        shop: updatedBill?.shop,
+        growtag: updatedBill?.growtag,
+        assigned_shop: updatedBill?.assigned_shop,
+        assigned_shop_name: updatedBill?.assigned_shop_name || "",
+        assigned_shop_type: updatedBill?.assigned_shop_type || "",
         status: updatedBill?.status || "DRAFT",
-        vendor: updatedBill?.vendor || null,
+        vendor: updatedBill?.vendor,
         bill_number: updatedBill?.bill_number || "",
         order_number: updatedBill?.order_number || "",
         bill_date: updatedBill?.bill_date || "",
@@ -2307,8 +1674,27 @@ const Bill = () => {
         vendor_address: updatedBill?.vendor_address || formData.vendor_address,
         ship_to: updatedBill?.ship_to || "",
         bill_to: updatedBill?.bill_to || "",
-        items: itemsArray,
-        payments: paymentsArray,
+        items:
+          updatedBill?.items?.map((item) => ({
+            id: item?.id,
+            item: item?.item,
+            name: item?.name || "",
+            description: item?.description || "",
+            account: item?.account || "Cost of Goods Sold",
+            qty: parseFloat(item?.qty) || 1,
+            rate: parseFloat(item?.rate) || 0,
+            tax_percent: parseFloat(item?.tax_percent) || 0,
+            discount_percent: parseFloat(item?.discount_percent) || 0,
+            amount: parseFloat(item?.amount) || 0,
+          })) || [],
+        payments:
+          updatedBill?.payments?.map((payment) => ({
+            id: payment?.id,
+            payment_date: payment?.payment_date || "",
+            amount: parseFloat(payment?.amount) || 0,
+            method: payment?.method || "",
+            reference: payment?.reference || "",
+          })) || [],
         subtotal: parseFloat(updatedBill?.subtotal) || 0,
         total_discount: parseFloat(updatedBill?.total_discount) || 0,
         total_tax: parseFloat(updatedBill?.total_tax) || 0,
@@ -2322,62 +1708,33 @@ const Bill = () => {
         notes: updatedBill?.notes || "",
         terms_and_conditions: updatedBill?.terms_and_conditions || "",
       };
-
-      // Update cache
       setBillDetailsCache((prev) => ({
         ...prev,
         [transformedBill.id]: transformedBill,
       }));
-
       setBills((prev) =>
         prev.map((bill) =>
           bill.id === transformedBill.id ? transformedBill : bill,
         ),
       );
-
-      toast.success(responseData.message || "Bill updated successfully!", {
-        id: loadingToast,
-      });
+      toast.success("Bill updated successfully!", { id: loadingToast });
       resetForm();
     } catch (error) {
       console.error("Update bill error:", error);
-
-      if (!error.response) {
-        toast.dismiss(loadingToast);
-        return;
-      }
-
-      if (error.response?.status === 401 || error.response?.status === 403) {
-        toast.dismiss(loadingToast);
-        return;
-      }
-
       if (error.response?.status === 400) {
         const apiErrors = error.response.data;
-        const errorMessages = [];
-
-        Object.keys(apiErrors).forEach((key) => {
-          if (Array.isArray(apiErrors[key])) {
-            errorMessages.push(`${key}: ${apiErrors[key].join(", ")}`);
-          } else if (typeof apiErrors[key] === "string") {
-            errorMessages.push(apiErrors[key]);
-          }
-        });
-
-        toast.error(errorMessages.join("\n") || "Validation failed", {
-          id: loadingToast,
-        });
+        const errorMessages = Object.keys(apiErrors)
+          .map((key) => `${key}: ${apiErrors[key]}`)
+          .join(", ");
+        toast.error(errorMessages || "Validation failed", { id: loadingToast });
       } else {
-        toast.error(error.response?.data?.message || "Failed to update bill", {
-          id: loadingToast,
-        });
+        toast.error("Failed to update bill", { id: loadingToast });
       }
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Delete Bill
   const deleteBill = (id) => {
     if (!canDelete) {
       toast.error("You don't have permission to delete bill");
@@ -2391,7 +1748,7 @@ const Bill = () => {
           <div className="flex justify-end gap-2">
             <button
               onClick={() => toast.dismiss(t.id)}
-              className="px-3 py-1.5 bg-gray-200 rounded-md text-sm hover:bg-gray-300 transition-colors"
+              className="px-3 py-1.5 bg-gray-200 rounded-md text-sm"
             >
               Cancel
             </button>
@@ -2399,7 +1756,6 @@ const Bill = () => {
               onClick={async () => {
                 toast.dismiss(t.id);
                 const loadingToast = toast.loading("Deleting bill...");
-
                 try {
                   await axiosInstance.delete(`/api/bills/${id}/`);
                   setBillDetailsCache((prev) => {
@@ -2408,7 +1764,6 @@ const Bill = () => {
                     return newCache;
                   });
                   setBills((prev) => prev.filter((bill) => bill.id !== id));
-                  // Remove from selected bills if present
                   setSelectedBills((prev) =>
                     prev.filter((billId) => billId !== id),
                   );
@@ -2416,27 +1771,10 @@ const Bill = () => {
                     id: loadingToast,
                   });
                 } catch (error) {
-                  console.error("Delete bill error:", error);
-
-                  if (!error.response) {
-                    toast.dismiss(loadingToast);
-                    return;
-                  }
-                  if (
-                    error.response?.status === 401 ||
-                    error.response?.status === 403
-                  ) {
-                    toast.dismiss(loadingToast);
-                    return;
-                  }
-
-                  toast.error(
-                    error.response?.data?.message || "Failed to delete bill",
-                    { id: loadingToast },
-                  );
+                  toast.error("Failed to delete bill", { id: loadingToast });
                 }
               }}
-              className="px-3 py-1.5 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 transition-colors"
+              className="px-3 py-1.5 bg-red-600 text-white rounded-md text-sm"
             >
               Delete
             </button>
@@ -2447,22 +1785,86 @@ const Bill = () => {
     );
   };
 
-  // Edit Bill
+  const handleBulkDelete = () => {
+    if (!canDelete) {
+      toast.error("You don't have permission to delete bills");
+      return;
+    }
+    if (selectedBills.length === 0) {
+      toast.error("Please select at least one bill to delete");
+      return;
+    }
+    toast(
+      (t) => (
+        <div className="flex flex-col gap-3">
+          <p className="text-sm font-semibold text-gray-800">
+            Delete {selectedBills.length} selected{" "}
+            {selectedBills.length === 1 ? "bill" : "bills"}?
+          </p>
+          <p className="text-xs text-gray-500">This action cannot be undone.</p>
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => toast.dismiss(t.id)}
+              className="px-3 py-1.5 bg-gray-200 rounded-md text-sm"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={async () => {
+                toast.dismiss(t.id);
+                const loadingToast = toast.loading(
+                  `Deleting ${selectedBills.length} bills...`,
+                );
+                try {
+                  const results = await Promise.allSettled(
+                    selectedBills.map((id) =>
+                      axiosInstance.delete(`/api/bills/${id}/`),
+                    ),
+                  );
+                  const successful = results.filter(
+                    (r) => r.status === "fulfilled",
+                  ).length;
+                  setBillDetailsCache((prev) => {
+                    const newCache = { ...prev };
+                    selectedBills.forEach((id) => delete newCache[id]);
+                    return newCache;
+                  });
+                  setBills((prev) =>
+                    prev.filter((bill) => !selectedBills.includes(bill.id)),
+                  );
+                  setSelectedBills([]);
+                  setSelectAll(false);
+                  toast.success(
+                    `Successfully deleted ${successful} ${successful === 1 ? "bill" : "bills"}`,
+                    { id: loadingToast },
+                  );
+                } catch (error) {
+                  toast.error("Failed to delete some bills", {
+                    id: loadingToast,
+                  });
+                }
+              }}
+              className="px-3 py-1.5 bg-red-600 text-white rounded-md text-sm"
+            >
+              Delete All
+            </button>
+          </div>
+        </div>
+      ),
+      { duration: Infinity },
+    );
+  };
+
   const editBill = async (bill) => {
     const loadingToast = toast.loading("Loading bill details...");
-
     try {
       let detailedBill = bill;
-
-      if (!bill.items || bill.items.length === 0) {
+      if (!bill.items || bill.items.length === 0)
         detailedBill = await loadDetailedData(bill.id);
-      }
-
       if (detailedBill) {
-        // Ensure items have all required fields
         const itemsWithDefaults = detailedBill.items.map((item) => ({
-          id: item.id || null,
-          item: item.item || null,
+          id: item.id,
+          item: item.item,
           name: item.name || "",
           description: item.description || "",
           account: item.account || "Cost of Goods Sold",
@@ -2472,11 +1874,7 @@ const Bill = () => {
           discount_percent: parseFloat(item.discount_percent) || 0,
           amount: parseFloat(item.amount) || 0,
         }));
-
-        setFormData({
-          ...detailedBill,
-          items: itemsWithDefaults,
-        });
+        setFormData({ ...detailedBill, items: itemsWithDefaults });
         setEditMode(true);
         setViewMode(false);
         setShowForm(true);
@@ -2485,33 +1883,20 @@ const Bill = () => {
         toast.error("Failed to load bill details", { id: loadingToast });
       }
     } catch (error) {
-      console.error("Error loading bill details:", error);
-
-      if (error.response?.status === 401 || error.response?.status === 403) {
-        toast.dismiss(loadingToast);
-        return;
-      }
-
       toast.error("Failed to load bill details", { id: loadingToast });
     }
   };
 
-  // View Bill
   const viewBill = async (bill) => {
     const loadingToast = toast.loading("Loading bill details...");
-
     try {
       let detailedBill = bill;
-
-      if (!bill.items || bill.items.length === 0) {
+      if (!bill.items || bill.items.length === 0)
         detailedBill = await loadDetailedData(bill.id);
-      }
-
       if (detailedBill) {
-        // Ensure items have all required fields
         const itemsWithDefaults = detailedBill.items.map((item) => ({
-          id: item.id || null,
-          item: item.item || null,
+          id: item.id,
+          item: item.item,
           name: item.name || "",
           description: item.description || "",
           account: item.account || "Cost of Goods Sold",
@@ -2521,11 +1906,7 @@ const Bill = () => {
           discount_percent: parseFloat(item.discount_percent) || 0,
           amount: parseFloat(item.amount) || 0,
         }));
-
-        setFormData({
-          ...detailedBill,
-          items: itemsWithDefaults,
-        });
+        setFormData({ ...detailedBill, items: itemsWithDefaults });
         setViewMode(true);
         setEditMode(false);
         setShowForm(true);
@@ -2534,18 +1915,10 @@ const Bill = () => {
         toast.error("Failed to load bill details", { id: loadingToast });
       }
     } catch (error) {
-      console.error("Error loading bill details:", error);
-
-      if (error.response?.status === 401 || error.response?.status === 403) {
-        toast.dismiss(loadingToast);
-        return;
-      }
-
       toast.error("Failed to load bill details", { id: loadingToast });
     }
   };
 
-  // Reset Form
   const resetForm = () => {
     setFormData(initialFormState);
     setShowForm(false);
@@ -2555,58 +1928,64 @@ const Bill = () => {
     setExpandedRows({});
   };
 
-  // New Bill
-  const newBill = () => {
-    const billDate = new Date().toISOString().split("T")[0];
-    setFormData({
-      ...initialFormState,
-      bill_number: generateBillNumber(),
-      bill_date: billDate,
-      due_date: calculateDueDate(billDate),
-    });
-    setShowForm(true);
-    setEditMode(false);
-    setViewMode(false);
-    setExpandedRows({});
+  const newBill = async () => {
+    const loadingToast = toast.loading("Loading data...");
+    try {
+      if (!growtags.length) await fetchGrowtags();
+      if (!items.length) await fetchItems();
+      const billDate = new Date().toISOString().split("T")[0];
+      const dueDate = calculateDueDate(billDate);
+      setFormData({
+        ...initialFormState,
+        bill_number: generateBillNumber(),
+        bill_date: billDate,
+        due_date: dueDate,
+        owner_type: role === "GROWTAG" ? "growtag" : "shop",
+      });
+      setShowForm(true);
+      setEditMode(false);
+      setViewMode(false);
+      setExpandedRows({});
+      toast.dismiss(loadingToast);
+    } catch (error) {
+      toast.error("Failed to load required data. Please try again.", {
+        id: loadingToast,
+      });
+    }
   };
 
-  // Open Payment Modal (called from table row action)
   const openPaymentModal = (bill) => {
     setSelectedBill(bill);
     setShowPaymentModal(true);
   };
-
-  const openBillPDF = async (billId) => {
+  const downloadBillPDF = async (billId) => {
     const loadingToast = toast.loading("Loading PDF...");
-
     try {
       const response = await axiosInstance.get(
         `/purchase-bills/${billId}/pdf/`,
-        {
-          responseType: "blob",
-        },
+        { responseType: "blob" },
       );
-
-      const file = new Blob([response.data], { type: "application/pdf" });
-      const fileURL = URL.createObjectURL(file);
-
-      window.open(fileURL, "_blank");
-
+      const url = window.URL.createObjectURL(
+        new Blob([response.data], { type: "application/pdf" }),
+      );
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `bill_${billId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
       toast.dismiss(loadingToast);
     } catch (error) {
-      console.error("PDF fetch error:", error);
       toast.error("Failed to load PDF", { id: loadingToast });
     }
   };
 
-  // Clear filters
   const clearFilters = () => {
     setSearchTerm("");
     setFilterStatus("");
     setFilterPaymentStatus("");
   };
-
-  // Filter Bills
   const filteredBills = bills.filter((bill) => {
     const matchesSearch =
       (bill.bill_number?.toLowerCase() || "").includes(
@@ -2620,18 +1999,14 @@ const Bill = () => {
         searchTerm.toLowerCase(),
       ) ||
       (bill.assigned_shop_name?.toLowerCase() || "").includes(
-        // NEW: Search by assigned shop
         searchTerm.toLowerCase(),
       );
-
     const matchesStatus = !filterStatus || bill.status === filterStatus;
     const matchesPaymentStatus =
       !filterPaymentStatus || bill.payment_status === filterPaymentStatus;
-
     return matchesSearch && matchesStatus && matchesPaymentStatus;
   });
 
-  // Get status badge color
   const getStatusColor = (status) => {
     switch (status) {
       case "DRAFT":
@@ -2661,8 +2036,7 @@ const Bill = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      {/* Payment Modal */}
+    <div className="min-h-screen bg-gray-50 p-3 sm:p-6">
       {showPaymentModal && selectedBill && (
         <PaymentModal
           selectedBill={selectedBill}
@@ -2674,8 +2048,6 @@ const Bill = () => {
           closePaymentModal={closePaymentModal}
         />
       )}
-
-      {/* View Modal - Payment prop removed */}
       {viewMode && (
         <ViewBillModal
           formData={formData}
@@ -2698,74 +2070,78 @@ const Bill = () => {
         />
       )}
 
-      {/* Header */}
-      <div className="max-w-7xl mx-auto mb-6">
-        <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-gray-800">Bills</h1>
+      <div className="max-w-7xl mx-auto mb-4 sm:mb-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">
+            Bills
+          </h1>
           {!showForm && (
-            <div className="flex items-center gap-3">
-              {/* NEW: Bulk Delete Button */}
+            <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
               {selectedBills.length > 0 && canDelete && (
                 <button
                   onClick={handleBulkDelete}
                   disabled={isSubmitting}
-                  className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition disabled:opacity-50"
+                  className="flex items-center gap-2 bg-red-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-red-700 disabled:opacity-50 text-sm sm:text-base"
                 >
-                  <Trash2 size={18} />
-                  Delete Selected ({selectedBills.length})
+                  <Trash2 size={16} />
+                  <span className="hidden sm:inline">Delete Selected</span>
+                  <span className="sm:hidden">({selectedBills.length})</span>
                 </button>
               )}
-
               <button
                 onClick={newBill}
                 disabled={isSubmitting || isFetchingDetails}
-                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm sm:text-base"
               >
                 {isSubmitting || isFetchingDetails ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    <span>Loading...</span>
-                  </>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                 ) : (
-                  <>
-                    <Plus size={20} />
-                    New Bill
-                  </>
+                  <Plus size={18} />
                 )}
+                <span className="hidden sm:inline">New Bill</span>
+                <span className="sm:hidden">New</span>
               </button>
             </div>
           )}
         </div>
       </div>
 
-      {/* Bill List */}
       {!showForm && (
-        <div className="max-w-7xl mx-auto bg-white rounded-lg shadow">
-          <div className="p-4 border-b">
-            <div className="flex flex-col md:flex-row gap-4">
+        <div className="max-w-7xl mx-auto bg-white rounded-lg shadow overflow-hidden">
+          <div className="p-3 border-b sm:hidden">
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="w-full flex items-center justify-between bg-gray-100 px-4 py-2 rounded-lg"
+            >
+              <span className="text-sm font-medium text-gray-700">Filters</span>
+              <Menu size={18} className="text-gray-500" />
+            </button>
+          </div>
+
+          <div
+            className={`p-4 border-b ${mobileMenuOpen ? "block" : "hidden sm:block"}`}
+          >
+            <div className="flex flex-col sm:flex-row gap-4">
               <div className="relative flex-1">
                 <Search
                   className="absolute left-3 top-3 text-gray-400"
-                  size={20}
+                  size={18}
                 />
                 <input
                   type="text"
-                  placeholder="Search by Bill Number, Vendor, Assigned Shop, Status..."
+                  placeholder="Search by Bill Number, Vendor..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   disabled={isLoading}
-                  className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 text-sm"
                 />
               </div>
-
-              {/* Status Filter */}
-              <div className="flex items-center gap-2">
-                <Filter size={18} className="text-gray-400" />
+              <div className="flex flex-wrap gap-2">
                 <select
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value)}
                   disabled={isLoading}
-                  className="border px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[150px] disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  className="border px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm flex-1 sm:flex-none"
                 >
                   <option value="">All Status</option>
                   {STATUS_OPTIONS.map((option) => (
@@ -2774,15 +2150,11 @@ const Bill = () => {
                     </option>
                   ))}
                 </select>
-              </div>
-
-              {/* Payment Status Filter */}
-              <div className="flex items-center gap-2">
                 <select
                   value={filterPaymentStatus}
                   onChange={(e) => setFilterPaymentStatus(e.target.value)}
                   disabled={isLoading}
-                  className="border px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[150px] disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  className="border px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm flex-1 sm:flex-none"
                 >
                   <option value="">All Payment</option>
                   {PAYMENT_STATUS_OPTIONS.map((option) => (
@@ -2791,28 +2163,137 @@ const Bill = () => {
                     </option>
                   ))}
                 </select>
+                {(searchTerm || filterStatus || filterPaymentStatus) && (
+                  <button
+                    onClick={clearFilters}
+                    disabled={isLoading}
+                    className="px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg flex items-center"
+                  >
+                    <X size={14} className="mr-1" />
+                    Clear
+                  </button>
+                )}
               </div>
-
-              {/* Clear Filters Button */}
-              {(searchTerm || filterStatus || filterPaymentStatus) && (
-                <button
-                  onClick={clearFilters}
-                  disabled={isLoading}
-                  className="px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <X size={16} className="mr-1" />
-                  Clear
-                </button>
-              )}
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          {/* Mobile Cards View */}
+          <div className="sm:hidden divide-y divide-gray-200">
+            {isLoading ? (
+              <div className="p-8 text-center">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+                <p className="text-sm text-gray-500 mt-2">Loading bills...</p>
+              </div>
+            ) : filteredBills.length === 0 ? (
+              <div className="p-8 text-center text-gray-500">
+                No bills found. Create your first one!
+              </div>
+            ) : (
+              filteredBills.map((bill) => (
+                <div key={bill.id} className="p-4 hover:bg-gray-50">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-start gap-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedBills.includes(bill.id)}
+                        onChange={(e) =>
+                          handleSelectBill(bill.id, e.target.checked)
+                        }
+                        className="mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <div>
+                        <p className="font-medium text-blue-600 text-sm">
+                          {bill.bill_number}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {bill.vendor_name || "N/A"}
+                        </p>
+                      </div>
+                    </div>
+                    <span
+                      className={`px-2 py-1 text-xs rounded-full ${getStatusColor(bill.status)}`}
+                    >
+                      {bill.status}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 mt-2 text-xs">
+                    <div>
+                      <span className="text-gray-500">Bill Date:</span>
+                      <span className="ml-1">{bill.bill_date}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Due Date:</span>
+                      <span className="ml-1">{bill.due_date}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Total:</span>
+                      <span className="ml-1 font-medium">
+                        ₹{parseFloat(bill.total).toFixed(2)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Balance:</span>
+                      <span className="ml-1 font-medium text-red-600">
+                        ₹{parseFloat(bill.balance_due).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2 mt-3 pt-2 border-t">
+                    {canView && (
+                      <button
+                        onClick={() => viewBill(bill)}
+                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
+                      >
+                        <Eye size={16} />
+                      </button>
+                    )}
+                    {canEdit && (
+                      <button
+                        onClick={() => downloadBillPDF(bill.id)}
+                        className="p-1.5 text-purple-600 hover:bg-purple-50 rounded"
+                      >
+                        <FileText size={16} />
+                      </button>
+                    )}
+                    {canEdit &&
+                      bill?.status === "OPEN" &&
+                      bill?.payment_status !== "PAID" &&
+                      Number(bill?.balance_due) > 0 && (
+                        <button
+                          onClick={() => openPaymentModal(bill)}
+                          className="p-1.5 text-green-600 hover:bg-green-50 rounded"
+                        >
+                          <CreditCard size={16} />
+                        </button>
+                      )}
+                    {canEdit && (
+                      <button
+                        onClick={() => editBill(bill)}
+                        className="p-1.5 text-green-600 hover:bg-green-50 rounded"
+                      >
+                        <Edit size={16} />
+                      </button>
+                    )}
+                    {canDelete && (
+                      <button
+                        onClick={() => deleteBill(bill.id)}
+                        className="p-1.5 text-red-600 hover:bg-red-50 rounded"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Desktop Table View */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  {/* NEW: Checkbox column */}
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-10">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase w-10">
                     <input
                       type="checkbox"
                       checked={selectAll && filteredBills.length > 0}
@@ -2820,32 +2301,31 @@ const Bill = () => {
                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                     />
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Bill Number
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Vendor
                   </th>
-
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Bill Date
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Due Date
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Status
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Payment
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Total
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Balance
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Actions
                   </th>
                 </tr>
@@ -2875,7 +2355,6 @@ const Bill = () => {
                 ) : (
                   filteredBills.map((bill) => (
                     <tr key={bill.id} className="hover:bg-gray-50">
-                      {/* NEW: Checkbox for each row */}
                       <td className="px-6 py-4 whitespace-nowrap">
                         <input
                           type="checkbox"
@@ -2924,22 +2403,18 @@ const Bill = () => {
                             <button
                               onClick={() => viewBill(bill)}
                               className="text-blue-600 hover:text-blue-800 p-1.5 hover:bg-blue-50 rounded"
-                              title="View Bill"
                             >
                               <Eye size={18} />
                             </button>
                           )}
-                          {/* DOWNLOAD PDF (WITH PERMISSION) */}
                           {canEdit && (
                             <button
                               onClick={() => downloadBillPDF(bill.id)}
-                              className="p-1.5 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 transition"
-                              title="Download PDF"
+                              className="p-1.5 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100"
                             >
                               <FileText size={18} />
                             </button>
                           )}
-                          {/* RECORD PAYMENT BUTTON ADDED HERE */}
                           {canEdit &&
                             bill?.status === "OPEN" &&
                             bill?.payment_status !== "PAID" &&
@@ -2955,7 +2430,6 @@ const Bill = () => {
                             <button
                               onClick={() => editBill(bill)}
                               className="text-green-600 hover:text-green-800 p-1.5 hover:bg-green-50 rounded"
-                              title="Edit Bill"
                             >
                               <Edit size={18} />
                             </button>
@@ -2964,7 +2438,6 @@ const Bill = () => {
                             <button
                               onClick={() => deleteBill(bill.id)}
                               className="text-red-600 hover:text-red-800 p-1.5 hover:bg-red-50 rounded"
-                              title="Delete Bill"
                             >
                               <Trash2 size={18} />
                             </button>
@@ -2983,22 +2456,21 @@ const Bill = () => {
       {/* Bill Form */}
       {showForm && !viewMode && (
         <div className="max-w-7xl mx-auto bg-white rounded-lg shadow">
-          <div className="p-6 border-b flex justify-between items-center">
-            <h2 className="text-2xl font-bold text-gray-800">
+          <div className="p-4 sm:p-6 border-b flex justify-between items-center">
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-800">
               {editMode ? "Edit" : "New"} Bill
             </h2>
             <button
               onClick={resetForm}
               disabled={isSubmitting}
-              className="text-gray-500 hover:text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="text-gray-500 hover:text-gray-700"
             >
               <X size={24} />
             </button>
           </div>
 
-          <div className="p-6">
-            {/* Info Box */}
-            <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="p-4 sm:p-6">
+            <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4">
               <div className="flex items-start">
                 <div className="flex-shrink-0">
                   <svg
@@ -3017,12 +2489,12 @@ const Bill = () => {
                   <h4 className="text-sm font-medium text-blue-800 mb-1">
                     Required Fields
                   </h4>
-                  <p className="text-sm text-blue-700">
+                  <p className="text-xs sm:text-sm text-blue-700">
                     <span className="font-medium">Required:</span> Bill Number,
                     Vendor, Owner, Bill Date, Due Date, Bill To Address, Items
                     (with Qty & Rate)
                   </p>
-                  <p className="text-sm text-blue-700 mt-1">
+                  <p className="text-xs sm:text-sm text-blue-700 mt-1">
                     <span className="font-medium">Optional:</span> Order Number,
                     Shipping Address, Tax, Discount, TDS, Notes, Terms
                   </p>
@@ -3030,10 +2502,11 @@ const Bill = () => {
               </div>
             </div>
 
-            {/* Basic Information */}
             <div className="mb-6">
-              <h3 className="text-lg font-semibold mb-4">Basic Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <h3 className="text-base sm:text-lg font-semibold mb-4">
+                Basic Information
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Bill Number <span className="text-red-500">*</span>
@@ -3044,9 +2517,7 @@ const Bill = () => {
                     value={formData.bill_number}
                     onChange={handleInputChange}
                     disabled={isSubmitting}
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed ${
-                      errors.bill_number ? "border-red-500" : "border-gray-300"
-                    }`}
+                    className={`w-full px-3 py-2 border rounded-lg text-sm ${errors.bill_number ? "border-red-500" : "border-gray-300"}`}
                   />
                   {errors.bill_number && (
                     <p className="text-red-500 text-xs mt-1">
@@ -3054,7 +2525,6 @@ const Bill = () => {
                     </p>
                   )}
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Order Number
@@ -3066,10 +2536,9 @@ const Bill = () => {
                     onChange={handleInputChange}
                     disabled={isSubmitting}
                     placeholder="Optional"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                   />
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Bill Date <span className="text-red-500">*</span>
@@ -3080,9 +2549,7 @@ const Bill = () => {
                     value={formData.bill_date}
                     onChange={handleInputChange}
                     disabled={isSubmitting}
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed ${
-                      errors.bill_date ? "border-red-500" : "border-gray-300"
-                    }`}
+                    className={`w-full px-3 py-2 border rounded-lg text-sm ${errors.bill_date ? "border-red-500" : "border-gray-300"}`}
                   />
                   {errors.bill_date && (
                     <p className="text-red-500 text-xs mt-1">
@@ -3090,7 +2557,6 @@ const Bill = () => {
                     </p>
                   )}
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Due Date <span className="text-red-500">*</span>
@@ -3102,9 +2568,7 @@ const Bill = () => {
                     min={formData.bill_date}
                     onChange={handleInputChange}
                     disabled={isSubmitting}
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed ${
-                      errors.due_date ? "border-red-500" : "border-gray-300"
-                    }`}
+                    className={`w-full px-3 py-2 border rounded-lg text-sm ${errors.due_date ? "border-red-500" : "border-gray-300"}`}
                   />
                   {errors.due_date && (
                     <p className="text-red-500 text-xs mt-1">
@@ -3115,10 +2579,11 @@ const Bill = () => {
               </div>
             </div>
 
-            {/* Owner Type Selection */}
             <div className="mb-6">
-              <h3 className="text-lg font-semibold mb-4">Owner Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <h3 className="text-base sm:text-lg font-semibold mb-4">
+                Owner Information
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Owner Type <span className="text-red-500">*</span>
@@ -3127,7 +2592,7 @@ const Bill = () => {
                     name="owner_type"
                     value={formData.owner_type}
                     onChange={(e) => handleOwnerTypeChange(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-2 py-2 border border-gray-300 rounded text-sm"
                   >
                     {getOwnerTypeOptionsByRole(role).map((opt) => (
                       <option key={opt.value} value={opt.value}>
@@ -3141,74 +2606,30 @@ const Bill = () => {
                     </p>
                   )}
                 </div>
-
-                {formData.owner_type === "shop" && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Select Shop <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={formData.shop || ""}
-                      onChange={(e) =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          shop: e.target.value
-                            ? parseInt(e.target.value)
-                            : null,
-                        }))
-                      }
-                      className="w-full px-3 py-2 border rounded-lg"
-                    >
-                      <option value="">-- Select Shop --</option>
-
-                      {shops.map((shop) => (
-                        <option key={shop.id} value={shop.id}>
-                          {shop.shop_type === "franchise" ? "🏪" : "🏬"}{" "}
-                          {shop.shopname} ({shop.shop_type})
-                        </option>
-                      ))}
-                    </select>
-                    {errors.shop && (
-                      <p className="text-red-500 text-xs mt-1">{errors.shop}</p>
-                    )}
-                  </div>
+                {formData.owner_type === "shop" && role !== "GROWTAG" && (
+                  <SearchableDropdown
+                    options={shops}
+                    value={formData.shop}
+                    onChange={handleShopSelect}
+                    placeholder="Select Shop"
+                    label="Shop"
+                    error={errors.shop}
+                    disabled={isSubmitting}
+                    getDisplayValue={getShopDisplayValue}
+                  />
                 )}
-
                 {formData.owner_type === "growtag" && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Select Growtag <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={formData.growtag || ""}
-                      onChange={(e) =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          growtag: e.target.value
-                            ? parseInt(e.target.value)
-                            : null,
-                        }))
-                      }
-                      disabled={isSubmitting}
-                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed ${
-                        errors.growtag ? "border-red-500" : "border-gray-300"
-                      }`}
-                    >
-                      <option value="">-- Select Growtag --</option>
-                      {growtags.map((growtag) => (
-                        <option key={growtag.id} value={growtag.id}>
-                          {growtag.name} ({growtag.grow_id})
-                        </option>
-                      ))}
-                    </select>
-                    {errors.growtag && (
-                      <p className="text-red-500 text-xs mt-1">
-                        {errors.growtag}
-                      </p>
-                    )}
-                  </div>
+                  <SearchableDropdown
+                    options={growtags}
+                    value={formData.growtag}
+                    onChange={handleGrowtagSelect}
+                    placeholder="Select Growtag"
+                    label="Growtag"
+                    error={errors.growtag}
+                    disabled={isSubmitting}
+                    getDisplayValue={getGrowtagDisplayValue}
+                  />
                 )}
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Status
@@ -3218,7 +2639,7 @@ const Bill = () => {
                     value={formData.status}
                     onChange={handleInputChange}
                     disabled={isSubmitting}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    className="w-full px-2 py-2 border border-gray-300 rounded text-sm"
                   >
                     {STATUS_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>
@@ -3230,9 +2651,10 @@ const Bill = () => {
               </div>
             </div>
 
-            {/* Vendor Information */}
             <div className="mb-6">
-              <h3 className="text-lg font-semibold mb-4">Vendor Information</h3>
+              <h3 className="text-base sm:text-lg font-semibold mb-4">
+                Vendor Information
+              </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -3242,9 +2664,7 @@ const Bill = () => {
                     value={formData.vendor || ""}
                     onChange={(e) => handleVendorChange(e.target.value)}
                     disabled={isSubmitting}
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed ${
-                      errors.vendor ? "border-red-500" : "border-gray-300"
-                    }`}
+                    className={`w-full px-3 py-2 border rounded-lg text-sm ${errors.vendor ? "border-red-500" : "border-gray-300"}`}
                   >
                     <option value="">-- Select Vendor --</option>
                     {vendors.map((vendor) => (
@@ -3257,7 +2677,6 @@ const Bill = () => {
                     <p className="text-red-500 text-xs mt-1">{errors.vendor}</p>
                   )}
                 </div>
-
                 {formData.vendor && (
                   <>
                     <div>
@@ -3268,10 +2687,9 @@ const Bill = () => {
                         type="text"
                         value={formData.vendor_name}
                         readOnly
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-sm"
                       />
                     </div>
-
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Vendor Email
@@ -3280,10 +2698,9 @@ const Bill = () => {
                         type="email"
                         value={formData.vendor_email}
                         readOnly
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-sm"
                       />
                     </div>
-
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Vendor Phone
@@ -3292,10 +2709,9 @@ const Bill = () => {
                         type="tel"
                         value={formData.vendor_phone}
                         readOnly
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-sm"
                       />
                     </div>
-
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Vendor GSTIN
@@ -3304,10 +2720,9 @@ const Bill = () => {
                         type="text"
                         value={formData.vendor_gstin}
                         readOnly
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-sm"
                       />
                     </div>
-
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Vendor Address
@@ -3316,7 +2731,7 @@ const Bill = () => {
                         type="text"
                         value={formData.vendor_address}
                         readOnly
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-sm"
                       />
                     </div>
                   </>
@@ -3324,9 +2739,8 @@ const Bill = () => {
               </div>
             </div>
 
-            {/* Shipping & Billing */}
             <div className="mb-6">
-              <h3 className="text-lg font-semibold mb-4">
+              <h3 className="text-base sm:text-lg font-semibold mb-4">
                 Shipping & Billing Addresses
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -3340,9 +2754,7 @@ const Bill = () => {
                     onChange={handleInputChange}
                     disabled={isSubmitting}
                     rows="3"
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed ${
-                      errors.bill_to ? "border-red-500" : "border-gray-300"
-                    }`}
+                    className={`w-full px-3 py-2 border rounded-lg text-sm ${errors.bill_to ? "border-red-500" : "border-gray-300"}`}
                   />
                   {errors.bill_to && (
                     <p className="text-red-500 text-xs mt-1">
@@ -3350,7 +2762,6 @@ const Bill = () => {
                     </p>
                   )}
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Ship To
@@ -3362,34 +2773,33 @@ const Bill = () => {
                     disabled={isSubmitting}
                     rows="3"
                     placeholder="Optional"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                   />
                 </div>
               </div>
             </div>
 
-            {/* Items */}
             <div className="mb-6">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold">Item Details</h3>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
+                <h3 className="text-base sm:text-lg font-semibold">
+                  Item Details
+                </h3>
                 {!viewMode && (
                   <button
                     onClick={addItem}
                     disabled={isSubmitting}
-                    className="flex items-center gap-2 bg-green-600 text-white px-3 py-1 rounded-lg hover:bg-green-700 transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center gap-2 bg-green-600 text-white px-3 py-1.5 rounded-lg text-sm"
                   >
                     <Plus size={16} />
                     Add Item
                   </button>
                 )}
               </div>
-
               {errors.items && (
                 <p className="text-red-500 text-xs mb-2">{errors.items}</p>
               )}
-
               <div className="overflow-x-auto">
-                <table className="w-full border">
+                <table className="w-full min-w-[800px] border">
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase w-64">
@@ -3436,14 +2846,9 @@ const Bill = () => {
                                     handleItemSelection(index, e.target.value)
                                   }
                                   disabled={isSubmitting}
-                                  className={`w-full px-2 py-1.5 border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed ${
-                                    errors[`item_${index}_name`]
-                                      ? "border-red-500"
-                                      : "border-gray-300"
-                                  }`}
+                                  className={`w-full px-2 py-1.5 border rounded text-sm ${errors[`item_${index}_name`] ? "border-red-500" : "border-gray-300"}`}
                                 >
                                   <option value="">-- Select an item --</option>
-
                                   {isLoadingItems ? (
                                     <option disabled>Loading items...</option>
                                   ) : items && items.length > 0 ? (
@@ -3478,22 +2883,20 @@ const Bill = () => {
                               )}
                             </td>
                             <td className="px-3 py-2">
-                              <div className="relative">
-                                <input
-                                  type="text"
-                                  value={item.description || ""}
-                                  onChange={(e) =>
-                                    handleItemChange(
-                                      index,
-                                      "description",
-                                      e.target.value,
-                                    )
-                                  }
-                                  disabled={isSubmitting}
-                                  placeholder="Description"
-                                  className="w-full px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                                />
-                              </div>
+                              <input
+                                type="text"
+                                value={item.description || ""}
+                                onChange={(e) =>
+                                  handleItemChange(
+                                    index,
+                                    "description",
+                                    e.target.value,
+                                  )
+                                }
+                                disabled={isSubmitting}
+                                placeholder="Description"
+                                className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                              />
                             </td>
                             <td className="px-3 py-2">
                               <select
@@ -3506,7 +2909,7 @@ const Bill = () => {
                                   )
                                 }
                                 disabled={isSubmitting}
-                                className="w-full px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
                               >
                                 {ACCOUNT_TYPES.map((type) => (
                                   <option key={type} value={type}>
@@ -3529,11 +2932,7 @@ const Bill = () => {
                                   handleItemChange(index, "qty", numValue);
                                 }}
                                 disabled={isSubmitting}
-                                className={`w-full px-2 py-1.5 border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed ${
-                                  errors[`item_${index}_qty`]
-                                    ? "border-red-500"
-                                    : "border-gray-300"
-                                }`}
+                                className={`w-full px-2 py-1.5 border rounded text-sm ${errors[`item_${index}_qty`] ? "border-red-500" : "border-gray-300"}`}
                               />
                               {errors[`item_${index}_qty`] && (
                                 <p className="text-red-500 text-xs mt-1">
@@ -3563,11 +2962,7 @@ const Bill = () => {
                                     handleItemChange(index, "rate", numValue);
                                   }}
                                   disabled={isSubmitting}
-                                  className={`w-full pl-6 pr-2 py-1.5 border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed ${
-                                    errors[`item_${index}_rate`]
-                                      ? "border-red-500"
-                                      : "border-gray-300"
-                                  }`}
+                                  className={`w-full pl-6 pr-2 py-1.5 border rounded text-sm ${errors[`item_${index}_rate`] ? "border-red-500" : "border-gray-300"}`}
                                 />
                               </div>
                               {errors[`item_${index}_rate`] && (
@@ -3598,11 +2993,7 @@ const Bill = () => {
                                   );
                                 }}
                                 disabled={isSubmitting}
-                                className={`w-full px-2 py-1.5 border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed ${
-                                  errors[`item_${index}_tax_percent`]
-                                    ? "border-red-500"
-                                    : "border-gray-300"
-                                }`}
+                                className={`w-full px-2 py-1.5 border rounded text-sm ${errors[`item_${index}_tax_percent`] ? "border-red-500" : "border-gray-300"}`}
                               />
                               {errors[`item_${index}_tax_percent`] && (
                                 <p className="text-red-500 text-xs mt-1">
@@ -3634,11 +3025,7 @@ const Bill = () => {
                                   );
                                 }}
                                 disabled={isSubmitting}
-                                className={`w-full px-2 py-1.5 border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed ${
-                                  errors[`item_${index}_discount_percent`]
-                                    ? "border-red-500"
-                                    : "border-gray-300"
-                                }`}
+                                className={`w-full px-2 py-1.5 border rounded text-sm ${errors[`item_${index}_discount_percent`] ? "border-red-500" : "border-gray-300"}`}
                               />
                               {errors[`item_${index}_discount_percent`] && (
                                 <p className="text-red-500 text-xs mt-1">
@@ -3646,7 +3033,7 @@ const Bill = () => {
                                 </p>
                               )}
                             </td>
-                            <td className="px-3 py-2 font-medium text-right">
+                            <td className="px-3 py-2 font-medium text-right text-sm">
                               ₹{item.amount.toFixed(2)}
                             </td>
                             {!viewMode && (
@@ -3654,8 +3041,7 @@ const Bill = () => {
                                 <button
                                   onClick={() => removeItem(index)}
                                   disabled={isSubmitting}
-                                  className="text-red-600 hover:text-red-800 p-1.5 hover:bg-red-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                  title="Remove Item"
+                                  className="text-red-600 hover:text-red-800 p-1.5 rounded"
                                 >
                                   <Trash2 size={18} />
                                 </button>
@@ -3672,7 +3058,7 @@ const Bill = () => {
                                   <p className="font-medium mb-1">
                                     Additional Details:
                                   </p>
-                                  <div className="grid grid-cols-3 gap-4">
+                                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                                     <div>
                                       <span className="text-xs text-gray-500">
                                         Item ID:
@@ -3717,29 +3103,28 @@ const Bill = () => {
               </div>
             </div>
 
-            {/* Totals */}
             <div className="mb-6">
               <div className="flex justify-end">
-                <div className="w-full md:w-1/2 space-y-3">
-                  <div className="flex justify-between items-center">
+                <div className="w-full sm:w-2/3 lg:w-1/2 space-y-3">
+                  <div className="flex justify-between items-center text-sm">
                     <span className="text-gray-600">Subtotal:</span>
                     <span className="font-medium">
                       ₹{formData.subtotal.toFixed(2)}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between items-center text-sm">
                     <span className="text-gray-600">Total Discount:</span>
                     <span className="font-medium text-red-600">
                       -₹{formData.total_discount.toFixed(2)}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between items-center text-sm">
                     <span className="text-gray-600">Total Tax:</span>
                     <span className="font-medium">
                       ₹{formData.total_tax.toFixed(2)}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between items-center text-sm">
                     <span className="text-gray-600">TDS (%):</span>
                     <div className="flex items-center gap-2">
                       <input
@@ -3754,23 +3139,14 @@ const Bill = () => {
                           handleChargesChange("tds_percent", numValue);
                         }}
                         disabled={isSubmitting}
-                        className={`w-20 px-2 py-1 border rounded text-right focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed ${
-                          errors.tds_percent
-                            ? "border-red-500"
-                            : "border-gray-300"
-                        }`}
+                        className="w-20 px-2 py-1 border rounded text-right text-sm"
                       />
                       <span className="font-medium text-red-600">
                         -₹{formData.tds_amount.toFixed(2)}
                       </span>
                     </div>
                   </div>
-                  {errors.tds_percent && (
-                    <p className="text-red-500 text-xs text-right">
-                      {errors.tds_percent}
-                    </p>
-                  )}
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between items-center text-sm">
                     <span className="text-gray-600">Shipping Charges:</span>
                     <input
                       type="text"
@@ -3784,10 +3160,10 @@ const Bill = () => {
                         handleChargesChange("shipping_charges", numValue);
                       }}
                       disabled={isSubmitting}
-                      className="w-32 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                      className="w-28 sm:w-32 px-2 py-1 border border-gray-300 rounded text-right text-sm"
                     />
                   </div>
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between items-center text-sm">
                     <span className="text-gray-600">Adjustment:</span>
                     <input
                       type="text"
@@ -3801,18 +3177,18 @@ const Bill = () => {
                         handleChargesChange("adjustment", numValue);
                       }}
                       disabled={isSubmitting}
-                      className="w-32 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                      className="w-28 sm:w-32 px-2 py-1 border border-gray-300 rounded text-right text-sm"
                     />
                   </div>
                   <div className="flex justify-between items-center pt-3 border-t-2 border-gray-300">
-                    <span className="text-lg font-bold text-gray-800">
+                    <span className="text-base sm:text-lg font-bold text-gray-800">
                       Total:
                     </span>
-                    <span className="text-lg font-bold text-blue-600">
+                    <span className="text-base sm:text-lg font-bold text-blue-600">
                       ₹{formData.total.toFixed(2)}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between items-center text-sm">
                     <span className="text-gray-600">Amount Paid:</span>
                     <input
                       type="text"
@@ -3826,23 +3202,14 @@ const Bill = () => {
                         handleChargesChange("amount_paid", numValue);
                       }}
                       disabled={isSubmitting}
-                      className={`w-32 px-2 py-1 border rounded text-right focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed ${
-                        errors.amount_paid
-                          ? "border-red-500"
-                          : "border-gray-300"
-                      }`}
+                      className="w-28 sm:w-32 px-2 py-1 border rounded text-right text-sm"
                     />
                   </div>
-                  {errors.amount_paid && (
-                    <p className="text-red-500 text-xs text-right">
-                      {errors.amount_paid}
-                    </p>
-                  )}
                   <div className="flex justify-between items-center pt-2 border-t border-gray-300">
-                    <span className="text-lg font-bold text-gray-800">
+                    <span className="text-base sm:text-lg font-bold text-gray-800">
                       Balance Due:
                     </span>
-                    <span className="text-lg font-bold text-red-600">
+                    <span className="text-base sm:text-lg font-bold text-red-600">
                       ₹{formData.balance_due.toFixed(2)}
                     </span>
                   </div>
@@ -3850,10 +3217,9 @@ const Bill = () => {
               </div>
             </div>
 
-            {/* Payment Status */}
             <div className="mb-6">
               <div className="flex justify-end">
-                <div className="w-full md:w-1/2">
+                <div className="w-full sm:w-2/3 lg:w-1/2">
                   <div className="flex items-center justify-end gap-4">
                     <span className="text-sm font-medium text-gray-700">
                       Payment Status:
@@ -3868,9 +3234,8 @@ const Bill = () => {
               </div>
             </div>
 
-            {/* Notes & Terms */}
             <div className="mb-6">
-              <h3 className="text-lg font-semibold mb-4">
+              <h3 className="text-base sm:text-lg font-semibold mb-4">
                 Additional Information
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -3884,11 +3249,10 @@ const Bill = () => {
                     onChange={handleInputChange}
                     disabled={isSubmitting}
                     rows="4"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                     placeholder="Enter terms and conditions..."
                   />
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Notes
@@ -3899,39 +3263,33 @@ const Bill = () => {
                     onChange={handleInputChange}
                     disabled={isSubmitting}
                     rows="4"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                     placeholder="Enter any additional notes..."
                   />
                 </div>
               </div>
             </div>
 
-            {/* Action Buttons */}
             {!viewMode && (
-              <div className="flex justify-end gap-4">
+              <div className="flex flex-col sm:flex-row justify-end gap-3 sm:gap-4">
                 <button
                   onClick={resetForm}
                   disabled={isSubmitting}
-                  className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 sm:px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm order-2 sm:order-1"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={editMode ? updateBill : createBill}
                   disabled={isSubmitting}
-                  className="flex items-center gap-2 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed min-w-[160px] justify-center"
+                  className="flex items-center justify-center gap-2 bg-blue-600 text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 min-w-[140px] sm:min-w-[160px] order-1 sm:order-2"
                 >
                   {isSubmitting ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      <span>{editMode ? "Updating..." : "Saving..."}</span>
-                    </>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                   ) : (
-                    <>
-                      <Save size={20} />
-                      <span>{editMode ? "Update" : "Save"} Bill</span>
-                    </>
+                    <Save size={18} />
                   )}
+                  <span>{editMode ? "Update" : "Save"} Bill</span>
                 </button>
               </div>
             )}

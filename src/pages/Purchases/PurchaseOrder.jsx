@@ -14,6 +14,7 @@ import {
   User,
   Filter,
   FileText,
+  ChevronDown,
 } from "lucide-react";
 import axiosInstance from "@/API/axiosInstance";
 import toast from "react-hot-toast";
@@ -111,6 +112,11 @@ const PurchaseOrder = () => {
   // Cache for detailed purchase orders
   const [poDetailsCache, setPoDetailsCache] = useState({});
 
+  // Assign To dropdown states
+  const [assignSearchTerm, setAssignSearchTerm] = useState("");
+  const [showAssignDropdown, setShowAssignDropdown] = useState(false);
+  const assignDropdownRef = useRef(null);
+
   // Use ref to track toast ID
   const toastIdRef = useRef(null);
 
@@ -153,14 +159,86 @@ const PurchaseOrder = () => {
   const canCreate = canAccess(role, PERMISSIONS.purchaseOrders.create);
   const canEdit = canAccess(role, PERMISSIONS.purchaseOrders.edit);
   const canDelete = canAccess(role, PERMISSIONS.purchaseOrders.delete);
+
+  // Helper functions for Assign To dropdown
+  const getFilteredAssignItems = () => {
+    if (formData.assign_type === "shop") {
+      return shops.filter((shop) =>
+        shop.shopname?.toLowerCase().includes(assignSearchTerm.toLowerCase()),
+      );
+    } else {
+      return growtags.filter((growtag) =>
+        growtag.name?.toLowerCase().includes(assignSearchTerm.toLowerCase()),
+      );
+    }
+  };
+
+  const getShopIcon = (shopType) => {
+    const type = shopType?.toLowerCase();
+    if (type === "franchise") return "🏬";
+    if (type === "other_shop") return "🛍️";
+    return "🏪";
+  };
+
+  const getShopTypeLabel = (shopType) => {
+    const type = shopType?.toLowerCase();
+    if (type === "franchise") return "Franchise Shop";
+    if (type === "other_shop") return "Other Shop";
+    return "Other Shop";
+  };
+
+  const getAssignTypeIcon = () => {
+    if (formData.assign_type === "shop") return "🏪";
+    return "🏷️";
+  };
+
+  const getAssignTypeLabel = () => {
+    if (formData.assign_type === "shop") return "Shop / Store";
+    return "GrowTag Account";
+  };
+
+  const getSelectedDisplayText = () => {
+    if (!formData.assign_id) return "";
+    if (formData.assign_type === "shop") {
+      const shop = shops.find((s) => s.id === formData.assign_id);
+      if (shop) {
+        const icon = getShopIcon(shop.shop_type);
+        const typeLabel = getShopTypeLabel(shop.shop_type);
+        return `${icon} ${shop.shopname} (${typeLabel})`;
+      }
+    } else {
+      const growtag = growtags.find((g) => g.id === formData.assign_id);
+      if (growtag) {
+        return `🏷️ ${growtag.name}`;
+      }
+    }
+    return "";
+  };
+
   useEffect(() => {
     if (!role) return;
 
     setFormData((prev) => ({
       ...prev,
       assign_type: role === "GROWTAG" ? "growtag" : "shop",
+      assign_id: null,
+      assign_name: "",
     }));
   }, [role]);
+
+  // Click outside handler for assign dropdown
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        assignDropdownRef.current &&
+        !assignDropdownRef.current.contains(event.target)
+      ) {
+        setShowAssignDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   if (!canView) {
     return (
@@ -291,7 +369,7 @@ const PurchaseOrder = () => {
       if (order?.items && Array.isArray(order.items)) {
         itemsArray = order.items.map((item) => ({
           id: item?.id || null,
-          itemId: item?.item_id ? Number(item.item_id) : Number(item?.id) || "", // This ensures dropdown shows selected item
+          itemId: item?.item_id ? Number(item.item_id) : Number(item?.id) || "",
           itemName: item?.item_name || "",
           description: item?.description || "",
           quantity: parseFloat(item?.qty) || 0,
@@ -543,6 +621,10 @@ const PurchaseOrder = () => {
 
     if (!formData.vendorName.trim()) {
       newErrors.vendorName = "Vendor selection is required";
+    }
+    // Assign To validation
+    if (!formData.assign_id) {
+      newErrors.assign_id = "Please select Assign To";
     }
 
     if (!formData.expectedDeliveryDate) {
@@ -1299,14 +1381,13 @@ const PurchaseOrder = () => {
     setSelectAll(false);
   };
 
-  // Edit Purchase Order - UPDATED to properly set itemId for dropdown
+  // Edit Purchase Order
   const editPO = async (po) => {
-    if (toastIdRef.current) {
-      toast.dismiss(toastIdRef.current);
-      toastIdRef.current = null;
-    }
-
     try {
+      if (!items.length) {
+        await fetchItems();
+      }
+
       let detailedPO = po;
 
       if (!po.items || po.items.length === 0 || !po.vendorEmail) {
@@ -1314,10 +1395,9 @@ const PurchaseOrder = () => {
       }
 
       if (detailedPO) {
-        // Transform items to ensure itemId is properly set for dropdown
         const transformedItems = detailedPO.items.map((item) => ({
           ...item,
-          itemId: item.itemId ? Number(item.itemId) : Number(item.id), // Ensure itemId is set for dropdown selection
+          itemId: Number(item.itemId || item.id),
           quantity: item.quantity.toString(),
           unitPrice: item.unitPrice.toString(),
           tax: item.tax.toString(),
@@ -1352,20 +1432,13 @@ const PurchaseOrder = () => {
           assign_id: detailedPO.assign_id || null,
           assign_name: detailedPO.assign_name || "",
         });
+
         setEditMode(true);
         setViewMode(false);
         setShowForm(true);
-      } else {
-        toast.error("Failed to load purchase order details");
       }
     } catch (error) {
-      console.error("Error loading PO details:", error);
-
-      if (error.response?.status === 401 || error.response?.status === 403) {
-        return;
-      }
-
-      toast.error("Failed to load purchase order details");
+      console.error(error);
     }
   };
 
@@ -1410,34 +1483,78 @@ const PurchaseOrder = () => {
     setViewMode(false);
     setErrors({});
     setIsSubmitting(false);
+    setAssignSearchTerm("");
+    setShowAssignDropdown(false);
   };
 
-  // New PO
-  const newPO = () => {
+  // New PO with async data loading
+  const newPO = async () => {
     if (toastIdRef.current) {
       toast.dismiss(toastIdRef.current);
       toastIdRef.current = null;
     }
 
-    setFormData({
-      ...initialFormState,
-      poNumber: generatePONumber(),
-      items: [
-        {
-          itemId: "",
-          itemName: "",
-          description: "",
-          quantity: "1",
-          unitPrice: "0",
-          tax: "0",
-          discount: "0",
-          amount: 0,
-        },
-      ],
-    });
-    setShowForm(true);
-    setEditMode(false);
-    setViewMode(false);
+    const loadingToast = toast.loading("Loading data...");
+
+    try {
+      if (!items.length) {
+        await fetchItems();
+      }
+
+      if (!vendors.length) {
+        await fetchVendors();
+      }
+
+      if (role === "ADMIN" || role === "GROWTAG") {
+        if (!growtags.length) {
+          await fetchGrowtags();
+        }
+      }
+
+      if (role === "ADMIN" || role === "FRANCHISE" || role === "OTHERSHOP") {
+        if (!shops.length) {
+          await fetchShops();
+        }
+      }
+
+      const poDate = new Date().toISOString().split("T")[0];
+      const deliveryDate = new Date(
+        new Date().setDate(new Date().getDate() + 7),
+      )
+        .toISOString()
+        .split("T")[0];
+
+      setFormData({
+        ...initialFormState,
+        poNumber: generatePONumber(),
+        poDate: poDate,
+        expectedDeliveryDate: deliveryDate,
+        assign_type: role === "GROWTAG" ? "growtag" : "shop",
+        items: [
+          {
+            itemId: "",
+            itemName: "",
+            description: "",
+            quantity: "1",
+            unitPrice: "0",
+            tax: "0",
+            discount: "0",
+            amount: 0,
+          },
+        ],
+      });
+
+      setShowForm(true);
+      setEditMode(false);
+      setViewMode(false);
+
+      toast.dismiss(loadingToast);
+    } catch (error) {
+      console.error("Error loading data for new PO:", error);
+      toast.error("Failed to load required data. Please try again.", {
+        id: loadingToast,
+      });
+    }
   };
 
   // Clear filters
@@ -1485,7 +1602,7 @@ const PurchaseOrder = () => {
 
   // View Modal Component
   const ViewModal = () => (
-    <div className="fixed inset-0  bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+    <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
       <div className="bg-white rounded-xl w-full max-w-5xl shadow-2xl my-8">
         <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50">
           <div className="flex items-center justify-between">
@@ -1547,6 +1664,30 @@ const PurchaseOrder = () => {
               {formData.status}
             </span>
           </div>
+
+          {/* Assign To Information */}
+          {(formData.assign_name || formData.assign_id) && (
+            <div className="mb-6">
+              <h5 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide flex items-center">
+                <Building size={16} className="mr-2" />
+                Assigned To
+              </h5>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="grid grid-cols-1 gap-4">
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 mb-1">
+                      {formData.assign_type === "shop" ? "Shop" : "GrowTag"}
+                    </p>
+                    <p className="text-sm text-gray-900 font-medium">
+                      {getSelectedDisplayText() ||
+                        formData.assign_name ||
+                        "Not Assigned"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Vendor Information */}
           <div className="mb-6">
@@ -2212,26 +2353,37 @@ const PurchaseOrder = () => {
                     ))}
                   </select>
                 </div>
-                <div>
+
+                {/* IMPROVED ASSIGN TO SECTION WITH ICONS AND SEARCH */}
+                {/* IMPROVED ASSIGN TO SECTION WITH ICONS AND SEARCH - MANDATORY */}
+                <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Assign To
+                    Assign To <span className="text-red-500">*</span>
                   </label>
 
                   <div className="flex gap-2">
-                    {/* TYPE */}
+                    {/* TYPE SELECTOR with icons */}
                     <select
                       value={formData.assign_type}
-                      onChange={(e) =>
+                      onChange={(e) => {
                         setFormData((prev) => ({
                           ...prev,
                           assign_type: e.target.value,
                           assign_id: null,
                           assign_name: "",
-                        }))
-                      }
-                      className="w-30 px-3 py-2 border  rounded-lg "
+                        }));
+                        setAssignSearchTerm("");
+                        setShowAssignDropdown(false);
+                        // Clear assign_id error when type changes
+                        if (errors.assign_id) {
+                          setErrors((prev) => ({ ...prev, assign_id: "" }));
+                        }
+                      }}
+                      className={`w-36 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white ${
+                        errors.assign_id ? "border-red-500" : "border-gray-300"
+                      }`}
                     >
-                      {/* ADMIN → both */}
+                      {/* ADMIN → can see both options */}
                       {role === "ADMIN" && (
                         <>
                           <option value="shop">🏪 Shop</option>
@@ -2250,60 +2402,159 @@ const PurchaseOrder = () => {
                       )}
                     </select>
 
-                    {/* LIST */}
-                    <select
-                      value={formData.assign_id || ""}
-                      onChange={(e) => {
-                        const id = e.target.value
-                          ? parseInt(e.target.value)
-                          : null;
+                    {/* CUSTOM SEARCHABLE DROPDOWN */}
+                    <div className="relative flex-1" ref={assignDropdownRef}>
+                      {/* Dropdown Trigger Button */}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setShowAssignDropdown(!showAssignDropdown)
+                        }
+                        className={`w-full px-3 py-2 border rounded-lg bg-white text-left flex items-center justify-between hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          errors.assign_id
+                            ? "border-red-500"
+                            : "border-gray-300"
+                        }`}
+                      >
+                        <span
+                          className={
+                            formData.assign_id
+                              ? "text-gray-900"
+                              : "text-gray-400"
+                          }
+                        >
+                          {formData.assign_id
+                            ? getSelectedDisplayText()
+                            : `-- Select ${getAssignTypeLabel()} --`}
+                        </span>
+                        <ChevronDown size={16} className="text-gray-400" />
+                      </button>
 
-                        const item =
-                          formData.assign_type === "shop"
-                            ? shops.find((s) => s.id === id)
-                            : growtags.find((g) => g.id === id);
+                      {/* Dropdown Menu */}
+                      {showAssignDropdown && (
+                        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-80 overflow-hidden">
+                          {/* Search Input */}
+                          <div className="p-2 border-b border-gray-200">
+                            <div className="relative">
+                              <Search
+                                size={14}
+                                className="absolute left-3 top-2.5 text-gray-400"
+                              />
+                              <input
+                                type="text"
+                                placeholder={`Search ${getAssignTypeLabel()}...`}
+                                value={assignSearchTerm}
+                                onChange={(e) =>
+                                  setAssignSearchTerm(e.target.value)
+                                }
+                                className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                autoFocus
+                              />
+                            </div>
+                          </div>
 
-                        setFormData({
-                          ...formData,
-                          assign_id: id,
-                          assign_name: item?.shopname || item?.name || "",
-                        });
-                      }}
-                      className="w-2/3 px-3 py-2 border rounded-lg"
-                    >
-                      <option value="">None</option>
-
-                      {/* SHOP LIST */}
-                      {formData.assign_type === "shop" &&
-                        role !== "GROWTAG" &&
-                        shops.map((shop) => {
-                          const type = shop.shop_type?.toLowerCase();
-
-                          const icon =
-                            type === "franchise"
-                              ? "🏬"
-                              : type === "other_shop"
-                                ? "🛍️"
-                                : "🏪";
-
-                          return (
-                            <option key={shop.id} value={shop.id}>
-                              {icon} {shop.shopname}
-                            </option>
-                          );
-                        })}
-
-                      {/* GROWTAG LIST */}
-                      {formData.assign_type === "growtag" &&
-                        role !== "FRANCHISE" &&
-                        role !== "OTHERSHOP" &&
-                        growtags.map((gt) => (
-                          <option key={gt.id} value={gt.id}>
-                            🏷️ {gt.name}
-                          </option>
-                        ))}
-                    </select>
+                          {/* Options List */}
+                          <div className="overflow-y-auto max-h-64">
+                            {getFilteredAssignItems().length === 0 ? (
+                              <div className="px-3 py-2 text-sm text-gray-500 text-center">
+                                No {getAssignTypeLabel().toLowerCase()} found
+                              </div>
+                            ) : (
+                              getFilteredAssignItems().map((item) => {
+                                if (formData.assign_type === "shop") {
+                                  const icon = getShopIcon(item.shop_type);
+                                  const typeLabel = getShopTypeLabel(
+                                    item.shop_type,
+                                  );
+                                  return (
+                                    <button
+                                      key={item.id}
+                                      type="button"
+                                      onClick={() => {
+                                        setFormData({
+                                          ...formData,
+                                          assign_id: item.id,
+                                          assign_name: item.shopname,
+                                        });
+                                        setShowAssignDropdown(false);
+                                        setAssignSearchTerm("");
+                                        // Clear error when selection is made
+                                        if (errors.assign_id) {
+                                          setErrors((prev) => ({
+                                            ...prev,
+                                            assign_id: "",
+                                          }));
+                                        }
+                                      }}
+                                      className="w-full px-3 py-2 text-left hover:bg-blue-50 transition-colors flex items-center gap-2"
+                                    >
+                                      <span className="text-lg">{icon}</span>
+                                      <div className="flex-1">
+                                        <div className="text-sm font-medium text-gray-900">
+                                          {item.shopname}
+                                        </div>
+                                        <div className="text-xs text-gray-500">
+                                          {typeLabel}
+                                        </div>
+                                      </div>
+                                    </button>
+                                  );
+                                } else {
+                                  return (
+                                    <button
+                                      key={item.id}
+                                      type="button"
+                                      onClick={() => {
+                                        setFormData({
+                                          ...formData,
+                                          assign_id: item.id,
+                                          assign_name: item.name,
+                                        });
+                                        setShowAssignDropdown(false);
+                                        setAssignSearchTerm("");
+                                        // Clear error when selection is made
+                                        if (errors.assign_id) {
+                                          setErrors((prev) => ({
+                                            ...prev,
+                                            assign_id: "",
+                                          }));
+                                        }
+                                      }}
+                                      className="w-full px-3 py-2 text-left hover:bg-blue-50 transition-colors flex items-center gap-2"
+                                    >
+                                      <span className="text-lg">🏷️</span>
+                                      <div className="flex-1">
+                                        <div className="text-sm font-medium text-gray-900">
+                                          {item.name}
+                                        </div>
+                                        <div className="text-xs text-gray-500">
+                                        </div>
+                                      </div>
+                                    </button>
+                                  );
+                                }
+                              })
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
+
+                  {/* Show selected item info */}
+                  {formData.assign_id && (
+                    <div className="mt-2 text-xs text-green-600 bg-green-50 p-2 rounded-md flex items-center gap-1">
+                      <span>✓</span>
+                      <span>Assigned to: {getSelectedDisplayText()}</span>
+                    </div>
+                  )}
+
+                  {/* Show error message */}
+                  {errors.assign_id && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.assign_id}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -2475,21 +2726,17 @@ const PurchaseOrder = () => {
                         <tr key={index} className="border-t">
                           <td className="px-3 py-2">
                             <select
-                              value={item.itemId ? Number(item.itemId) : ""}
+                              key={items.length}
+                              value={item.itemId ? String(item.itemId) : ""}
                               onChange={(e) =>
                                 handleItemSelection(index, e.target.value)
                               }
-                              disabled={isSubmitting}
-                              className={`w-full min-w-[200px] px-2 py-1 border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                                errors[`item_${index}_itemName`]
-                                  ? "border-red-500"
-                                  : "border-gray-300"
-                              }`}
+                              className="w-full px-2 py-1.5 border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                             >
                               <option value="">Select Item</option>
-                              {items.map((i) => (
-                                <option key={i.id} value={i.id}>
-                                  {i.name}
+                              {items.map((itm) => (
+                                <option key={itm.id} value={String(itm.id)}>
+                                  {itm.name}
                                 </option>
                               ))}
                             </select>

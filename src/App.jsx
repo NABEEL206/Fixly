@@ -113,7 +113,7 @@ export default function App() {
           <Route
             path="/growtags"
             element={
-              <ProtectedRoute allowedRoles={["ADMIN", "FRANCHISE", "OTHERSHOP"]}>
+              <ProtectedRoute allowedRoles={["ADMIN", "FRANCHISE", "OTHERSHOP","GROWTAG"]}>
                 <GrowTags />
               </ProtectedRoute>
             }
@@ -185,7 +185,7 @@ export default function App() {
           <Route
             path="/vendors"
             element={
-              <ProtectedRoute allowedRoles={["ADMIN", "FRANCHISE", "OTHERSHOP"]}>
+              <ProtectedRoute allowedRoles={["ADMIN", "FRANCHISE", "OTHERSHOP","GROWTAG"]}>
                 <Vendor />
               </ProtectedRoute>
             }
@@ -212,7 +212,7 @@ export default function App() {
           <Route
             path="/expenses"
             element={
-              <ProtectedRoute allowedRoles={["ADMIN", "FRANCHISE", "OTHERSHOP"]}>
+              <ProtectedRoute allowedRoles={["ADMIN", "FRANCHISE", "OTHERSHOP","GROWTAG"]}>
                 <Expenses />
               </ProtectedRoute>
             }
@@ -239,7 +239,7 @@ export default function App() {
           <Route
            path="/quotes"
            element={
-            <ProtectedRoute allowedRoles={["ADMIN","FRANCHISE", "OTHERSHOP"]}>
+            <ProtectedRoute allowedRoles={["ADMIN","FRANCHISE", "OTHERSHOP","GROWTAG"]}>
               <Quotes/>
             </ProtectedRoute>
            }

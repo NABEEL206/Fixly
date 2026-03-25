@@ -1838,12 +1838,13 @@ export default function Shops() {
         </div>
       </div>
 
-      {selectedIds.length > 0 && (
+      {canDelete && selectedIds.length > 0 && (
         <div className="mb-4 flex items-center justify-between bg-red-50 border border-red-200 rounded-lg px-5 py-3">
           <span className="text-sm text-red-700 font-medium flex items-center gap-2">
             <Trash2 size={16} />
             {selectedIds.length} shop(s) selected
           </span>
+
           <button
             onClick={bulkDeleteShops}
             className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400 transition"

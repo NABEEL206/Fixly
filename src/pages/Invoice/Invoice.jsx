@@ -30,6 +30,7 @@ import {
   Printer,
   Download,
   CreditCard,
+  ChevronDown,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { PERMISSIONS } from "@/config/permissions";
@@ -227,7 +228,7 @@ const PaymentModal = ({
   if (!selectedInvoice) return null;
 
   return (
-    <div className="fixed inset-0  flex items-center justify-center p-4 z-[9999]">
+    <div className="fixed inset-0 flex items-center justify-center p-4 z-[9999]">
       <div className="bg-white rounded-xl w-full max-w-md shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b">
@@ -417,6 +418,7 @@ const InvoiceViewModal = ({
   onEdit,
   onPDF,
   onAddPayment,
+  canEdit,
 }) => {
   // Safe number formatting function
   const formatNumber = (value) => {
@@ -758,35 +760,25 @@ const InvoiceViewModal = ({
                         <th className="px-3 py-3 text-left font-semibold text-gray-700 w-[25%]">
                           Item
                         </th>
-
                         <th className="px-3 py-3 font-semibold text-gray-700 w-[10%]">
                           Qty
                         </th>
-
                         <th className="px-3 py-3 font-semibold text-gray-700 w-[12%]">
                           Rate (₹)
                         </th>
-
                         <th className="px-3 py-3 font-semibold text-gray-700 w-[15%]">
                           Service
                         </th>
-
                         <th className="px-3 py-3 font-semibold text-gray-700 w-[12%]">
                           GST %
                         </th>
-
                         <th className="px-3 py-3 font-semibold text-gray-700 w-[15%] text-right">
                           Amount (₹)
                         </th>
-
-                        <th className="px-3 py-3 font-semibold text-gray-700 w-[10%]">
-                          Action
-                        </th>
                       </tr>
                     </thead>
-
                     <tbody>
-                      {invoiceData.items.map((item, index) => {
+                      {invoice.items.map((item, index) => {
                         const qty = parseFloat(item.qty) || 0;
                         const rate = parseFloat(item.rate) || 0;
                         const service =
@@ -794,105 +786,29 @@ const InvoiceViewModal = ({
                         const amount = qty * rate + service;
 
                         return (
-                          <tr
-                            key={index}
-                            className="border-t hover:bg-gray-50 transition"
-                          >
-                            {/* ITEM */}
+                          <tr key={index} className="border-t hover:bg-gray-50">
                             <td className="px-3 py-2 text-left">
-                              <input
-                                type="text"
-                                value={item.item_name}
-                                onChange={(e) =>
-                                  handleItemChange(
-                                    index,
-                                    "item_name",
-                                    e.target.value,
-                                  )
-                                }
-                                className="w-full border rounded px-2 py-1"
-                                placeholder="Item name"
-                              />
+                              <p className="font-medium">
+                                {item.item_name || "N/A"}
+                              </p>
+                              {item.description && (
+                                <p className="text-xs text-gray-500 mt-1">
+                                  {item.description}
+                                </p>
+                              )}
                             </td>
-
-                            {/* QTY */}
-                            <td className="px-3 py-2">
-                              <input
-                                type="number"
-                                value={item.qty}
-                                onChange={(e) =>
-                                  handleItemChange(index, "qty", e.target.value)
-                                }
-                                className="w-full border rounded px-2 py-1 text-center"
-                              />
+                            <td className="px-3 py-2 text-center">{qty}</td>
+                            <td className="px-3 py-2 text-center">
+                              ₹{rate.toFixed(2)}
                             </td>
-
-                            {/* RATE */}
-                            <td className="px-3 py-2">
-                              <input
-                                type="number"
-                                value={item.rate}
-                                onChange={(e) =>
-                                  handleItemChange(
-                                    index,
-                                    "rate",
-                                    e.target.value,
-                                  )
-                                }
-                                className="w-full border rounded px-2 py-1 text-center"
-                              />
+                            <td className="px-3 py-2 text-center">
+                              {service > 0 ? `₹${service.toFixed(2)}` : "-"}
                             </td>
-
-                            {/* SERVICE */}
-                            <td className="px-3 py-2">
-                              <input
-                                type="number"
-                                value={item.service_charge_value}
-                                onChange={(e) =>
-                                  handleItemChange(
-                                    index,
-                                    "service_charge_value",
-                                    e.target.value,
-                                  )
-                                }
-                                className="w-full border rounded px-2 py-1 text-center"
-                              />
+                            <td className="px-3 py-2 text-center">
+                              {item.gst_treatment?.replace("GST_", "")}%
                             </td>
-
-                            {/* GST */}
-                            <td className="px-3 py-2">
-                              <select
-                                value={item.gst_treatment}
-                                onChange={(e) =>
-                                  handleItemChange(
-                                    index,
-                                    "gst_treatment",
-                                    e.target.value,
-                                  )
-                                }
-                                className="w-full border rounded px-2 py-1"
-                              >
-                                {gstOptions.map((gst) => (
-                                  <option key={gst.value} value={gst.value}>
-                                    {gst.label}
-                                  </option>
-                                ))}
-                              </select>
-                            </td>
-
-                            {/* AMOUNT */}
-                            <td className="px-3 py-2 text-right font-semibold text-gray-800">
+                            <td className="px-3 py-2 text-right font-semibold">
                               ₹{amount.toFixed(2)}
-                            </td>
-
-                            {/* ACTION */}
-                            <td className="px-3 py-2">
-                              <button
-                                onClick={() => removeItem(index)}
-                                className="text-red-600 hover:text-red-800"
-                              >
-                                <Trash2 size={16} />
-                              </button>
                             </td>
                           </tr>
                         );
@@ -923,52 +839,6 @@ const InvoiceViewModal = ({
                         Notes
                       </h4>
                       <p className="text-sm text-gray-600">{invoice.notes}</p>
-                    </div>
-                  )}
-
-                  {/* Additional Info */}
-                  {(invoice.discount_type ||
-                    invoice.service_charge_type !== "NONE") && (
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h4 className="font-medium text-gray-700 mb-2 pb-2 border-b">
-                        Additional Information
-                      </h4>
-                      <div className="space-y-2 text-sm">
-                        {invoice.discount_type &&
-                          Number(invoice.discount_value) > 0 && (
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">
-                                Discount Type:
-                              </span>
-                              <span className="font-medium">
-                                {invoice.discount_type}
-                              </span>
-                            </div>
-                          )}
-                        {invoice.service_charge_type !== "NONE" &&
-                          Number(invoice.service_charge_value) > 0 && (
-                            <>
-                              <div className="flex justify-between">
-                                <span className="text-gray-600">
-                                  Service Charge Type:
-                                </span>
-                                <span className="font-medium">
-                                  {invoice.service_charge_type}
-                                </span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-gray-600">
-                                  Service Charge Value:
-                                </span>
-                                <span className="font-medium">
-                                  {invoice.service_charge_type === "PERCENTAGE"
-                                    ? `${Number(invoice.service_charge_value) || 0}%`
-                                    : `₹${formatNumber(invoice.service_charge_value)}`}
-                                </span>
-                              </div>
-                            </>
-                          )}
-                      </div>
                     </div>
                   )}
                 </div>
@@ -1166,29 +1036,14 @@ const InvoiceViewModal = ({
                         {invoice.payments.map((p) => (
                           <tr key={p.id} className="hover:bg-gray-50">
                             <td className="p-3">{p.payment_date}</td>
-
                             <td className="p-3">
                               {p.payment_mode || p.method}
                             </td>
-
                             <td className="p-3">
                               {p.reference_no || p.reference || "-"}
                             </td>
-
                             <td className="p-3 text-right font-semibold text-green-600">
                               ₹{formatNumber(p.amount)}
-                            </td>
-
-                            <td className="p-3 text-center">
-                              <button
-                                onClick={() =>
-                                  onPDF(`/zoho/invoice-payments/${p.id}/pdf/`)
-                                }
-                                className="flex items-center justify-center gap-1 text-blue-600 hover:text-blue-800"
-                              >
-                                <FileText size={14} />
-                                View
-                              </button>
                             </td>
                           </tr>
                         ))}
@@ -1310,6 +1165,11 @@ const Invoice = () => {
   const [customerComplaints, setCustomerComplaints] = useState([]);
   const [selectedInvoices, setSelectedInvoices] = useState([]);
 
+  // Assign To dropdown states for search functionality
+  const [assignSearchTerm, setAssignSearchTerm] = useState("");
+  const [showAssignDropdown, setShowAssignDropdown] = useState(false);
+  const assignDropdownRef = useRef(null);
+
   // View modal state
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [selectedInvoiceForView, setSelectedInvoiceForView] = useState(null);
@@ -1329,6 +1189,71 @@ const Invoice = () => {
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
   const { user } = useAuth();
   const role = user?.role;
+
+  // Helper functions for Assign To dropdown with search
+  const getFilteredAssignItems = () => {
+    if (invoiceData.assign_type === "shop") {
+      return shops.filter((shop) =>
+        shop.shopname?.toLowerCase().includes(assignSearchTerm.toLowerCase()),
+      );
+    } else {
+      return growtags.filter((growtag) =>
+        growtag.name?.toLowerCase().includes(assignSearchTerm.toLowerCase()),
+      );
+    }
+  };
+
+  const getShopIcon = (shopType) => {
+    const type = shopType?.toLowerCase();
+    if (type === "franchise") return "🏬";
+    if (type === "other_shop") return "🛍️";
+    return "🏪";
+  };
+
+  const getShopTypeLabel = (shopType) => {
+    const type = shopType?.toLowerCase();
+    if (type === "franchise") return "Franchise Shop";
+    if (type === "other_shop") return "Other Shop";
+    return "Other Shop";
+  };
+
+  const getAssignTypeLabel = () => {
+    if (invoiceData.assign_type === "shop") return "Shop";
+    return "GrowTag Account";
+  };
+
+  const getSelectedDisplayText = () => {
+    if (!invoiceData.assign_id) return "";
+    if (invoiceData.assign_type === "shop") {
+      const shop = shops.find((s) => s.id === invoiceData.assign_id);
+      if (shop) {
+        const icon = getShopIcon(shop.shop_type);
+        const typeLabel = getShopTypeLabel(shop.shop_type);
+        return `${icon} ${shop.shopname} (${typeLabel})`;
+      }
+    } else {
+      const growtag = growtags.find((g) => g.id === invoiceData.assign_id);
+      if (growtag) {
+        return `🏷️ ${growtag.name}`;
+      }
+    }
+    return "";
+  };
+
+  // Click outside handler for assign dropdown
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        assignDropdownRef.current &&
+        !assignDropdownRef.current.contains(event.target)
+      ) {
+        setShowAssignDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   useEffect(() => {
     if (!role) return;
 
@@ -1337,6 +1262,7 @@ const Invoice = () => {
       assign_type: role === "GROWTAG" ? "growtag" : "shop",
     }));
   }, [role]);
+
   const filteredAssignOptions = useMemo(() => {
     let options = [];
 
@@ -1365,6 +1291,7 @@ const Invoice = () => {
   const canCreate = canAccess(role, PERMISSIONS.invoice.create);
   const canEdit = canAccess(role, PERMISSIONS.invoice.edit);
   const canDelete = canAccess(role, PERMISSIONS.invoice.delete);
+
   if (!canView) {
     return (
       <div className="p-10 text-center text-red-500 font-semibold">
@@ -1831,17 +1758,13 @@ const Invoice = () => {
         customer_state: customer?.state || "Kerala",
         customer_city: customer?.area || customer?.city || "",
         customer_pincode: customer?.pincode || "",
-
-        // ⭐ ADD THIS
-        invoice_number: generateInvoiceNumber(),
-        invoice_date: new Date().toISOString().split("T")[0],
         status: "SENT",
       }));
 
       setCurrentScreen("form");
       setEditIndex(null);
 
-      // ⭐ Prevent duplicate prefill
+      // Prevent duplicate prefill
       navigate(location.pathname, { replace: true });
     }
   }, [complaintData, customers, invoices]);
@@ -1907,7 +1830,7 @@ const Invoice = () => {
 
       navigate(location.pathname, { replace: true });
     }
-  }, [quotationData, customers, invoices]); // ⭐ FIX
+  }, [quotationData, customers, invoices]);
 
   // Validate form
   const validateForm = () => {
@@ -2410,11 +2333,79 @@ const Invoice = () => {
     setEditIndex(null);
     setInvoiceData(initialInvoiceState);
     setErrors({});
+    setAssignSearchTerm("");
+    setShowAssignDropdown(false);
   };
 
   // Handle login redirect
   const handleLogin = () => {
     navigate("/login");
+  };
+
+  // ===== FIXED: New Invoice with async data loading =====
+  const handleNewInvoice = async () => {
+    if (isLoading) {
+      toast.error("Invoices still loading...");
+      return;
+    }
+
+    // Show loading toast while fetching data
+    const loadingToast = toast.loading("Loading data...");
+
+    try {
+      // Ensure items are loaded first
+      if (!items.length) {
+        await fetchItems();
+      }
+
+      // Ensure customers are loaded
+      if (!customers.length) {
+        await fetchCustomers();
+      }
+
+      // Ensure shops/growtags are loaded if needed
+      if (role === "ADMIN" || role === "GROWTAG") {
+        if (!growtags.length) {
+          await fetchGrowtags();
+        }
+      }
+
+      if (role === "ADMIN" || role === "FRANCHISE" || role === "OTHERSHOP") {
+        if (!shops.length) {
+          await fetchShops();
+        }
+      }
+
+      // Set initial form data with generated invoice number
+      setInvoiceData({
+        ...initialInvoiceState,
+        invoice_number: generateInvoiceNumber(),
+        items: [
+          {
+            item_id: null,
+            item_name: "",
+            qty: 1,
+            rate: 0,
+            description: "",
+            service_charge_type: "AMOUNT",
+            service_charge_value: 0,
+            service_charge_amount: 0,
+            gst_treatment: "GST_5",
+          },
+        ],
+      });
+
+      // Open the form modal
+      setCurrentScreen("form");
+      setEditIndex(null);
+
+      toast.dismiss(loadingToast);
+    } catch (error) {
+      console.error("Error loading data for new invoice:", error);
+      toast.error("Failed to load required data. Please try again.", {
+        id: loadingToast,
+      });
+    }
   };
 
   // Filter invoices
@@ -2489,6 +2480,7 @@ const Invoice = () => {
         <InvoiceViewModal
           invoice={selectedInvoiceForView}
           customers={customers}
+          canEdit={canEdit}
           onClose={() => {
             setViewModalOpen(false);
             setSelectedInvoiceForView(null);
@@ -2526,32 +2518,7 @@ const Invoice = () => {
               )}
               {canCreate && (
                 <button
-                  onClick={() => {
-                    if (isLoading) {
-                      toast.error("Invoices still loading...");
-                      return;
-                    }
-
-                    setInvoiceData({
-                      ...initialInvoiceState,
-                      invoice_number: generateInvoiceNumber(),
-                      items: [
-                        {
-                          item_id: null,
-                          item_name: "",
-                          qty: 1,
-                          rate: 0,
-                          description: "",
-                          service_charge_type: "AMOUNT",
-                          service_charge_value: 0,
-                          service_charge_amount: 0,
-                          gst_treatment: "GST_5",
-                        },
-                      ],
-                    });
-
-                    setCurrentScreen("form");
-                  }}
+                  onClick={handleNewInvoice}
                   className="w-full sm:w-auto bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2"
                 >
                   <Plus size={18} /> New Invoice
@@ -2985,82 +2952,158 @@ const Invoice = () => {
                 </select>
               </div>
 
-              {/* Unified Assign Field */}
-              <div className="col-span-1">
-                <label className="block text-sm font-medium mb-1">
+              {/* Unified Assign Field with Search */}
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Assign To
                 </label>
                 <div className="flex gap-2">
                   <select
                     value={invoiceData.assign_type}
-                    onChange={(e) =>
+                    onChange={(e) => {
                       setInvoiceData({
                         ...invoiceData,
                         assign_type: e.target.value,
                         assign_id: null,
                         assign_name: "",
-                      })
-                    }
-                    className="w-1/3 px-3 py-2 border rounded-lg bg-gray-50"
+                      });
+                      setAssignSearchTerm("");
+                      setShowAssignDropdown(false);
+                    }}
+                    className="w-36 px-3 py-2 border rounded-lg bg-gray-50"
                   >
                     {filteredAssignOptions.map((opt) => (
                       <option key={opt.value} value={opt.value}>
-                        {opt.label}
+                        {opt.value === "shop" ? "🏪 Shop" : "🏷️ GrowTag"}
                       </option>
                     ))}
                   </select>
-                  <select
-                    value={invoiceData.assign_id || ""}
-                    onChange={(e) => {
-                      const id = e.target.value
-                        ? parseInt(e.target.value)
-                        : null;
-                      const item =
-                        invoiceData.assign_type === "shop"
-                          ? shops.find((s) => s.id === id)
-                          : growtags.find((g) => g.id === id);
 
-                      setInvoiceData({
-                        ...invoiceData,
-                        assign_id: id,
-                        assign_name: item?.shopname || item?.name || "",
-                      });
-                    }}
-                    className="w-2/3 px-3 py-2 border rounded-lg"
-                  >
-                    <option value="">None</option>
+                  {/* CUSTOM SEARCHABLE DROPDOWN */}
+                  <div className="relative flex-1" ref={assignDropdownRef}>
+                    {/* Dropdown Trigger Button */}
+                    <button
+                      type="button"
+                      onClick={() => setShowAssignDropdown(!showAssignDropdown)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-left flex items-center justify-between hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <span
+                        className={
+                          invoiceData.assign_id
+                            ? "text-gray-900"
+                            : "text-gray-400"
+                        }
+                      >
+                        {invoiceData.assign_id
+                          ? getSelectedDisplayText()
+                          : `-- Select ${getAssignTypeLabel()} --`}
+                      </span>
+                      <ChevronDown size={16} className="text-gray-400" />
+                    </button>
 
-                    {invoiceData.assign_type === "shop" &&
-                      role !== "GROWTAG" && // ❌ hide shop for growtag login
-                      shops.map((shop) => {
-                        const shopType = shop.shop_type?.toLowerCase();
+                    {/* Dropdown Menu */}
+                    {showAssignDropdown && (
+                      <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-80 overflow-hidden">
+                        {/* Search Input */}
+                        <div className="p-2 border-b border-gray-200">
+                          <div className="relative">
+                            <Search
+                              size={14}
+                              className="absolute left-3 top-2.5 text-gray-400"
+                            />
+                            <input
+                              type="text"
+                              placeholder={`Search ${getAssignTypeLabel()}...`}
+                              value={assignSearchTerm}
+                              onChange={(e) =>
+                                setAssignSearchTerm(e.target.value)
+                              }
+                              className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              autoFocus
+                            />
+                          </div>
+                        </div>
 
-                        const icon =
-                          shopType === "franchise"
-                            ? "🏬"
-                            : shopType === "other_shop"
-                              ? "🛍️"
-                              : "🏪";
-
-                        return (
-                          <option key={shop.id} value={shop.id}>
-                            {icon}{" "}
-                            {shop.shop_type?.replace("_", " ").toUpperCase()} —{" "}
-                            {shop.shopname}
-                          </option>
-                        );
-                      })}
-
-                    {invoiceData.assign_type === "growtag" &&
-                      role !== "FRANCHISE" &&
-                      role !== "OTHERSHOP" && // ❌ hide growtag for franchise & other shop
-                      growtags.map((gt) => (
-                        <option key={gt.id} value={gt.id}>
-                          🏷️ Growtag — {gt.name}
-                        </option>
-                      ))}
-                  </select>
+                        {/* Options List */}
+                        <div className="overflow-y-auto max-h-64">
+                          {getFilteredAssignItems().length === 0 ? (
+                            <div className="px-3 py-2 text-sm text-gray-500 text-center">
+                              No {getAssignTypeLabel().toLowerCase()} found
+                            </div>
+                          ) : (
+                            getFilteredAssignItems().map((item) => {
+                              if (invoiceData.assign_type === "shop") {
+                                const icon = getShopIcon(item.shop_type);
+                                const typeLabel = getShopTypeLabel(
+                                  item.shop_type,
+                                );
+                                return (
+                                  <button
+                                    key={item.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setInvoiceData({
+                                        ...invoiceData,
+                                        assign_id: item.id,
+                                        assign_name: item.shopname,
+                                      });
+                                      setShowAssignDropdown(false);
+                                      setAssignSearchTerm("");
+                                    }}
+                                    className="w-full px-3 py-2 text-left hover:bg-blue-50 transition-colors flex items-center gap-2"
+                                  >
+                                    <span className="text-lg">{icon}</span>
+                                    <div className="flex-1">
+                                      <div className="text-sm font-medium text-gray-900">
+                                        {item.shopname}
+                                      </div>
+                                      <div className="text-xs text-gray-500">
+                                        {typeLabel}
+                                      </div>
+                                    </div>
+                                  </button>
+                                );
+                              } else {
+                                return (
+                                  <button
+                                    key={item.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setInvoiceData({
+                                        ...invoiceData,
+                                        assign_id: item.id,
+                                        assign_name: item.name,
+                                      });
+                                      setShowAssignDropdown(false);
+                                      setAssignSearchTerm("");
+                                    }}
+                                    className="w-full px-3 py-2 text-left hover:bg-blue-50 transition-colors flex items-center gap-2"
+                                  >
+                                    <span className="text-lg">🏷️</span>
+                                    <div className="flex-1">
+                                      <div className="text-sm font-medium text-gray-900">
+                                        {item.name}
+                                      </div>
+                                      <div className="text-xs text-gray-500"></div>
+                                    </div>
+                                  </button>
+                                );
+                              }
+                            })
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
+
+                {/* Show selected item info */}
+                {invoiceData.assign_id && (
+                  <div className="mt-2 text-xs text-green-600 bg-green-50 p-2 rounded-md flex items-center gap-1">
+                    <span>✓</span>
+                    <span>Assigned to: {getSelectedDisplayText()}</span>
+                  </div>
+                )}
               </div>
 
               <div className="col-span-1">
@@ -3239,27 +3282,21 @@ const Invoice = () => {
                       <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600">
                         Item
                       </th>
-
                       <th className="px-4 py-2 text-center text-xs font-semibold text-gray-600">
                         Qty
                       </th>
-
                       <th className="px-4 py-2 text-center text-xs font-semibold text-gray-600">
                         Rate (₹)
                       </th>
-
                       <th className="px-4 py-2 text-center text-xs font-semibold text-gray-600">
                         Service Charge
                       </th>
-
                       <th className="px-4 py-2 text-center text-xs font-semibold text-gray-600">
                         GST %
                       </th>
-
                       <th className="px-4 py-2 text-right text-xs font-semibold text-gray-600">
                         Amount
                       </th>
-
                       <th className="px-4 py-2 text-center text-xs font-semibold text-gray-600">
                         Action
                       </th>
@@ -3292,14 +3329,17 @@ const Invoice = () => {
                           </td>
                           <td className="px-4 py-2">
                             <input
-                              type="number"
+                              type="text"
+                              inputMode="numeric"
                               value={item.qty || ""}
-                              onChange={(e) =>
-                                updateItem(index, "qty", e.target.value)
-                              }
+                              onChange={(e) => {
+                                const formattedValue =
+                                  removeLeadingZerosFromNumeric(e.target.value);
+                                updateItem(index, "qty", formattedValue);
+                              }}
                               onBlur={(e) => {
                                 const numValue =
-                                  parseFloat(e.target.value) || 0;
+                                  parseFloat(e.target.value) || 1;
                                 if (numValue !== item.qty) {
                                   updateItem(index, "qty", numValue);
                                 }
@@ -3315,11 +3355,14 @@ const Invoice = () => {
                           </td>
                           <td className="px-4 py-2">
                             <input
-                              type="number"
+                              type="text"
+                              inputMode="decimal"
                               value={item.rate || ""}
-                              onChange={(e) =>
-                                updateItem(index, "rate", e.target.value)
-                              }
+                              onChange={(e) => {
+                                const formattedValue =
+                                  removeLeadingZerosFromNumeric(e.target.value);
+                                updateItem(index, "rate", formattedValue);
+                              }}
                               onBlur={(e) => {
                                 const numValue =
                                   parseFloat(e.target.value) || 0;
@@ -3340,15 +3383,31 @@ const Invoice = () => {
                           <td className="px-4 py-2">
                             <div className="flex items-center border rounded-lg overflow-hidden w-[200px] bg-white">
                               <input
-                                type="number"
+                                type="text"
+                                inputMode="decimal"
                                 value={item.service_charge_value || ""}
-                                onChange={(e) =>
+                                onChange={(e) => {
+                                  const formattedValue =
+                                    removeLeadingZerosFromNumeric(
+                                      e.target.value,
+                                    );
                                   updateItem(
                                     index,
                                     "service_charge_value",
-                                    e.target.value,
-                                  )
-                                }
+                                    formattedValue,
+                                  );
+                                }}
+                                onBlur={(e) => {
+                                  const numValue =
+                                    parseFloat(e.target.value) || 0;
+                                  if (numValue !== item.service_charge_value) {
+                                    updateItem(
+                                      index,
+                                      "service_charge_value",
+                                      numValue,
+                                    );
+                                  }
+                                }}
                                 min="0"
                                 placeholder="Service charge"
                                 className="w-[130px] px-3 py-1.5 text-sm text-right outline-none"
@@ -3424,12 +3483,7 @@ const Invoice = () => {
                               className="w-full px-3 py-1.5 border rounded text-sm bg-white"
                             />
                           </td>
-                          <td></td>
-                          <td></td>
-                          <td></td>
-                          <td></td>
-                          <td></td>
-                          <td></td>
+                          <td colSpan="6"></td>
                         </tr>
                       </React.Fragment>
                     ))}
@@ -3513,8 +3567,9 @@ const Invoice = () => {
                         <option value="AMOUNT">₹</option>
                       </select>
                       <input
-                        type="number"
-                        value={invoiceData.discount_value || ""}
+                        type="text"
+                        inputMode="decimal"
+                        value={formatNumberForInput(invoiceData.discount_value)}
                         onChange={(e) => {
                           const formattedValue = removeLeadingZerosFromNumeric(
                             e.target.value,
@@ -3555,8 +3610,11 @@ const Invoice = () => {
                     <span className="text-gray-600">Shipping Charge:</span>
                     <div className="flex items-center gap-2">
                       <input
-                        type="number"
-                        value={invoiceData.shipping_charge || ""}
+                        type="text"
+                        inputMode="decimal"
+                        value={formatNumberForInput(
+                          invoiceData.shipping_charge,
+                        )}
                         onChange={(e) => {
                           const formattedValue = removeLeadingZerosFromNumeric(
                             e.target.value,
@@ -3590,8 +3648,9 @@ const Invoice = () => {
                     <span className="text-gray-600">Adjustment:</span>
                     <div className="flex items-center gap-2">
                       <input
-                        type="number"
-                        value={invoiceData.adjustment || ""}
+                        type="text"
+                        inputMode="decimal"
+                        value={formatNumberForInput(invoiceData.adjustment)}
                         onChange={(e) => {
                           const formattedValue = removeLeadingZerosFromNumeric(
                             e.target.value,
