@@ -1521,6 +1521,13 @@ const Invoice = () => {
     return "";
   };
 
+  // Add this useEffect to capture the quotation ID
+  useEffect(() => {
+    if (location.state?.quotationId) {
+      setQuotationId(location.state.quotationId);
+    }
+  }, [location.state]);
+
   // Click outside handler for assign dropdown
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -2016,7 +2023,6 @@ const Invoice = () => {
 
       setInvoiceData((prev) => ({
         ...prev,
-        invoice_number: generateInvoiceNumber(),
         invoice_date: new Date().toISOString().split("T")[0],
         customer: customer?.id || null,
         customer_phone: customer?.customer_phone || "",
@@ -2037,25 +2043,110 @@ const Invoice = () => {
   }, [complaintData, customers, invoices]);
 
   useEffect(() => {
-    if (quotationData && customers.length > 0 && invoices.length > 0) {
+    // Handle quotation data from quotes page
+    if (quotationData && customers.length > 0) {
       const customer = customers.find((c) => c.id === quotationData.customer);
 
+      // Get items from the quotation
       const quoteItems = quotationData.items || quotationData.lines || [];
 
-      const mappedItems = quoteItems.map((item) => ({
-        item_id: item.item || item.item_id,
-        item_name: item.item_name || "",
-        qty: parseFloat(item.qty || item.quantity) || 1,
-        rate: parseFloat(item.rate) || 0,
-        description: item.description || "",
-        service_charge_type: item.service_charge_type || "AMOUNT",
-        service_charge_value: parseFloat(item.service_charge_value || 0),
-        service_charge_amount: 0,
-        gst_treatment: item.gst_treatment || `GST_${item.gst_rate || 5}`,
-      }));
+      const mappedItems = quoteItems.map((item) => {
+        // Extract GST rate from the item
+        let gstRate = 5; // Default
+        let gstTreatment = "GST_5"; // Default
 
-      setInvoiceData((prev) => ({
-        ...prev,
+        // Check different possible GST fields from the quote
+        if (item.gst_rate) {
+          gstRate = parseFloat(item.gst_rate);
+          // Map numeric GST rate to GST treatment string
+          gstTreatment = `GST_${gstRate}`.replace(/\./g, "_");
+        } else if (item.gst_percent) {
+          gstRate = parseFloat(item.gst_percent);
+          gstTreatment = `GST_${gstRate}`.replace(/\./g, "_");
+        } else if (item.gst_treatment) {
+          // If it's already in the correct format
+          gstTreatment = item.gst_treatment;
+          // Extract rate from treatment string
+          const match = item.gst_treatment.match(/GST_([\d_]+)/);
+          if (match) {
+            gstRate = parseFloat(match[1].replace("_", "."));
+          }
+        }
+
+        // Ensure the GST treatment matches the expected format (e.g., GST_5, GST_18, GST_0_25)
+        // Replace decimal points with underscores for rates like 0.25
+        gstTreatment = `GST_${gstRate.toString().replace(".", "_")}`;
+
+        // Get service charge value from the item
+        let serviceChargeValue = 0;
+        let serviceChargeType = "AMOUNT";
+
+        if (item.service_charge_value) {
+          serviceChargeValue = parseFloat(item.service_charge_value);
+        }
+
+        if (item.service_charge_type) {
+          if (
+            item.service_charge_type === "percentage" ||
+            item.service_charge_type === "PERCENTAGE"
+          ) {
+            serviceChargeType = "PERCENTAGE";
+          } else if (
+            item.service_charge_type === "fixed" ||
+            item.service_charge_type === "AMOUNT"
+          ) {
+            serviceChargeType = "AMOUNT";
+          }
+        }
+
+        return {
+          item_id: item.item || item.item_id,
+          item_name: item.item_name || "",
+          qty: parseFloat(item.qty || item.quantity) || 1,
+          rate: parseFloat(item.rate) || 0,
+          description: item.description || "",
+          service_charge_type: serviceChargeType,
+          service_charge_value: serviceChargeValue,
+          service_charge_amount: 0,
+          gst_treatment: gstTreatment,
+        };
+      });
+
+      // Map discount type
+      let discountType = "PERCENT";
+      if (quotationData.discount_type === "fixed") {
+        discountType = "AMOUNT";
+      } else if (quotationData.discount_type === "percentage") {
+        discountType = "PERCENT";
+      }
+
+      // Map service charge type for the whole invoice
+      let invoiceServiceChargeType = "NONE";
+      let invoiceServiceChargeValue = 0;
+
+      if (quotationData.service_charge_type) {
+        if (
+          quotationData.service_charge_type === "percentage" ||
+          quotationData.service_charge_type === "PERCENTAGE"
+        ) {
+          invoiceServiceChargeType = "PERCENTAGE";
+          invoiceServiceChargeValue = parseFloat(
+            quotationData.service_charge_value || 0,
+          );
+        } else if (
+          quotationData.service_charge_type === "fixed" ||
+          quotationData.service_charge_type === "AMOUNT"
+        ) {
+          invoiceServiceChargeType = "AMOUNT";
+          invoiceServiceChargeValue = parseFloat(
+            quotationData.service_charge_value || 0,
+          );
+        }
+      }
+
+      // Set the invoice form data
+      setInvoiceData({
+        ...initialInvoiceState,
         customer: customer?.id || null,
         customer_phone: customer?.customer_phone || "",
         customer_email: customer?.email || "",
@@ -2064,23 +2155,25 @@ const Invoice = () => {
         customer_city: customer?.area || customer?.city || "",
         customer_pincode: customer?.pincode || "",
 
-        invoice_number: generateInvoiceNumber(),
+        invoice_number: "", // Will be generated by backend
         invoice_date: new Date().toISOString().split("T")[0],
-        due_date: quotationData.expiry_date || "",
+        due_date:
+          quotationData.expiry_date ||
+          new Date(new Date().setDate(new Date().getDate() + 7))
+            .toISOString()
+            .split("T")[0],
         status: "SENT",
 
         items: mappedItems,
 
-        discount_type: quotationData.discount_type || "PERCENT",
+        discount_type: discountType,
         discount_value: parseFloat(quotationData.discount_value || 0),
 
         shipping_charge: parseFloat(quotationData.shipping_charge || 0),
         adjustment: parseFloat(quotationData.adjustment || 0),
 
-        service_charge_type: quotationData.service_charge_type || "NONE",
-        service_charge_value: parseFloat(
-          quotationData.service_charge_value || 0,
-        ),
+        service_charge_type: invoiceServiceChargeType,
+        service_charge_value: invoiceServiceChargeValue,
 
         terms_conditions: quotationData.terms_conditions || "",
         notes: quotationData.notes || "",
@@ -2088,16 +2181,20 @@ const Invoice = () => {
         amount_paid: 0,
         balance_due: 0,
         payments: [],
-      }));
+      });
 
+      // Open the form modal
       setCurrentScreen("form");
       setEditIndex(null);
 
-      toast.success("Quotation converted to invoice");
+      toast.success(
+        "Quote data loaded. Please verify GST rates and other details.",
+      );
 
+      // Clear location state to prevent reload
       navigate(location.pathname, { replace: true });
     }
-  }, [quotationData, customers, invoices]);
+  }, [quotationData, customers, location.pathname, navigate]);
 
   // Validate form
   const validateForm = () => {
@@ -2256,18 +2353,31 @@ const Invoice = () => {
     try {
       const apiData = transformToAPIFormat();
 
+      let invoiceResponse;
       if (editIndex !== null && invoiceData.id) {
-        await axiosInstance.put(
+        // Update existing invoice
+        invoiceResponse = await axiosInstance.put(
           `/zoho/local-invoices/${invoiceData.id}/`,
           apiData,
         );
       } else {
-        const res = await axiosInstance.post("/zoho/local-invoices/", apiData);
+        // Create new invoice
+        invoiceResponse = await axiosInstance.post(
+          "/zoho/local-invoices/",
+          apiData,
+        );
 
+        // If this invoice was created from a quotation, update the quotation status
         if (quotationId) {
-          await axiosInstance.patch(`/zoho/quotations/${quotationId}/`, {
-            status: "CONVERTED",
-          });
+          try {
+            await axiosInstance.patch(`/zoho/quotations/${quotationId}/`, {
+              status: "CONVERTED",
+            });
+            toast.success("Quotation marked as converted");
+          } catch (error) {
+            console.error("Error updating quote status:", error);
+            // Don't fail the invoice creation if quote update fails
+          }
         }
       }
 

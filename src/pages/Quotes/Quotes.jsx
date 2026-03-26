@@ -1220,21 +1220,36 @@ const Quotes = () => {
 
   const handleConvertToInvoice = async (quotation) => {
     try {
+      // Fetch the detailed quotation data
       const response = await axiosInstance.get(
         `/zoho/quotations/${quotation.id}/`,
       );
-
       const detailedQuote = response.data;
 
+      // Ensure GST rates are properly formatted in the items
+      if (detailedQuote.items) {
+        detailedQuote.items = detailedQuote.items.map((item) => ({
+          ...item,
+          // Ensure gst_rate is a number
+          gst_rate: parseFloat(item.gst_rate || item.gst_percent || 0),
+          // Ensure gst_treatment is in the correct format
+          gst_treatment:
+            item.gst_treatment ||
+            `GST_${item.gst_rate || item.gst_percent || 5}`.replace(/\./g, "_"),
+        }));
+      }
+
+      // Navigate to invoice page with quotation data and ID
       navigate("/invoice", {
         state: {
           quotationData: detailedQuote,
           quotationId: quotation.id,
+          fromQuote: true,
         },
       });
     } catch (error) {
       console.error("Convert error:", error);
-      toast.error("Failed to load quotation");
+      toast.error("Failed to load quotation data");
     }
   };
 

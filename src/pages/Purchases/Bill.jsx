@@ -1,5 +1,11 @@
 // src/pages/Purchases/Bill.jsx
-import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  useCallback,
+} from "react";
 import {
   X,
   Plus,
@@ -152,7 +158,13 @@ const SearchableVendorSelect = ({
 };
 
 // Searchable Item Select Component for table rows
-const SearchableItemSelect = ({ items, value, onChange, disabled = false, index }) => {
+const SearchableItemSelect = ({
+  items,
+  value,
+  onChange,
+  disabled = false,
+  index,
+}) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [isOpen, setIsOpen] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({
@@ -215,7 +227,7 @@ const SearchableItemSelect = ({ items, value, onChange, disabled = false, index 
   // Helper function to format price safely
   const formatPrice = (price) => {
     if (price === null || price === undefined) return "0.00";
-    const numPrice = typeof price === 'string' ? parseFloat(price) : price;
+    const numPrice = typeof price === "string" ? parseFloat(price) : price;
     return isNaN(numPrice) ? "0.00" : numPrice.toFixed(2);
   };
 
@@ -237,8 +249,8 @@ const SearchableItemSelect = ({ items, value, onChange, disabled = false, index 
           }
           style={{ maxWidth: "calc(100% - 20px)" }}
         >
-          {selectedItem 
-            ? `${selectedItem.name} - ₹${formatPrice(selectedItem.selling_price)}` 
+          {selectedItem
+            ? `${selectedItem.name} - ₹${formatPrice(selectedItem.selling_price)}`
             : "Select Item"}
         </span>
         <ChevronDown size={14} className="text-gray-400 flex-shrink-0 ml-1" />
@@ -910,7 +922,7 @@ const ViewBillModal = ({
                     <th className="px-3 sm:px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
                       Amount
                     </th>
-                   </tr>
+                  </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {formData.items && formData.items.length > 0 ? (
@@ -944,7 +956,10 @@ const ViewBillModal = ({
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="5" className="px-3 sm:px-4 py-3 text-center text-gray-500">
+                      <td
+                        colSpan="5"
+                        className="px-3 sm:px-4 py-3 text-center text-gray-500"
+                      >
                         No items added
                       </td>
                     </tr>
@@ -1199,7 +1214,7 @@ const Bill = () => {
     fetchItems();
     fetchBills();
   }, []);
-  
+
   useEffect(() => {
     if (selectedBill) {
       setPaymentForm({
@@ -1211,7 +1226,7 @@ const Bill = () => {
       setPaymentErrors({});
     }
   }, [selectedBill?.id]);
-  
+
   useEffect(() => {
     if (!role) return;
     setFormData((prev) => ({
@@ -1224,12 +1239,12 @@ const Bill = () => {
 
   const toggleRow = (index) =>
     setExpandedRows((prev) => ({ ...prev, [index]: !prev[index] }));
-  
+
   const handleSelectAll = (checked) => {
     setSelectAll(checked);
     setSelectedBills(checked ? filteredBills.map((bill) => bill.id) : []);
   };
-  
+
   const handleSelectBill = (billId, checked) => {
     setSelectedBills((prev) =>
       checked ? [...prev, billId] : prev.filter((id) => id !== billId),
@@ -1572,7 +1587,7 @@ const Bill = () => {
     }));
     if (errors.owner_type) setErrors((prev) => ({ ...prev, owner_type: "" }));
   };
-  
+
   const handleVendorChange = (vendorId) => {
     const vendor = vendors.find((v) => v.id === parseInt(vendorId));
     if (vendor) {
@@ -1598,12 +1613,12 @@ const Bill = () => {
       }));
     }
   };
-  
+
   const handleShopSelect = (shopId) => {
     setFormData({ ...formData, shop: shopId });
     if (errors.shop) setErrors((prev) => ({ ...prev, shop: "" }));
   };
-  
+
   const handleGrowtagSelect = (growtagId) => {
     setFormData({ ...formData, growtag: growtagId });
     if (errors.growtag) setErrors((prev) => ({ ...prev, growtag: "" }));
@@ -1696,7 +1711,7 @@ const Bill = () => {
         },
       ],
     }));
-    
+
   const removeItem = (index) => {
     if (formData.items.length === 1) {
       toast.error("At least one item is required");
@@ -1712,7 +1727,7 @@ const Bill = () => {
     );
     setFormData((prev) => ({ ...prev, items: newItems, ...totals }));
   };
-  
+
   const handleChargesChange = (field, value) => {
     const newValue = parseFloat(removeLeadingZerosFromNumeric(value)) || 0;
     const totals = calculateTotals(
@@ -1725,7 +1740,7 @@ const Bill = () => {
     setFormData((prev) => ({ ...prev, [field]: newValue, ...totals }));
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: "" }));
   };
-  
+
   const closePaymentModal = () => {
     setShowPaymentModal(false);
     setSelectedBill(null);
@@ -2271,7 +2286,7 @@ const Bill = () => {
     setSelectedBill(bill);
     setShowPaymentModal(true);
   };
-  
+
   const downloadBillPDF = async (billId) => {
     const loadingToast = toast.loading("Loading PDF...");
     try {
@@ -2300,7 +2315,7 @@ const Bill = () => {
     setFilterStatus("");
     setFilterPaymentStatus("");
   };
-  
+
   const filteredBills = bills.filter((bill) => {
     const matchesSearch =
       (bill.bill_number?.toLowerCase() || "").includes(
@@ -2643,12 +2658,15 @@ const Bill = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Actions
                   </th>
-                 </tr>
+                </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {isLoading ? (
                   <tr>
-                    <td colSpan="11" className="px-6 py-8 text-center text-gray-500">
+                    <td
+                      colSpan="11"
+                      className="px-6 py-8 text-center text-gray-500"
+                    >
                       <div className="flex items-center justify-center gap-2">
                         <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
                         <span>Loading bills...</span>
@@ -2657,7 +2675,10 @@ const Bill = () => {
                   </tr>
                 ) : filteredBills.length === 0 ? (
                   <tr>
-                    <td colSpan="11" className="px-6 py-8 text-center text-gray-500">
+                    <td
+                      colSpan="11"
+                      className="px-6 py-8 text-center text-gray-500"
+                    >
                       No bills found. Create your first one!
                     </td>
                   </tr>
@@ -2800,10 +2821,12 @@ const Bill = () => {
                   </h4>
                   <p className="text-xs sm:text-sm text-blue-700">
                     <span className="font-medium">Required:</span> Vendor,
-                    Owner, Bill Date, Due Date, Bill To Address, Items (with Qty & Rate)
+                    Owner, Bill Date, Due Date, Bill To Address, Items (with Qty
+                    & Rate)
                   </p>
                   <p className="text-xs sm:text-sm text-blue-700 mt-1">
-                    <span className="font-medium">Note:</span> Bill number is auto-generated by the system
+                    <span className="font-medium">Note:</span> Bill number is
+                    auto-generated by the system
                   </p>
                 </div>
               </div>
@@ -3164,7 +3187,7 @@ const Bill = () => {
                                   {errors[`item_${index}_name`]}
                                 </p>
                               )}
-                             </td>
+                            </td>
                             <td className="px-3 py-2">
                               <input
                                 type="text"
@@ -3180,7 +3203,7 @@ const Bill = () => {
                                 placeholder="Description"
                                 className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
                               />
-                             </td>
+                            </td>
                             <td className="px-3 py-2">
                               <select
                                 value={item.account || "Cost of Goods Sold"}
@@ -3200,7 +3223,7 @@ const Bill = () => {
                                   </option>
                                 ))}
                               </select>
-                             </td>
+                            </td>
                             <td className="px-3 py-2">
                               <input
                                 type="text"
@@ -3222,7 +3245,7 @@ const Bill = () => {
                                   {errors[`item_${index}_qty`]}
                                 </p>
                               )}
-                             </td>
+                            </td>
                             <td className="px-3 py-2">
                               <div className="relative">
                                 <span className="absolute left-2 top-2 text-gray-500">
@@ -3253,7 +3276,7 @@ const Bill = () => {
                                   {errors[`item_${index}_rate`]}
                                 </p>
                               )}
-                             </td>
+                            </td>
                             <td className="px-3 py-2">
                               <input
                                 type="text"
@@ -3283,7 +3306,7 @@ const Bill = () => {
                                   {errors[`item_${index}_tax_percent`]}
                                 </p>
                               )}
-                             </td>
+                            </td>
                             <td className="px-3 py-2">
                               <input
                                 type="text"
@@ -3315,10 +3338,10 @@ const Bill = () => {
                                   {errors[`item_${index}_discount_percent`]}
                                 </p>
                               )}
-                             </td>
+                            </td>
                             <td className="px-3 py-2 font-medium text-right text-sm">
                               ₹{item.amount.toFixed(2)}
-                             </td>
+                            </td>
                             {!viewMode && (
                               <td className="px-3 py-2">
                                 <button
@@ -3328,9 +3351,9 @@ const Bill = () => {
                                 >
                                   <Trash2 size={18} />
                                 </button>
-                               </td>
+                              </td>
                             )}
-                           </tr>
+                          </tr>
                           {expandedRows[index] && (
                             <tr className="bg-gray-50">
                               <td
@@ -3366,8 +3389,8 @@ const Bill = () => {
                                     </div>
                                   </div>
                                 </div>
-                               </td>
-                             </tr>
+                              </td>
+                            </tr>
                           )}
                         </React.Fragment>
                       ))
@@ -3378,8 +3401,8 @@ const Bill = () => {
                           className="px-3 py-4 text-center text-gray-500"
                         >
                           No items added. Click "Add Item" to add items.
-                         </td>
-                       </tr>
+                        </td>
+                      </tr>
                     )}
                   </tbody>
                 </table>
