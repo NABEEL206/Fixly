@@ -1,10 +1,11 @@
 import { BASE_URL } from "@/API/BaseURL";
 import React, { useState, useCallback, useEffect } from "react";
-import toast, { Toaster } from "react-hot-toast";
+import toast from "react-hot-toast";
 import { PERMISSIONS } from "@/config/permissions";
 import { canAccess } from "@/utils/canAccess";
 import { useAuth } from "@/auth/AuthContext";
 import axiosInstance from "@/API/axiosInstance";
+
 
 // --- API Endpoints ---
 const COMPLAINT_API = `${BASE_URL}/api/complaints/`;
@@ -439,29 +440,19 @@ export default function CustomerComplaintRegister() {
     const isPincodeValid = validatePincode(pincode);
     const isRequiredValid = validateRequiredFields();
 
-    if (
-      !isRequiredValid ||
-      !isEmailValid ||
-      !isMobileValid ||
-      !isPincodeValid
-    ) {
-      toast.error("Please fix highlighted errors", {
-        position: "top-center",
-      });
-      return;
-    }
 
-    if (!isEmailValid || !isMobileValid || !isPincodeValid) {
-      toast.error("Please correct the highlighted form errors.", {
-        position: "top-center",
-      });
-      return;
-    }
+if (
+  !isRequiredValid ||
+  !isEmailValid ||
+  !isMobileValid ||
+  !isPincodeValid
+) {
+  toast.error("Please fix highlighted errors");
+  return;
+}
 
     if (!assignedType || (!selectedShopId && !selectedGrowTagId)) {
-      toast.error("Please select an assignment type and entity.", {
-        position: "top-center",
-      });
+toast.error("Please select an assignment type and entity.");
       return;
     }
 
@@ -506,9 +497,7 @@ export default function CustomerComplaintRegister() {
     const url = isEdit ? `${COMPLAINT_API}${editComplaint.id}/` : COMPLAINT_API;
     const action = isEdit ? "Update" : "Register";
 
-    const submissionToast = toast.loading(`${action}ing complaint...`, {
-      position: "top-center",
-    });
+const submissionToast = toast.loading("Registering complaint...");
 
     try {
       const res =
@@ -527,13 +516,10 @@ export default function CustomerComplaintRegister() {
         setMyComplaints((prev) => [...prev, resData]);
       }
 
-      toast.success(
-        `Complaint ${isEdit ? "updated" : "registered"} successfully!`,
-        {
-          id: submissionToast,
-          position: "top-center",
-        },
-      );
+toast.success(
+  `Complaint ${isEdit ? "updated" : "registered"} successfully!`,
+  { id: submissionToast }
+);
 
       setOpenForm(false);
       setIsEdit(false);
@@ -541,10 +527,9 @@ export default function CustomerComplaintRegister() {
       resetFormStates();
     } catch (error) {
       console.error("API Submission Error:", error);
-      toast.error(`${action} failed. See console for details.`, {
-        id: submissionToast,
-        position: "top-center",
-      });
+toast.error(`${action} failed. See console for details.`, {
+  id: submissionToast,
+});
     }
   };
 
@@ -627,8 +612,6 @@ export default function CustomerComplaintRegister() {
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
-      {/* 🚨 NEW: Toaster Component */}
-      <Toaster position="top-center" reverseOrder={false} />
 
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         {/* Title */}

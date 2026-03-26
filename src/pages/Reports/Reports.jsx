@@ -187,7 +187,7 @@ const calculateReportTotals = (data, title) => {
 
       return {
         "Total Expenses": formatCurrency(expenseTotal),
-        Count: formatNumber(data.length), // Using formatNumber for count
+        record: formatNumber(data.length), // Using formatNumber for count
       };
 
     case "Total Complaints Report":
@@ -430,7 +430,9 @@ const ExportButton = ({ data, format, filteredData }) => {
       // Table data preparation
       let pdfColumns =
         data.title === "Expense Report"
-          ? data.columns.map((col) => (col === "EXPENSE ID" ? "ID" : col))
+          ? data.columns
+              .filter((col) => col !== "RECEIPT") // ❌ remove RECEIPT
+              .map((col) => (col === "EXPENSE ID" ? "ID" : col))
           : [...data.columns];
 
       let pdfData =
@@ -515,44 +517,15 @@ const ExportButton = ({ data, format, filteredData }) => {
           cellPadding: 6,
           font: "helvetica",
           textColor: [0, 0, 0],
+          halign: "center", // ✅ center all table data
         },
         headStyles: {
           fillColor: [41, 128, 185],
           textColor: 255,
           fontStyle: "bold",
-          halign: "center",
+          halign: "center", // ✅ center header
         },
-        columnStyles: {
-          ...pdfColumns.reduce((acc, col) => {
-            if (
-              [
-                "AMOUNT",
-                "TOTAL AMOUNT",
-                "TOTAL SALES",
-                "TOTAL SALES WITH TAX",
-                "TOTAL TAX AMOUNT",
-                "SHOP (40%)",
-                "GROW TAGS (40%)",
-                "ADMIN (20%)",
-              ].includes(col)
-            ) {
-              acc[col] = { halign: "right" };
-            } else if (
-              [
-                "ID",
-                "CUSTOMER ID",
-                "COMPLAINT ID",
-                "INVOICE NO",
-                "INVOICE COUNT",
-                "COUNT",
-                "EXPENSE ID",
-              ].includes(col)
-            ) {
-              acc[col] = { halign: "center" };
-            }
-            return acc;
-          }, {}),
-        },
+        // ❌ REMOVED columnStyles entirely - no more conditional alignment
         margin: { left: 40, right: 40 },
         didDrawPage: (data) => {
           const pageCount = doc.internal.getNumberOfPages();
@@ -639,9 +612,13 @@ const ReportTable = ({ data, loading }) => {
   }, [data]);
 
   const displayColumns = useMemo(() => {
-    return data.title === "Expense Report"
-      ? data.columns.map((col) => (col === "EXPENSE ID" ? "ID" : col))
-      : data.columns;
+    if (data.title === "Expense Report") {
+      return data.columns
+        .filter((col) => col !== "RECEIPT") // ❌ remove RECEIPT column
+        .map((col) => (col === "EXPENSE ID" ? "ID" : col));
+    }
+
+    return data.columns;
   }, [data]);
 
   const filtered = useMemo(() => {
@@ -908,29 +885,7 @@ const ReportTable = ({ data, loading }) => {
               {displayColumns.map((col) => (
                 <th
                   key={col}
-                  className={`px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wider ${
-                    [
-                      "ID",
-                      "CUSTOMER ID",
-                      "COMPLAINT ID",
-                      "INVOICE NO",
-                      "INVOICE COUNT",
-                      "COUNT",
-                    ].includes(col)
-                      ? "text-center"
-                      : [
-                            "AMOUNT",
-                            "TOTAL AMOUNT",
-                            "TOTAL SALES",
-                            "TOTAL SALES WITH TAX",
-                            "TOTAL TAX AMOUNT",
-                            "SHOP (40%)",
-                            "GROW TAGS (40%)",
-                            "ADMIN (20%)",
-                          ].includes(col)
-                        ? "text-right"
-                        : "text-left"
-                  }`}
+                  className="px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wider text-center"
                 >
                   {col}
                 </th>
@@ -966,13 +921,7 @@ const ReportTable = ({ data, loading }) => {
                   return (
                     <td
                       key={col}
-                      className={`px-4 py-3 text-sm ${
-                        isIdColumn || isCountColumn
-                          ? "text-center"
-                          : isAmountColumn
-                            ? "text-right font-semibold"
-                            : "text-left"
-                      }`}
+                      className="px-4 py-3 text-sm text-center"
                     >
                       {isAmountColumn ? (
                         // Format as currency with ₹ symbol

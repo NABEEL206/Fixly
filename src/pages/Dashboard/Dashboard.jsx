@@ -231,18 +231,17 @@ export default function AdminDashboard() {
     ],
   };
 
+  // Updated: Changed from Line to Bar chart
   const growTagsChart = {
     labels: dashboardData.charts?.growtags_growth?.labels || [],
     datasets: [
       {
         label: "GrowTags",
         data: dashboardData.charts?.growtags_growth?.totals || [],
+        backgroundColor: "rgba(34,197,94,0.8)",
         borderColor: "rgba(34,197,94,1)",
-        backgroundColor: "rgba(34,197,94,0.15)",
-        borderWidth: 3,
-        fill: true,
-        tension: 0.4,
-        pointRadius: 4,
+        borderWidth: 1,
+        borderRadius: 6,
       },
     ],
   };
@@ -587,11 +586,12 @@ export default function AdminDashboard() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            {/* Updated: Changed from Line to Bar chart */}
             <ChartCard
               title="GrowTags Growth"
-              subtitle={`Yearly new GrowTag registrations in ${selectedYear}`}
+              subtitle={`Monthly new GrowTag registrations in ${selectedYear}`}
             >
-              <Line data={growTagsChart} options={lineChartOptions} />
+              <Bar data={growTagsChart} options={chartOptions} />
             </ChartCard>
 
             <ChartCard

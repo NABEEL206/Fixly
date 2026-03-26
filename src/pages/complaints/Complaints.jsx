@@ -1785,21 +1785,43 @@ export default function Complaints() {
               </div>
 
               <div className="mt-6 flex justify-end gap-3">
-                <button
-                  onClick={() => {
-                    handleEdit(selectedComplaint);
-                    setViewModalOpen(false);
-                  }}
-                  className="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600"
-                >
-                  Edit Complaint
-                </button>
-                <button
-                  onClick={() => handleInvoiceClick(selectedComplaint)}
-                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2"
-                >
-                  <FileText size={16} /> Generate Invoice
-                </button>
+                {/* EDIT */}
+                {canEdit && (
+                  <button
+                    onClick={() => {
+                      handleEdit(selectedComplaint);
+                      setViewModalOpen(false);
+                    }}
+                    className="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600"
+                  >
+                    Edit Complaint
+                  </button>
+                )}
+
+                {/* INVOICE */}
+                {canCreate && (
+                  <button
+                    onClick={() => handleInvoiceClick(selectedComplaint)}
+                    className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2"
+                  >
+                    <FileText size={16} /> Generate Invoice
+                  </button>
+                )}
+
+                {/* DELETE (optional if you want inside modal) */}
+                {canDelete && (
+                  <button
+                    onClick={() => {
+                      handleDelete(selectedComplaint.id);
+                      setViewModalOpen(false);
+                    }}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                  >
+                    Delete
+                  </button>
+                )}
+
+                {/* CLOSE (always visible) */}
                 <button
                   onClick={() => setViewModalOpen(false)}
                   className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
@@ -2097,13 +2119,14 @@ export default function Complaints() {
                             <Trash2 size={18} />
                           </button>
                         )}
-                        <button
-                          onClick={() => handleInvoiceClick(c)}
-                          className="p-2 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100 transition-colors"
-                          title="Generate Invoice"
-                        >
-                          <FileText size={18} />
-                        </button>
+{canCreate && (
+  <button
+    onClick={() => handleInvoiceClick(c)}
+    className="text-purple-600 hover:text-purple-800 p-1.5 hover:bg-purple-50 rounded-lg"
+  >
+    <FileText size={16} />
+  </button>
+)}
                       </div>
                     </td>
                   </tr>
@@ -2197,6 +2220,7 @@ export default function Complaints() {
                 )}
 
                 {/* INVOICE (keep always OR restrict if needed) */}
+                {canCreate && (
                 <button
                   onClick={() => handleInvoiceClick(c)}
                   className="flex flex-col items-center justify-center p-2 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 transition-colors"
@@ -2205,6 +2229,7 @@ export default function Complaints() {
                   <FileText size={20} />
                   <span className="text-xs mt-1">Invoice</span>
                 </button>
+                )}
 
                 {/* DELETE */}
                 {canDelete && (

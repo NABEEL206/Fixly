@@ -20,7 +20,8 @@ import {
   Hash,
   CalendarDays,
   ClipboardList,
-  AlertCircle
+  AlertCircle,
+  Filter
 } from 'lucide-react';
 import axiosInstance from "@/API/axiosInstance";
 
@@ -29,7 +30,10 @@ const CustomersDashboard = () => {
   const [error, setError] = useState(null);
   const [dashboardData, setDashboardData] = useState(null);
   const [complaints, setComplaints] = useState([]);
+  const [filteredComplaints, setFilteredComplaints] = useState([]);
   const [selectedComplaint, setSelectedComplaint] = useState(null);
+  const [selectedYear, setSelectedYear] = useState('all');
+  const [years, setYears] = useState([]);
   const [stats, setStats] = useState({
     total: 0,
     pending: 0,
@@ -52,6 +56,11 @@ const CustomersDashboard = () => {
           // Set complaints from recent_complaints
           const recentComplaints = response.data.recent_complaints || [];
           setComplaints(recentComplaints);
+          setFilteredComplaints(recentComplaints);
+          
+          // Set years from API response
+          const availableYears = response.data.years || [];
+          setYears(availableYears);
           
           // Set stats from counts
           setStats({
@@ -71,6 +80,19 @@ const CustomersDashboard = () => {
 
     fetchDashboardData();
   }, []);
+
+  // Filter complaints by year
+  useEffect(() => {
+    if (selectedYear === 'all') {
+      setFilteredComplaints(complaints);
+    } else {
+      const filtered = complaints.filter(complaint => {
+        const complaintYear = complaint.date ? new Date(complaint.date).getFullYear() : null;
+        return complaintYear === parseInt(selectedYear);
+      });
+      setFilteredComplaints(filtered);
+    }
+  }, [selectedYear, complaints]);
 
   const getStatusBadge = (status) => {
     const statusConfig = {
@@ -100,7 +122,7 @@ const CustomersDashboard = () => {
           <div className="flex justify-between items-center p-6 border-b bg-gradient-to-r from-slate-50 to-gray-50">
             <div>
               <h2 className="text-xl font-bold text-gray-800">Complaint Details</h2>
-              <p className="text-sm text-gray-500 mt-1">ID: {complaint.code || complaint.complaint_id}</p>
+              <p className="text-sm text-gray-500 mt-1">ID: {complaint.id}</p>
             </div>
             <button
               onClick={onClose}
@@ -399,19 +421,80 @@ const CustomersDashboard = () => {
           </div>
         </div>
 
+        {/* Year Filter Dashboard */}
+        {years.length > 0 && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-8 p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                <Filter className="w-5 h-5 text-blue-600" />
+                Filter by Year
+              </h3>
+              {selectedYear !== 'all' && (
+                <button
+                  onClick={() => setSelectedYear('all')}
+                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  Clear Filter
+                </button>
+              )}
+            </div>
+            
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={() => setSelectedYear('all')}
+                className={`px-5 py-2.5 rounded-xl font-medium transition-all ${
+                  selectedYear === 'all'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-200'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                All Years
+              </button>
+              
+              {years.map((year) => (
+                <button
+                  key={year}
+                  onClick={() => setSelectedYear(year.toString())}
+                  className={`px-5 py-2.5 rounded-xl font-medium transition-all ${
+                    selectedYear === year.toString()
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-200'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {year}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Recent Complaints */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
-            <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-              <ClipboardList className="w-5 h-5 text-blue-600" />
-              Recent Complaints
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                <ClipboardList className="w-5 h-5 text-blue-600" />
+                Recent Complaints
+                {selectedYear !== 'all' && (
+                  <span className="text-sm font-normal text-gray-500 ml-2">
+                    ({selectedYear})
+                  </span>
+                )}
+              </h3>
+              <span className="text-sm text-gray-500">
+                Showing {filteredComplaints.length} complaints
+              </span>
+            </div>
           </div>
           
-          {complaints.length === 0 ? (
+          {filteredComplaints.length === 0 ? (
             <div className="text-center py-12">
               <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500">No complaints found</p>
+              <p className="text-gray-500">
+                {selectedYear !== 'all' 
+                  ? `No complaints found for ${selectedYear}` 
+                  : 'No complaints found'}
+              </p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -458,10 +541,10 @@ const CustomersDashboard = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {complaints.map((complaint) => (
+                  {filteredComplaints.map((complaint) => (
                     <tr key={complaint.id} className="hover:bg-gray-50 transition">
                       <td className="px-6 py-4">
-                        <span className="text-sm font-mono font-medium text-blue-600">{complaint.code}</span>
+                        <span className="text-sm font-mono font-medium text-blue-600">#{complaint.id}</span>
                       </td>
                       <td className="px-6 py-4">
                         <span className="text-sm text-gray-600">

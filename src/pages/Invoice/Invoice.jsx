@@ -2742,14 +2742,24 @@ const Invoice = () => {
         await fetchCustomers();
       }
 
-      // Ensure shops/growtags are loaded if needed
-      if (role === "ADMIN" || role === "GROWTAG") {
+      // IMPORTANT: Fetch growtags for GROWTAG users
+      if (role === "GROWTAG") {
         if (!growtags.length) {
           await fetchGrowtags();
         }
       }
 
-      if (role === "ADMIN" || role === "FRANCHISE" || role === "OTHERSHOP") {
+      // Ensure shops/growtags are loaded if needed
+      if (role === "ADMIN") {
+        if (!growtags.length) {
+          await fetchGrowtags();
+        }
+        if (!shops.length) {
+          await fetchShops();
+        }
+      }
+
+      if (role === "FRANCHISE" || role === "OTHERSHOP") {
         if (!shops.length) {
           await fetchShops();
         }
@@ -2759,6 +2769,8 @@ const Invoice = () => {
       setInvoiceData({
         ...initialInvoiceState,
         invoice_number: "", // Backend will generate this
+        // For GROWTAG users, set assign_type to "growtag" by default
+        assign_type: role === "GROWTAG" ? "growtag" : "shop",
         items: [
           {
             item_id: null,
