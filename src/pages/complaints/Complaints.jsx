@@ -2119,14 +2119,14 @@ export default function Complaints() {
                             <Trash2 size={18} />
                           </button>
                         )}
-{canCreate && (
-  <button
-    onClick={() => handleInvoiceClick(c)}
-    className="text-purple-600 hover:text-purple-800 p-1.5 hover:bg-purple-50 rounded-lg"
-  >
-    <FileText size={16} />
-  </button>
-)}
+                        {canCreate && (
+                          <button
+                            onClick={() => handleInvoiceClick(c)}
+                            className="text-purple-600 hover:text-purple-800 p-1.5 hover:bg-purple-50 rounded-lg"
+                          >
+                            <FileText size={16} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -2221,14 +2221,14 @@ export default function Complaints() {
 
                 {/* INVOICE (keep always OR restrict if needed) */}
                 {canCreate && (
-                <button
-                  onClick={() => handleInvoiceClick(c)}
-                  className="flex flex-col items-center justify-center p-2 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 transition-colors"
-                  title="Invoice"
-                >
-                  <FileText size={20} />
-                  <span className="text-xs mt-1">Invoice</span>
-                </button>
+                  <button
+                    onClick={() => handleInvoiceClick(c)}
+                    className="flex flex-col items-center justify-center p-2 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 transition-colors"
+                    title="Invoice"
+                  >
+                    <FileText size={20} />
+                    <span className="text-xs mt-1">Invoice</span>
+                  </button>
                 )}
 
                 {/* DELETE */}

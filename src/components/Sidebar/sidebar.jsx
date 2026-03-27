@@ -210,11 +210,11 @@ export default function Sidebar({ isOpen, closeSidebar }) {
         label: "Register Complaint",
         icon: <FileWarning size={20} />,
       },
-      {
-        path: "/complaints",
-        label: "My Complaints",
-        icon: <AlertCircle size={20} />,
-      },
+      // {
+      //   path: "/complaints",
+      //   label: "My Complaints",
+      //   icon: <AlertCircle size={20} />,
+      // },
       { path: "/invoice", label: "My Invoices", icon: <Receipt size={20} /> },
       // {
       //   path: "/profile",

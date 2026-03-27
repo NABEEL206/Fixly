@@ -77,7 +77,8 @@ export const AuthProvider = ({ children }) => {
         role: data.user.role,
         shop_type: data.user.shop_type,
         permissions: data.user.permissions || [],
-        is_active: data.user.is_active
+        is_active: data.user.is_active,
+         phone: data.user.customer_phone
       };
 
       localStorage.setItem("user", JSON.stringify(userData));

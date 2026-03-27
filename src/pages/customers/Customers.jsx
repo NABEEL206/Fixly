@@ -298,9 +298,9 @@ export default function CustomerTable() {
   const getUniqueCreatedBy = () => {
     const createdBySet = new Set();
     customers.forEach((cust) => {
-      if (cust.created_by && cust.created_by.username) {
-        createdBySet.add(cust.created_by.username);
-      }
+if (cust.created_by) {
+  createdBySet.add(cust.created_by);
+}
     });
     return Array.from(createdBySet).sort();
   };
@@ -320,7 +320,7 @@ export default function CustomerTable() {
 
     const matchesCreatedBy =
       createdByFilter === "" ||
-      (item.created_by && item.created_by.username === createdByFilter);
+      (item.created_by === createdByFilter);
 
     return matchesSearch && matchesCreatedBy;
   });
@@ -561,7 +561,7 @@ export default function CustomerTable() {
                     </label>
                     <p className="text-base font-medium text-gray-900 bg-white p-3 rounded-lg border border-gray-200 flex items-center gap-2">
                       <UserCircle size={16} className="text-gray-500" />
-                      {selectedCustomerForView.created_by?.username || "System"}
+                      {selectedCustomerForView.created_by || "System"}
                     </p>
                   </div>
                   <div className="space-y-1">

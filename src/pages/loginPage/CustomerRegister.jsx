@@ -17,7 +17,10 @@ import {
   Phone,
   MapPin,
   AlertCircle,
-  ArrowLeft
+  ArrowLeft,
+  Building2,
+  Globe,
+  Locate
 } from "lucide-react";
 
 const REGISTER_API = `${BASE_URL}/api/public/customers/register/`;
@@ -32,6 +35,9 @@ export default function CustomerRegister() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [address, setAddress] = useState("");
+  const [state, setState] = useState("");
+  const [pincode, setPincode] = useState("");
+  const [area, setArea] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState("");
@@ -71,6 +77,13 @@ export default function CustomerRegister() {
       setError("Passwords do not match");
       return false;
     }
+    
+    // Optional: Add pincode validation if provided (6 digits)
+    if (pincode && !/^\d{6}$/.test(pincode)) {
+      setError("Pincode must be 6 digits");
+      return false;
+    }
+    
     return true;
   };
 
@@ -85,19 +98,29 @@ export default function CustomerRegister() {
     try {
       console.log("Sending registration request to:", REGISTER_API);
       
+      // Build request body with optional fields
+      const requestBody = {
+        customer_name: name,
+        email: email,
+        customer_phone: phone,
+        password: password,
+        confirm_password: confirmPassword,
+        address: address,
+      };
+      
+      // Add optional fields only if they have values
+      if (state) requestBody.state = state;
+      if (pincode) requestBody.pincode = pincode;
+      if (area) requestBody.area = area;
+      
+      console.log("Request body:", requestBody);
+      
       const response = await fetch(REGISTER_API, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          customer_name: name,
-          email: email,
-          customer_phone: phone,
-          password: password,
-          confirm_password: confirmPassword,
-          address: address,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       const data = await response.json();
@@ -113,6 +136,12 @@ export default function CustomerRegister() {
           throw new Error(data.customer_phone[0]);
         } else if (data.password) {
           throw new Error(data.password[0]);
+        } else if (data.state) {
+          throw new Error(data.state[0]);
+        } else if (data.pincode) {
+          throw new Error(data.pincode[0]);
+        } else if (data.area) {
+          throw new Error(data.area[0]);
         } else {
           throw new Error(data.message || data.error || "Registration failed");
         }
@@ -282,10 +311,59 @@ export default function CustomerRegister() {
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
                     className="pl-8 py-2 text-sm rounded-lg border-gray-200 focus:border-blue-300 focus:ring-1 focus:ring-blue-200"
-                    placeholder="Address (optional)"
+                    placeholder="Street address (optional)"
                     disabled={isLoading}
                   />
                   <MapPin size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                </div>
+              </div>
+
+              {/* Location fields - State, Pincode, Area */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {/* State Field */}
+                <div className="space-y-1">
+                  <div className="relative">
+                    <Input
+                      type="text"
+                      value={state}
+                      onChange={(e) => setState(e.target.value)}
+                      className="pl-8 py-2 text-sm rounded-lg border-gray-200 focus:border-blue-300 focus:ring-1 focus:ring-blue-200"
+                      placeholder="State (optional)"
+                      disabled={isLoading}
+                    />
+                    <Building2 size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                  </div>
+                </div>
+
+                {/* Pincode Field */}
+                <div className="space-y-1">
+                  <div className="relative">
+                    <Input
+                      type="text"
+                      value={pincode}
+                      onChange={(e) => setPincode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      className="pl-8 py-2 text-sm rounded-lg border-gray-200 focus:border-blue-300 focus:ring-1 focus:ring-blue-200"
+                      placeholder="Pincode (optional)"
+                      maxLength={6}
+                      disabled={isLoading}
+                    />
+                    <Globe size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                  </div>
+                </div>
+
+                {/* Area Field */}
+                <div className="space-y-1">
+                  <div className="relative">
+                    <Input
+                      type="text"
+                      value={area}
+                      onChange={(e) => setArea(e.target.value)}
+                      className="pl-8 py-2 text-sm rounded-lg border-gray-200 focus:border-blue-300 focus:ring-1 focus:ring-blue-200"
+                      placeholder="Area/Locality (optional)"
+                      disabled={isLoading}
+                    />
+                    <Locate size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                  </div>
                 </div>
               </div>
 
