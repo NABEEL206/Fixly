@@ -129,78 +129,6 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
   }, []);
 
   // ----------------------------------------------------------------
-  // API: FETCH PREFILL DATA
-  // ----------------------------------------------------------------
-  const fetchPrefillData = useCallback(async (leadId) => {
-    if (!leadId) return;
-
-    setIsLoadingPrefill(true);
-
-    try {
-      const response = await axiosInstance.get(
-        `/api/leads/${leadId}/complaint_prefill/`,
-      );
-
-      const data = response.data;
-      console.log("Prefill data received:", data);
-
-      // Map the prefill data to form fields
-      setName(data.customer_name || "");
-      setMobile(data.customer_phone || "");
-      setEmail(data.email || "");
-      setModel(data.phone_model || "");
-      setIssue(data.issue_details || "");
-      setIssueCharCount((data.issue_details || "").length);
-      setAddressLine(data.address || "");
-      setPincode(data.pincode || "");
-      setArea(data.area || "");
-      setState(data.state || "");
-
-      // Set default password (this might be handled differently in production)
-      setPassword("default123");
-
-      setPrefillLoaded(true);
-
-      // If we have pincode and area, fetch nearest options
-      if (data.pincode && data.area) {
-        // First, load areas from pincode API
-        try {
-          const pincodeRes = await fetch(
-            `https://api.postalpincode.in/pincode/${data.pincode}`,
-          );
-          const pincodeData = await pincodeRes.json();
-
-          if (pincodeData[0]?.Status === "Success") {
-            const postOffices = pincodeData[0].PostOffice || [];
-            const areaList = postOffices.map((p) => p.Name);
-            setAreas(areaList);
-          }
-        } catch (err) {
-          console.error("Failed to load pincode data", err);
-        }
-
-        // Then fetch nearest options
-        fetchNearestOptions(data.pincode, data.area);
-      }
-    } catch (error) {
-      console.error("Prefill API Error:", error);
-
-      // Network error handled globally by axiosInstance
-      if (!error.response) return;
-
-      if (error.response?.status === 401) {
-        toast.error("Session expired. Please login again.");
-      } else if (error.response?.status === 403) {
-        toast.error("You don't have permission to access this data");
-      } else {
-        toast.error("Failed to load lead data");
-      }
-    } finally {
-      setIsLoadingPrefill(false);
-    }
-  }, []);
-
-  // ----------------------------------------------------------------
   // API: FETCH NEAREST OPTIONS
   // ----------------------------------------------------------------
   const fetchNearestOptions = useCallback(async (pcode, selectedArea) => {
@@ -346,17 +274,37 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
   // ----------------------------------------------------------------
   // INITIALIZE FORM WITH LEAD DATA - Fetch prefill on open
   // ----------------------------------------------------------------
-  useEffect(() => {
-    if (open && leadData) {
-      console.log("Opening modal for lead:", leadData);
+useEffect(() => {
+  if (open && leadData) {
+    resetFormStates();
 
-      // Reset form first
-      resetFormStates();
+    // ✅ START LOADING
+    setIsLoadingPrefill(true);
 
-      // Fetch prefill data from the API
-      fetchPrefillData(leadData.id);
-    }
-  }, [open, leadData, fetchPrefillData, resetFormStates]);
+    // simulate loading (like API)
+    setTimeout(() => {
+      setName(leadData.name || "");
+      setMobile(leadData.phone || "");
+      setEmail(leadData.email || "");
+      setModel(leadData.phoneModel || "");
+      setIssue(leadData.issueDetail || "");
+      setIssueCharCount((leadData.issueDetail || "").length);
+      setAddressLine(leadData.address || "");
+      setPincode(leadData.pincode || "");
+      setArea(leadData.area || "");
+      setState(leadData.state || "");
+
+      setPassword("default123");
+
+      if (leadData.pincode && leadData.area) {
+        fetchNearestOptions(leadData.pincode, leadData.area);
+      }
+
+      // ✅ STOP LOADING
+      setIsLoadingPrefill(false);
+    }, 400); // small delay for UX
+  }
+}, [open, leadData]);
 
   const validateRequiredFields = () => {
     const errors = {};
@@ -491,7 +439,7 @@ const ComplaintRegistrationModal = ({ open, onClose, leadData, onSuccess }) => {
       }
     } else if (assignedType === "growtag") {
       if (selectedGrowTagId) {
-        payload.assigned_Growtags = parseInt(selectedGrowTagId, 10);
+        payload.assigned_growtag = parseInt(selectedGrowTagId, 10);
       }
     }
 

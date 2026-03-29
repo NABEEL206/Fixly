@@ -1,5 +1,5 @@
 // src/pages/Leads/Leads.jsx
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   Eye,
   Edit,
@@ -73,11 +73,13 @@ const Leads = () => {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
+  const isSubmittingRef = useRef(false); // Add ref to track submission state
 
   // UI States
   const [selectedLeads, setSelectedLeads] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("All");
+  const [filterCreatedBy, setFilterCreatedBy] = useState("All");
 
   // Modal States
   const [showNewLeadModal, setShowNewLeadModal] = useState(false);
@@ -110,6 +112,11 @@ const Leads = () => {
   // Location States
   const [areaOptions, setAreaOptions] = useState([]);
   const [loadingArea, setLoadingArea] = useState(false);
+
+  const createdByOptions = [
+    "All",
+    ...new Set(leads.map((lead) => lead.created_by).filter(Boolean)),
+  ];
 
   // ---------- Effects ----------
   useEffect(() => {
@@ -402,7 +409,7 @@ const Leads = () => {
       if (error.message !== "Failed to fetch") {
         toast.error("Unable to fetch location");
       }
-      y;
+      
       setAreaOptions([]);
       setNewLeadData((prev) => ({ ...prev, state: "" }));
       setNewLeadErrors((prev) => ({
@@ -478,9 +485,28 @@ const Leads = () => {
     setLeadModalMode("create");
   };
 
+  const handleCloseLeadModal = () => {
+    if (submitLoading || isSubmittingRef.current) {
+      toast.error("Please wait, operation in progress...");
+      return;
+    }
+    setShowNewLeadModal(false);
+    resetLeadForm();
+  };
+
   // ---------- CRUD Operations ----------
   const handleSaveNewLead = async () => {
-    const allFields = [
+    // Prevent double clicks using ref
+    if (isSubmittingRef.current || submitLoading) {
+      console.log("Already submitting, ignoring click");
+      toast.error("Please wait, previous operation is still in progress");
+      return;
+    }
+
+    console.log("Starting submission...");
+
+    // Create fresh validation without relying on state
+    const requiredFields = [
       "name",
       "phone",
       "email",
@@ -491,19 +517,103 @@ const Leads = () => {
       "area",
     ];
 
-    const newTouched = {};
-    allFields.forEach((f) => (newTouched[f] = true));
-    setTouchedFields(newTouched);
+    let errors = {};
+    let isValid = true;
 
-    if (!validateAllFields()) {
+    requiredFields.forEach((field) => {
+      const value = newLeadData[field];
+
+      if (!value?.trim()) {
+        errors[field] = "This field is required";
+        isValid = false;
+        return;
+      }
+
+      // Field-specific validation
+      switch (field) {
+        case "name":
+          if (!VALIDATION_PATTERNS.name.test(value)) {
+            errors[field] = VALIDATION_MESSAGES.name;
+            isValid = false;
+          }
+          break;
+        case "phone":
+          if (!/^\d+$/.test(value)) {
+            errors[field] = "Phone number must contain only digits";
+            isValid = false;
+          } else if (!VALIDATION_PATTERNS.phone.test(value)) {
+            errors[field] = VALIDATION_MESSAGES.phone;
+            isValid = false;
+          }
+          break;
+        case "email":
+          if (!value.includes("@")) {
+            errors[field] = "Email must contain @ symbol";
+            isValid = false;
+          } else if (!value.includes(".", value.indexOf("@"))) {
+            errors[field] = "Email must have a domain (example@domain.com)";
+            isValid = false;
+          } else if (!VALIDATION_PATTERNS.email.test(value)) {
+            errors[field] = VALIDATION_MESSAGES.email;
+            isValid = false;
+          }
+          break;
+        case "pincode":
+          if (!/^\d+$/.test(value)) {
+            errors[field] = "Pincode must contain only digits";
+            isValid = false;
+          } else if (!VALIDATION_PATTERNS.pincode.test(value)) {
+            errors[field] = VALIDATION_MESSAGES.pincode;
+            isValid = false;
+          }
+          break;
+        case "phoneModel":
+          if (!VALIDATION_PATTERNS.phoneModel.test(value)) {
+            errors[field] = VALIDATION_MESSAGES.phoneModel;
+            isValid = false;
+          }
+          break;
+        case "issueDetail":
+          if (!VALIDATION_PATTERNS.issueDetail.test(value)) {
+            errors[field] = VALIDATION_MESSAGES.issueDetail;
+            isValid = false;
+          }
+          break;
+        case "address":
+          if (!VALIDATION_PATTERNS.address.test(value)) {
+            errors[field] = VALIDATION_MESSAGES.address;
+            isValid = false;
+          }
+          break;
+        case "area":
+          if (!VALIDATION_PATTERNS.area.test(value)) {
+            errors[field] = VALIDATION_MESSAGES.area;
+            isValid = false;
+          }
+          break;
+        default:
+          break;
+      }
+    });
+
+    // Set errors after validation
+    setNewLeadErrors(errors);
+
+    // Also set touched fields to show errors
+    const allTouched = {};
+    requiredFields.forEach(field => {
+      allTouched[field] = true;
+    });
+    setTouchedFields(allTouched);
+
+    if (!isValid) {
       toast.error("Please fix all validation errors");
       return;
     }
 
+    // Set submitting flags
+    isSubmittingRef.current = true;
     setSubmitLoading(true);
-    const toastId = toast.loading(
-      editingLeadId ? "Updating lead..." : "Creating lead...",
-    );
 
     try {
       const payload = {
@@ -519,38 +629,78 @@ const Leads = () => {
         source: "MANUAL",
       };
 
+      let response;
+      let newLead;
+
       if (editingLeadId) {
-        await axiosInstance.put(`${LEADS_API_URL}${editingLeadId}/`, payload);
-        toast.success("Lead updated successfully", { id: toastId });
+        response = await axiosInstance.put(`/api/leads/${editingLeadId}/`, payload);
+        newLead = response.data;
+
+        // UPDATE EXISTING LEAD
+        setLeads((prev) =>
+          prev.map((lead) =>
+            lead.id === editingLeadId
+              ? {
+                  ...lead,
+                  name: newLead.customer_name,
+                  phone: newLead.customer_phone,
+                  email: newLead.email || "",
+                  phoneModel: newLead.phone_model,
+                  address: newLead.address,
+                  pincode: newLead.pincode,
+                  area: newLead.area,
+                  state: newLead.state || "",
+                  issueDetail: newLead.issue_detail,
+                }
+              : lead
+          )
+        );
+        toast.success("Lead updated successfully");
       } else {
-        await axiosInstance.post(LEADS_API_URL, payload);
-        toast.success("Lead created successfully", { id: toastId });
+        response = await axiosInstance.post("/api/leads/", payload);
+        newLead = response.data;
+
+        // CREATE NEW LEAD
+        setLeads((prev) => [
+          {
+            id: newLead.id,
+            leadId: newLead.lead_code,
+            name: newLead.customer_name,
+            phone: newLead.customer_phone,
+            email: newLead.email || "",
+            phoneModel: newLead.phone_model,
+            address: newLead.address,
+            pincode: newLead.pincode,
+            area: newLead.area,
+            state: newLead.state || "",
+            issueDetail: newLead.issue_detail,
+            registrationDate: new Date().toLocaleString(),
+            status: "New",
+            created_by: newLead.created_by || null,
+            source: newLead.source || "MANUAL",
+            created_at: newLead.created_at,
+            complaintId: null,
+          },
+          ...prev,
+        ]);
+        toast.success("Lead created successfully");
       }
 
-      await fetchLeads();
-      setShowNewLeadModal(false);
+      // Reset form first
       resetLeadForm();
+      
+      // Close modal
+      setShowNewLeadModal(false);
+
     } catch (err) {
       console.error("Save lead error:", err);
-
-      if (!err.response) return;
-
-      if (err.response?.status === 401) {
-        toast.error("Session expired. Please login again.", { id: toastId });
-      } else if (err.response?.status === 403) {
-        toast.error("You don't have permission to perform this action", {
-          id: toastId,
-        });
-      } else {
-        const errorMessage =
-          err.response?.data?.detail ||
-          err.response?.data?.message ||
-          (editingLeadId ? "Failed to update lead" : "Failed to create lead");
-
-        toast.error(errorMessage, { id: toastId });
-      }
+      toast.error(err.response?.data?.detail || "Something went wrong");
     } finally {
-      setSubmitLoading(false);
+      // Reset submitting flags after a small delay to ensure everything is cleaned up
+      setTimeout(() => {
+        isSubmittingRef.current = false;
+        setSubmitLoading(false);
+      }, 500);
     }
   };
 
@@ -770,17 +920,17 @@ const Leads = () => {
       const matchesSearch =
         (lead.name || "").toLowerCase().includes(searchLower) ||
         (lead.phone || "").includes(searchTerm) ||
-        (lead.email || "").toLowerCase().includes(searchLower) ||
-        (lead.leadId || "").toLowerCase().includes(searchLower) ||
-        (lead.phoneModel || "").toLowerCase().includes(searchLower) ||
-        (lead.issueDetail || "").toLowerCase().includes(searchLower);
+        (lead.email || "").toLowerCase().includes(searchLower);
 
       const matchesStatus =
         filterStatus === "All" || lead.status === filterStatus;
 
-      return matchesSearch && matchesStatus;
+      const matchesCreatedBy =
+        filterCreatedBy === "All" || lead.created_by === filterCreatedBy;
+
+      return matchesSearch && matchesStatus && matchesCreatedBy;
     });
-  }, [leads, searchTerm, filterStatus]);
+  }, [leads, searchTerm, filterStatus, filterCreatedBy]);
 
   // ---------- Render Helpers ----------
   const getStatusStyle = (status) => {
@@ -816,7 +966,7 @@ const Leads = () => {
         onClick={onClick}
         disabled={loading || disabled}
         className={`relative flex items-center justify-center gap-2 transition-all ${className} ${
-          loading ? "cursor-not-allowed opacity-70" : ""
+          loading || disabled ? "cursor-not-allowed opacity-70" : ""
         }`}
       >
         {loading && <Loader2 size={18} className="animate-spin" />}
@@ -838,10 +988,7 @@ const Leads = () => {
             <span className="font-semibold text-green-600">
               {leads.length} total leads
             </span>
-            <span className="mx-2">•</span>
-            <span className="font-semibold text-blue-600">
-              {filteredLeads.length} filtered
-            </span>
+
           </div>
         </div>
 
@@ -882,6 +1029,18 @@ const Leads = () => {
                 {STATUS_OPTIONS.map((status) => (
                   <option key={status} value={status}>
                     {status}
+                  </option>
+                ))}
+              </select>
+              <span className="text-sm text-gray-700">Created By:</span>
+              <select
+                value={filterCreatedBy}
+                onChange={(e) => setFilterCreatedBy(e.target.value)}
+                className="border p-2 rounded-lg text-sm bg-white"
+              >
+                {createdByOptions.map((cb, index) => (
+                  <option key={index} value={cb}>
+                    {cb}
                   </option>
                 ))}
               </select>
@@ -1461,7 +1620,7 @@ const Leads = () => {
 
         {/* Lead Registration/Edit Modal */}
         {showNewLeadModal && (
-          <div className="fixed inset-0  flex justify-center items-center z-50 p-4">
+          <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-50 p-4">
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
               <div className="flex justify-between items-center p-4 border-b bg-green-50">
                 <h2 className="text-xl font-bold text-green-700 flex items-center gap-2">
@@ -1473,11 +1632,9 @@ const Leads = () => {
                       : "Create New Lead"}
                 </h2>
                 <button
-                  onClick={() => {
-                    setShowNewLeadModal(false);
-                    resetLeadForm();
-                  }}
+                  onClick={handleCloseLeadModal}
                   className="text-gray-500 hover:text-red-600 transition"
+                  disabled={submitLoading}
                 >
                   <X size={24} />
                 </button>
@@ -1846,11 +2003,8 @@ const Leads = () => {
                   {/* Action Buttons */}
                   <div className="flex justify-end gap-3 pt-6 border-t">
                     <button
-                      onClick={() => {
-                        setShowNewLeadModal(false);
-                        resetLeadForm();
-                      }}
-                      className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition"
+                      onClick={handleCloseLeadModal}
+                      className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition disabled:opacity-50 disabled:cursor-not-allowed"
                       disabled={submitLoading}
                     >
                       Cancel
@@ -1863,7 +2017,8 @@ const Leads = () => {
                           type="button"
                           loading={submitLoading}
                           onClick={handleSaveNewLead}
-                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+                          disabled={submitLoading || isSubmittingRef.current}
+                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {editingLeadId ? "Update Lead" : "Create Lead"}
                         </LoadingButton>

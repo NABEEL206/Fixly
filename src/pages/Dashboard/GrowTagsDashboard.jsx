@@ -287,6 +287,7 @@ export default function GrowTagsDashboard() {
           color: 'rgba(0, 0, 0, 0.05)',
         },
         ticks: {
+           precision: 0,
           font: {
             size: 11,
           }
