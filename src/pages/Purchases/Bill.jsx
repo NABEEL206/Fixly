@@ -514,7 +514,7 @@ const PaymentModal = ({
   if (!selectedBill) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
+    <div className="fixed inset-0  bg-opacity-50 flex items-center justify-center p-4 z-[60]">
       <div className="bg-white rounded-xl w-full max-w-md shadow-2xl">
         <div className="px-4 sm:px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-green-50 to-emerald-50">
           <div className="flex items-center justify-between">
@@ -2623,7 +2623,7 @@ const Bill = () => {
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase w-10">
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase w-10">
                     <input
                       type="checkbox"
                       checked={selectAll && filteredBills.length > 0}
@@ -2631,31 +2631,31 @@ const Bill = () => {
                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                     />
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">
                     Bill Number
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">
                     Vendor
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">
                     Bill Date
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">
                     Due Date
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">
                     Status
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">
                     Payment
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">
                     Total
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">
                     Balance
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">
                     Actions
                   </th>
                 </tr>
@@ -2685,7 +2685,7 @@ const Bill = () => {
                 ) : (
                   filteredBills.map((bill) => (
                     <tr key={bill.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
                         <input
                           type="checkbox"
                           checked={selectedBills.includes(bill.id)}
@@ -2695,40 +2695,40 @@ const Bill = () => {
                           className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                         />
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600 text-center">
                         {bill.bill_number}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
                         {bill.vendor_name || "N/A"}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
                         {bill.bill_date}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
                         {bill.due_date}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
                         <span
                           className={`px-2 py-1 text-xs rounded-full ${getStatusColor(bill.status)}`}
                         >
                           {bill.status}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
                         <span
                           className={`px-2 py-1 text-xs rounded-full ${getPaymentStatusColor(bill.payment_status)}`}
                         >
                           {bill.payment_status}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 text-center">
                         ₹{parseFloat(bill.total).toFixed(2)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-red-600">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-red-600 text-center">
                         ₹{parseFloat(bill.balance_due).toFixed(2)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <div className="flex gap-2">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
+                        <div className="flex gap-2 justify-center">
                           {canView && (
                             <button
                               onClick={() => viewBill(bill)}

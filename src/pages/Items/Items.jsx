@@ -974,14 +974,14 @@ export default function Items() {
     <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
       {/* Bulk Delete Bar */}
       {selectedItems.length > 0 && canDelete && (
-        <div className="px-6 py-4 bg-red-50 border-b border-red-200 flex items-center justify-between">
-          <span className="text-sm font-medium text-red-700">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 bg-red-50 border-b border-red-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <span className="text-sm font-medium text-red-700 text-center sm:text-left">
             {selectedItems.length} item{selectedItems.length > 1 ? "s" : ""}{" "}
             selected
           </span>
           <button
             onClick={handleBulkDelete}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors flex items-center gap-2"
+            className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors flex items-center gap-2 w-full sm:w-auto justify-center"
           >
             <Trash2 size={16} />
             Delete Selected
@@ -989,11 +989,12 @@ export default function Items() {
         </div>
       )}
 
-      <div className="overflow-x-auto">
+      {/* Desktop Table View */}
+      <div className="hidden lg:block overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
-              <th className="py-4 px-6 text-left w-12">
+              <th className="py-4 px-6 text-center w-12">
                 <input
                   type="checkbox"
                   onChange={(e) => handleSelectAll(e.target.checked)}
@@ -1007,16 +1008,16 @@ export default function Items() {
               <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                 Item Details
               </th>
-              <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+              <th className="py-4 px-6 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
                 Type
               </th>
-              <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+              <th className="py-4 px-6 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
                 Pricing
               </th>
-              <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+              <th className="py-4 px-6 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
                 Zoho Sync
               </th>
-              <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+              <th className="py-4 px-6 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
                 Actions
               </th>
             </tr>
@@ -1068,11 +1069,9 @@ export default function Items() {
               filteredItems.map((item) => (
                 <tr
                   key={item.id}
-                  className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${
-                    selectedItems.includes(item.id) ? "bg-blue-50" : ""
-                  }`}
+                  className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${selectedItems.includes(item.id) ? "bg-blue-50" : ""}`}
                 >
-                  <td className="py-4 px-6">
+                  <td className="py-4 px-6 text-center">
                     <input
                       type="checkbox"
                       checked={selectedItems.includes(item.id)}
@@ -1105,7 +1104,7 @@ export default function Items() {
                           </div>
                         )}
                       </div>
-                      <div className="min-w-0">
+                      <div>
                         <h4 className="font-medium text-gray-900 text-sm mb-1">
                           {item.name}
                         </h4>
@@ -1118,49 +1117,51 @@ export default function Items() {
                       </div>
                     </div>
                   </td>
-                  <td className="py-4 px-6">
-                    <span
-                      className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                        item.product_type === "goods"
-                          ? "bg-green-100 text-green-700"
-                          : "bg-blue-100 text-blue-700"
-                      }`}
-                    >
-                      {PRODUCT_TYPE_DISPLAY_NAMES[item.product_type] ||
-                        item.product_type}
-                    </span>
-                    <span className="text-xs text-gray-500 block mt-1">
-                      {item.is_sellable ? "Sellable" : "Not Sellable"}
-                    </span>
-                  </td>
-                  <td className="py-4 px-6">
-                    <div className="text-sm font-medium text-gray-900">
-                      Sell: ₹{parseFloat(item.selling_price || 0).toFixed(2)}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      Cost: ₹{parseFloat(item.cost_price || 0).toFixed(2)}
+                  <td className="py-4 px-6 text-center">
+                    <div className="flex flex-col items-center">
+                      <span
+                        className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${item.product_type === "goods" ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"}`}
+                      >
+                        {PRODUCT_TYPE_DISPLAY_NAMES[item.product_type] ||
+                          item.product_type}
+                      </span>
+                      <span className="text-xs text-gray-500 mt-1">
+                        {item.is_sellable ? "Sellable" : "Not Sellable"}
+                      </span>
                     </div>
                   </td>
-                  <td className="py-4 px-6">
-                    {item.zoho_item_id ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded-lg text-xs font-medium">
-                        <Check size={12} />
-                        Synced
-                      </span>
-                    ) : syncStatus[item.id] === "syncing" ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-yellow-100 text-yellow-700 rounded-lg text-xs font-medium">
-                        <Loader2 size={12} className="animate-spin" />
-                        Syncing...
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-700 rounded-lg text-xs font-medium">
-                        <Upload size={12} />
-                        Not Synced
-                      </span>
-                    )}
+                  <td className="py-4 px-6 text-center">
+                    <div className="flex flex-col items-center">
+                      <div className="text-sm font-medium text-gray-900">
+                        Sell: ₹{parseFloat(item.selling_price || 0).toFixed(2)}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        Cost: ₹{parseFloat(item.cost_price || 0).toFixed(2)}
+                      </div>
+                    </div>
                   </td>
-                  <td className="py-4 px-6">
-                    <ActionButtons item={item} />
+                  <td className="py-4 px-6 text-center">
+                    <div className="flex justify-center">
+                      {item.zoho_item_id ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded-lg text-xs font-medium">
+                          <Check size={12} /> Synced
+                        </span>
+                      ) : syncStatus[item.id] === "syncing" ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-yellow-100 text-yellow-700 rounded-lg text-xs font-medium">
+                          <Loader2 size={12} className="animate-spin" />{" "}
+                          Syncing...
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-700 rounded-lg text-xs font-medium">
+                          <Upload size={12} /> Not Synced
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="py-4 px-6 text-center">
+                    <div className="flex justify-center">
+                      <ActionButtons item={item} />
+                    </div>
                   </td>
                 </tr>
               ))
@@ -1169,10 +1170,193 @@ export default function Items() {
         </table>
       </div>
 
+      {/* Mobile Card View */}
+      <div className="lg:hidden">
+        {/* Select All Card for Mobile */}
+        {filteredItems.length > 0 && (
+          <div className="p-4 bg-gray-50 border-b border-gray-200">
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                onChange={(e) => handleSelectAll(e.target.checked)}
+                checked={
+                  filteredItems.length > 0 &&
+                  selectedItems.length === filteredItems.length
+                }
+                className="rounded text-blue-600 h-4 w-4 cursor-pointer"
+              />
+              <span className="text-sm font-medium text-gray-700">
+                Select All Items
+              </span>
+            </div>
+          </div>
+        )}
+
+        <div className="divide-y divide-gray-200">
+          {loading && filteredItems.length === 0 ? (
+            <div className="p-8 text-center">
+              <div className="flex flex-col items-center">
+                <Loader2
+                  size={40}
+                  className="text-blue-600 animate-spin mb-3"
+                />
+                <p className="text-gray-600">Loading items...</p>
+              </div>
+            </div>
+          ) : filteredItems.length === 0 ? (
+            <div className="p-8 text-center">
+              <div className="flex flex-col items-center">
+                <Search size={40} className="text-gray-300 mb-3" />
+                <p className="text-gray-600 text-lg font-medium">
+                  No items found
+                </p>
+                {(searchTerm ||
+                  filterProductType ||
+                  filterSellable ||
+                  filterCreatedBy) && (
+                  <button
+                    onClick={clearFilters}
+                    className="mt-2 text-blue-600 hover:text-blue-800 text-sm font-medium"
+                  >
+                    Clear all filters
+                  </button>
+                )}
+                {items.length === 0 && canCreate && (
+                  <button
+                    onClick={() => setCurrentPage("form")}
+                    className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700"
+                  >
+                    <PlusCircle size={18} /> Add New Item
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : (
+            filteredItems.map((item) => (
+              <div
+                key={item.id}
+                className={`p-4 ${selectedItems.includes(item.id) ? "bg-blue-50" : "bg-white"}`}
+              >
+                {/* Card Header with Checkbox and Actions */}
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedItems.includes(item.id)}
+                      onChange={() => toggleSelect(item.id)}
+                      className="rounded text-blue-600 h-4 w-4 cursor-pointer"
+                    />
+                    <div className="flex items-center gap-2">
+                      {item.item_image ? (
+                        <img
+                          src={
+                            item.item_image.startsWith("http")
+                              ? item.item_image
+                              : item.item_image
+                          }
+                          className="w-10 h-10 object-contain rounded-lg border border-gray-200"
+                          alt={item.name}
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.style.display = "none";
+                            e.target.parentNode.innerHTML =
+                              '<div class="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center"><svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg></div>';
+                          }}
+                        />
+                      ) : (
+                        <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200">
+                          <Image size={16} className="text-gray-400" />
+                        </div>
+                      )}
+                      <div>
+                        <h4 className="font-medium text-gray-900 text-sm">
+                          {item.name}
+                        </h4>
+                        <span className="text-xs text-gray-500">
+                          SKU: {item.sku || "—"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <ActionButtons item={item} />
+                  </div>
+                </div>
+
+                {/* Card Body - Grid Layout */}
+                <div className="grid grid-cols-2 gap-3 ml-7">
+                  <div>
+                    <div className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Unit
+                    </div>
+                    <div className="text-sm text-gray-900 mt-1">
+                      {UNIT_DISPLAY_NAMES[item.unit] || item.unit}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Type
+                    </div>
+                    <div className="mt-1">
+                      <span
+                        className={`inline-block px-2 py-1 text-xs font-medium rounded-full ${item.product_type === "goods" ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"}`}
+                      >
+                        {PRODUCT_TYPE_DISPLAY_NAMES[item.product_type] ||
+                          item.product_type}
+                      </span>
+                      <span className="text-xs text-gray-500 block mt-1">
+                        {item.is_sellable ? "Sellable" : "Not Sellable"}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Selling Price
+                    </div>
+                    <div className="text-sm font-medium text-gray-900 mt-1">
+                      ₹{parseFloat(item.selling_price || 0).toFixed(2)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Cost Price
+                    </div>
+                    <div className="text-sm text-gray-900 mt-1">
+                      ₹{parseFloat(item.cost_price || 0).toFixed(2)}
+                    </div>
+                  </div>
+                  <div className="col-span-2">
+                    <div className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Zoho Sync
+                    </div>
+                    <div className="mt-1">
+                      {item.zoho_item_id ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded-lg text-xs font-medium">
+                          <Check size={12} /> Synced
+                        </span>
+                      ) : syncStatus[item.id] === "syncing" ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-yellow-100 text-yellow-700 rounded-lg text-xs font-medium">
+                          <Loader2 size={12} className="animate-spin" />{" "}
+                          Syncing...
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-700 rounded-lg text-xs font-medium">
+                          <Upload size={12} /> Not Synced
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
       {/* Table Footer */}
       {filteredItems.length > 0 && (
-        <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
-          <span className="text-sm text-gray-600">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <span className="text-sm text-gray-600 text-center sm:text-left">
             Showing <span className="font-medium">{filteredItems.length}</span>{" "}
             of <span className="font-medium">{items.length}</span> items
           </span>
@@ -1861,9 +2045,8 @@ export default function Items() {
                 : "Fill in the details to add a new item to your inventory"}
             </p>
           </div>
-
           <div className="border-b border-gray-200">
-            <div className="flex px-6">
+            <div className="flex overflow-x-auto px-2 md:px-6">
               {[
                 { name: "General", icon: Settings },
                 { name: "Sales", icon: DollarSign },
@@ -1873,7 +2056,7 @@ export default function Items() {
                   key={tab.name}
                   type="button"
                   onClick={() => setActiveTab(tab.name)}
-                  className={`px-6 py-4 text-sm font-medium flex items-center gap-2 transition-colors relative ${
+                  className={`flex-shrink-0 px-4 md:px-6 py-3 md:py-4 text-sm font-medium flex items-center gap-2 transition-colors relative whitespace-nowrap ${
                     activeTab === tab.name
                       ? "text-blue-700"
                       : "text-gray-600 hover:text-gray-900"
@@ -1881,6 +2064,7 @@ export default function Items() {
                 >
                   <tab.icon size={18} />
                   {tab.name}
+
                   {activeTab === tab.name && (
                     <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600"></div>
                   )}

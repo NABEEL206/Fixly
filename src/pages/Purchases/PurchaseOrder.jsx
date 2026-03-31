@@ -2146,8 +2146,9 @@ const PurchaseOrder = () => {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       {/* Header */}
-      <div className="max-w-7xl mx-auto mb-6">
-        <div className="flex justify-between items-center">
+      <div className="max-w-7xl mx-auto mb-6 px-4 sm:px-6 lg:px-8">
+        {/* Desktop Layout */}
+        <div className="hidden sm:flex justify-between items-center">
           <h1 className="text-3xl font-bold text-gray-800">Purchase Orders</h1>
           <div className="flex gap-3">
             {selectedPOs.length > 0 && canDelete && (
@@ -2171,6 +2172,39 @@ const PurchaseOrder = () => {
                 New Purchase Order
               </button>
             )}
+          </div>
+        </div>
+
+        {/* Mobile Layout */}
+        <div className="sm:hidden">
+          <div className="space-y-4">
+            <h1 className="text-2xl font-bold text-gray-800">
+              Purchase Orders
+            </h1>
+
+            <div className="flex flex-col gap-3">
+              {selectedPOs.length > 0 && canDelete && (
+                <button
+                  onClick={handleBulkDelete}
+                  disabled={isSubmitting}
+                  className="flex items-center justify-center gap-2 bg-red-600 text-white px-4 py-3 rounded-lg hover:bg-red-700 transition disabled:opacity-50 w-full"
+                >
+                  <Trash2 size={20} />
+                  Delete Selected ({selectedPOs.length})
+                </button>
+              )}
+
+              {!showForm && canCreate && (
+                <button
+                  onClick={newPO}
+                  disabled={isSubmitting}
+                  className="flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition disabled:opacity-50 w-full"
+                >
+                  <Plus size={20} />
+                  New Purchase Order
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -2244,12 +2278,184 @@ const PurchaseOrder = () => {
               )}
             </div>
           </div>
+          <div className="block lg:hidden">
+            <div className="space-y-4">
+              {/* Select All Card for Mobile */}
+              {filteredPOs.length > 0 && (
+                <div className="bg-gray-50 rounded-lg p-4 flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={selectAll}
+                    onChange={handleSelectAll}
+                    disabled={isLoading || filteredPOs.length === 0}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
+                  />
+                  <span className="text-sm font-medium text-gray-700">
+                    Select All
+                  </span>
+                </div>
+              )}
 
-          <div className="overflow-x-auto">
+              {isLoading ? (
+                <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                    Loading purchase orders...
+                  </div>
+                </div>
+              ) : filteredPOs.length === 0 ? (
+                <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
+                  No purchase orders found. Create your first one!
+                </div>
+              ) : (
+                filteredPOs.map((po) => (
+                  <div
+                    key={po.id}
+                    className="bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden"
+                  >
+                    {/* Card Header with Checkbox and Actions */}
+                    <div className="p-4 border-b border-gray-200 bg-gray-50">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="checkbox"
+                            checked={selectedPOs.includes(po.id)}
+                            onChange={() => handleSelectPO(po.id)}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <div>
+                            <div className="text-sm font-medium text-gray-500">
+                              PO Number
+                            </div>
+                            <div className="text-base font-semibold text-blue-600">
+                              {po.poNumber}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          {canView && (
+                            <button
+                              onClick={() => viewPO(po)}
+                              className="text-blue-600 hover:text-blue-800 p-1.5 hover:bg-blue-50 rounded transition-colors"
+                              title="View"
+                            >
+                              <Eye size={18} />
+                            </button>
+                          )}
+                          {canEdit && (
+                            <button
+                              onClick={() => editPO(po)}
+                              className="text-green-600 hover:text-green-800 p-1.5 hover:bg-green-50 rounded transition-colors"
+                              title="Edit"
+                            >
+                              <Edit size={18} />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleDownloadPOPdf(po.id)}
+                            className="text-indigo-600 hover:text-indigo-800 p-1.5 hover:bg-indigo-50 rounded transition-colors"
+                            title="PDF"
+                          >
+                            <FileText size={18} />
+                          </button>
+                          {canDelete && (
+                            <button
+                              onClick={() => deletePO(po.id)}
+                              className="text-red-600 hover:text-red-800 p-1.5 hover:bg-red-50 rounded transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Card Body */}
+                    <div className="p-4 space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <div className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Vendor
+                          </div>
+                          <div className="text-sm text-gray-900 mt-1">
+                            {po.vendorName || "N/A"}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Status
+                          </div>
+                          <div className="mt-1">
+                            <span
+                              className={`inline-block px-2 py-1 text-xs rounded-full ${
+                                po.status === "DRAFT"
+                                  ? "bg-gray-200 text-gray-800"
+                                  : po.status === "SENT"
+                                    ? "bg-blue-200 text-blue-800"
+                                    : po.status === "RECEIVED"
+                                      ? "bg-green-200 text-green-800"
+                                      : po.status === "CANCELLED"
+                                        ? "bg-red-200 text-red-800"
+                                        : "bg-yellow-200 text-yellow-800"
+                              }`}
+                            >
+                              {po.status}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <div className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            PO Date
+                          </div>
+                          <div className="text-sm text-gray-900 mt-1">
+                            {po.poDate}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Delivery Date
+                          </div>
+                          <div className="text-sm text-gray-900 mt-1">
+                            {po.expectedDeliveryDate || "N/A"}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <div className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Total Amount
+                          </div>
+                          <div className="text-base font-bold text-gray-900 mt-1">
+                            ₹{po.grandTotal?.toFixed(2)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Created By
+                          </div>
+                          <div className="text-sm text-gray-900 mt-1">
+                            {po.created_by || "-"}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Original Table for Desktop */}
+          <div className="hidden lg:block overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left">
+                  <th className="px-4 py-3 text-center">
                     <input
                       type="checkbox"
                       checked={selectAll}
@@ -2258,28 +2464,28 @@ const PurchaseOrder = () => {
                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
                     />
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                     PO Number
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Vendor
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                     PO Date
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Delivery Date
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Total
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Created By
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
@@ -2309,7 +2515,7 @@ const PurchaseOrder = () => {
                 ) : (
                   filteredPOs.map((po) => (
                     <tr key={po.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-4">
+                      <td className="px-4 py-4 text-center">
                         <input
                           type="checkbox"
                           checked={selectedPOs.includes(po.id)}
@@ -2317,19 +2523,19 @@ const PurchaseOrder = () => {
                           className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                         />
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600 text-center">
                         {po.poNumber}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
                         {po.vendorName || "N/A"}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
                         {po.poDate}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
                         {po.expectedDeliveryDate || "N/A"}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
                         <span
                           className={`px-2 py-1 text-xs rounded-full ${
                             po.status === "DRAFT"
@@ -2346,14 +2552,14 @@ const PurchaseOrder = () => {
                           {po.status}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 text-center">
                         ₹{po.grandTotal?.toFixed(2)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
                         {po.created_by || "-"}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <div className="flex gap-2">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
+                        <div className="flex gap-2 justify-center">
                           {canView && (
                             <button
                               onClick={() => viewPO(po)}
@@ -2363,7 +2569,6 @@ const PurchaseOrder = () => {
                               <Eye size={18} />
                             </button>
                           )}
-
                           {canEdit && (
                             <button
                               onClick={() => editPO(po)}
@@ -2373,7 +2578,6 @@ const PurchaseOrder = () => {
                               <Edit size={18} />
                             </button>
                           )}
-
                           <button
                             onClick={() => handleDownloadPOPdf(po.id)}
                             className="text-indigo-600 hover:text-indigo-800 p-1.5 hover:bg-indigo-50 rounded transition-colors"
@@ -2381,7 +2585,6 @@ const PurchaseOrder = () => {
                           >
                             <FileText size={18} />
                           </button>
-
                           {canDelete && (
                             <button
                               onClick={() => deletePO(po.id)}

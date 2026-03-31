@@ -267,7 +267,7 @@ const SearchableItemSelect = ({
               top: dropdownPosition.top,
               left: dropdownPosition.left,
               width: dropdownPosition.width,
-              minWidth: "250px",
+              minWidth: window.innerWidth < 640 ? "90%" : "250px",
               maxHeight: "300px",
               zIndex: 99999,
               backgroundColor: "white",
@@ -1433,12 +1433,12 @@ const Quotes = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-gray-50 p-3 sm:p-4 md:p-6">
       {!showForm ? (
         /* List View */
         <div className="max-w-7xl mx-auto">
           <div className="mb-6">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
               <h1 className="text-3xl font-bold text-gray-800">Quotations</h1>
 
               {(canCreate || (canDelete && selectedQuotes.length > 0)) && (
@@ -1467,7 +1467,7 @@ const Quotes = () => {
 
           <div className="bg-white rounded-lg shadow mb-6">
             <div className="p-4 border-b">
-              <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex flex-col sm:flex-row gap-3">
                 <div className="relative flex-1">
                   <Search
                     className="absolute left-3 top-3 text-gray-400"
@@ -1512,13 +1512,109 @@ const Quotes = () => {
                 )}
               </div>
             </div>
+            {/* ✅ MOBILE VIEW (Card Layout) */}
+            <div className="block md:hidden space-y-3">
+              {loading ? (
+                <div className="text-center py-6 text-gray-500">
+                  Loading quotations...
+                </div>
+              ) : currentItems.length === 0 ? (
+                <div className="text-center py-6 text-gray-500">
+                  No quotations found
+                </div>
+              ) : (
+                currentItems.map((quotation) => (
+                  <div
+                    key={quotation.id}
+                    className="bg-white rounded-xl shadow p-4 border"
+                  >
+                    {/* Header */}
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <p className="text-sm text-gray-500">
+                          {new Date(
+                            quotation.quotation_date,
+                          ).toLocaleDateString("en-IN")}
+                        </p>
+                        <p className="font-semibold text-blue-600">
+                          {quotation.quotation_number}
+                        </p>
+                      </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full">
+                      {/* Status */}
+                      {getStatusBadge(quotation.status)}
+                    </div>
+
+                    {/* Customer */}
+                    <div className="mb-2">
+                      <p className="font-medium text-gray-900">
+                        {quotation.customer_name}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {[quotation.customer_area, quotation.customer_pincode]
+                          .filter(Boolean)
+                          .join(", ")}
+                      </p>
+                    </div>
+
+                    {/* Amount + Expiry */}
+                    <div className="flex justify-between items-center mb-3">
+                      <div>
+                        <p className="text-xs text-gray-500">Expiry</p>
+                        <p className="text-sm">
+                          {new Date(quotation.expiry_date).toLocaleDateString(
+                            "en-IN",
+                          )}
+                        </p>
+                      </div>
+
+                      <div className="text-right">
+                        <p className="text-xs text-gray-500">Amount</p>
+                        <p className="font-semibold text-gray-900">
+                          ₹{parseFloat(quotation.grand_total || 0).toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex justify-between gap-2">
+                      {canView && (
+                        <button
+                          onClick={() => handleViewQuotation(quotation)}
+                          className="flex-1 text-blue-600 text-xs py-2 border rounded-lg"
+                        >
+                          View
+                        </button>
+                      )}
+
+                      {canEdit && (
+                        <button
+                          onClick={() => handleEditQuotation(quotation)}
+                          className="flex-1 text-green-600 text-xs py-2 border rounded-lg"
+                        >
+                          Edit
+                        </button>
+                      )}
+
+                      {canDelete && (
+                        <button
+                          onClick={() => handleDeleteQuotation(quotation.id)}
+                          className="flex-1 text-red-600 text-xs py-2 border rounded-lg"
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="hidden md:block overflow-x-auto w-full">
+              <table className="min-w-[800px] w-full">
                 <thead className="bg-gray-50">
                   <tr>
                     {canDelete && (
-                      <th className="px-4 py-3 text-left">
+                      <th className="px-4 py-3 text-center">
                         <input
                           type="checkbox"
                           checked={selectAll}
@@ -1528,25 +1624,25 @@ const Quotes = () => {
                         />
                       </th>
                     )}
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Date
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Quote #
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Customer
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Expiry Date
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Status
                     </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Amount
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Actions
                     </th>
                   </tr>
@@ -1577,7 +1673,7 @@ const Quotes = () => {
                     currentItems.map((quotation) => (
                       <tr key={quotation.id} className="hover:bg-gray-50">
                         {canDelete && (
-                          <td className="px-4 py-4">
+                          <td className="px-4 py-4 text-center">
                             <input
                               type="checkbox"
                               checked={selectedQuotes.includes(quotation.id)}
@@ -1587,15 +1683,15 @@ const Quotes = () => {
                             />
                           </td>
                         )}
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 text-center">
                           {new Date(
                             quotation.quotation_date,
                           ).toLocaleDateString("en-IN")}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600 text-center">
                           {quotation.quotation_number}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-6 py-4 whitespace-nowrap text-center">
                           <div className="text-sm">
                             <div className="font-medium text-gray-900">
                               {quotation.customer_name}
@@ -1610,19 +1706,19 @@ const Quotes = () => {
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 text-center">
                           {new Date(quotation.expiry_date).toLocaleDateString(
                             "en-IN",
                           )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-6 py-4 whitespace-nowrap text-center">
                           {getStatusBadge(quotation.status)}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 text-right">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 text-center">
                           ₹{parseFloat(quotation.grand_total || 0).toFixed(2)}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <div className="flex gap-2">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
+                          <div className="flex gap-2 justify-center">
                             {canView && (
                               <button
                                 onClick={() => handleViewQuotation(quotation)}
@@ -1776,7 +1872,7 @@ const Quotes = () => {
             </div>
           </div>
 
-          <div className="p-6 max-h-[calc(100vh-200px)] overflow-y-auto">
+          <div className="p-3 sm:p-6 max-h-[calc(100vh-120px)] overflow-y-auto">
             <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
               <div className="flex items-start">
                 <div className="flex-shrink-0">
@@ -1800,7 +1896,7 @@ const Quotes = () => {
                 <h3 className="text-lg font-semibold mb-4">
                   Basic Information
                 </h3>
-                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="col-span-2">
                     <SearchableSelect
                       options={customers}

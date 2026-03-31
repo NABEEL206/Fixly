@@ -627,10 +627,12 @@ const InvoiceViewModal = ({
                   <h4 className="font-medium text-gray-700 mb-3 pb-2 border-b">
                     Customer Information
                   </h4>
-                  <div className="space-y-3 text-sm">
-                    {/* Customer Name */}
+
+                  {/* ✅ Desktop View */}
+                  <div className="hidden md:block space-y-3 text-sm">
+                    {/* Name */}
                     <div>
-                      <span className="text-gray-600 block text-xs uppercase tracking-wider mb-1">
+                      <span className="text-gray-600 block text-xs uppercase mb-1">
                         Name
                       </span>
                       <p className="font-medium text-base">
@@ -639,10 +641,10 @@ const InvoiceViewModal = ({
                       </p>
                     </div>
 
-                    {/* Contact Information - Two Column */}
-                    <div className="grid grid-cols-2 gap-3 mt-2">
+                    {/* Phone + Email */}
+                    <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <span className="text-gray-600 block text-xs uppercase tracking-wider mb-1">
+                        <span className="text-gray-600 block text-xs uppercase mb-1">
                           Phone
                         </span>
                         <p className="font-medium">
@@ -651,8 +653,9 @@ const InvoiceViewModal = ({
                             "N/A"}
                         </p>
                       </div>
+
                       <div>
-                        <span className="text-gray-600 block text-xs uppercase tracking-wider mb-1">
+                        <span className="text-gray-600 block text-xs uppercase mb-1">
                           Email
                         </span>
                         <p className="font-medium break-all">
@@ -666,7 +669,7 @@ const InvoiceViewModal = ({
                     {/* Address */}
                     {(invoice.customer_address || customerDetails?.address) && (
                       <div>
-                        <span className="text-gray-600 block text-xs uppercase tracking-wider mb-1">
+                        <span className="text-gray-600 block text-xs uppercase mb-1">
                           Address
                         </span>
                         <p className="text-gray-800">
@@ -675,10 +678,10 @@ const InvoiceViewModal = ({
                       </div>
                     )}
 
-                    {/* Location Information - Three Column */}
+                    {/* Location */}
                     <div className="grid grid-cols-3 gap-3">
                       <div>
-                        <span className="text-gray-600 block text-xs uppercase tracking-wider mb-1">
+                        <span className="text-gray-600 block text-xs uppercase mb-1">
                           City
                         </span>
                         <p>
@@ -688,8 +691,9 @@ const InvoiceViewModal = ({
                             "N/A"}
                         </p>
                       </div>
+
                       <div>
-                        <span className="text-gray-600 block text-xs uppercase tracking-wider mb-1">
+                        <span className="text-gray-600 block text-xs uppercase mb-1">
                           Pincode
                         </span>
                         <p>
@@ -698,8 +702,9 @@ const InvoiceViewModal = ({
                             "N/A"}
                         </p>
                       </div>
+
                       <div>
-                        <span className="text-gray-600 block text-xs uppercase tracking-wider mb-1">
+                        <span className="text-gray-600 block text-xs uppercase mb-1">
                           State
                         </span>
                         <p className="font-medium">
@@ -707,6 +712,77 @@ const InvoiceViewModal = ({
                             customerDetails?.state ||
                             "Kerala"}
                         </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ✅ Mobile View */}
+                  <div className="md:hidden space-y-3 text-sm">
+                    <div className="bg-white border rounded-lg p-3 shadow-sm space-y-2">
+                      {/* Name */}
+                      <div>
+                        <p className="text-gray-500 text-xs">Name</p>
+                        <p className="font-semibold text-base">
+                          {invoice.customer_name ||
+                            getCustomerName(invoice.customer)}
+                        </p>
+                      </div>
+
+                      {/* Phone */}
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Phone</span>
+                        <span className="font-medium text-right">
+                          {invoice.customer_phone ||
+                            customerDetails?.customer_phone ||
+                            "N/A"}
+                        </span>
+                      </div>
+
+                      {/* Email */}
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Email</span>
+                        <span className="font-medium text-right break-all">
+                          {invoice.customer_email ||
+                            customerDetails?.email ||
+                            "N/A"}
+                        </span>
+                      </div>
+
+                      {/* Address */}
+                      {(invoice.customer_address ||
+                        customerDetails?.address) && (
+                        <div>
+                          <p className="text-gray-500">Address</p>
+                          <p className="text-gray-800">
+                            {invoice.customer_address ||
+                              customerDetails?.address}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Location */}
+                      <div className="grid grid-cols-2 gap-y-2">
+                        <span className="text-gray-500">City</span>
+                        <span className="text-right">
+                          {invoice.customer_city ||
+                            customerDetails?.area ||
+                            customerDetails?.city ||
+                            "N/A"}
+                        </span>
+
+                        <span className="text-gray-500">Pincode</span>
+                        <span className="text-right">
+                          {invoice.customer_pincode ||
+                            customerDetails?.pincode ||
+                            "N/A"}
+                        </span>
+
+                        <span className="text-gray-500">State</span>
+                        <span className="text-right font-medium">
+                          {invoice.customer_state ||
+                            customerDetails?.state ||
+                            "Kerala"}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -719,9 +795,11 @@ const InvoiceViewModal = ({
                   <h4 className="font-medium text-gray-700 mb-3 pb-2 border-b">
                     Assignment Information
                   </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+
+                  {/* ✅ Desktop View */}
+                  <div className="hidden md:grid grid-cols-3 gap-4 text-sm">
                     <div>
-                      <span className="text-gray-600 block text-xs uppercase tracking-wider mb-1">
+                      <span className="text-gray-600 block text-xs uppercase mb-1">
                         Assign Type
                       </span>
                       <p className="font-medium capitalize flex items-center gap-1">
@@ -729,15 +807,17 @@ const InvoiceViewModal = ({
                         {invoice.assign_type}
                       </p>
                     </div>
+
                     <div>
-                      <span className="text-gray-600 block text-xs uppercase tracking-wider mb-1">
+                      <span className="text-gray-600 block text-xs uppercase mb-1">
                         Assigned To
                       </span>
                       <p className="font-medium">{invoice.assign_name}</p>
                     </div>
+
                     {invoice.assign_shop_type && (
                       <div>
-                        <span className="text-gray-600 block text-xs uppercase tracking-wider mb-1">
+                        <span className="text-gray-600 block text-xs uppercase mb-1">
                           Shop Type
                         </span>
                         <p className="font-medium">
@@ -746,38 +826,63 @@ const InvoiceViewModal = ({
                       </div>
                     )}
                   </div>
+
+                  {/* ✅ Mobile Card View */}
+                  <div className="md:hidden space-y-3 text-sm">
+                    <div className="bg-white border rounded-lg p-3 shadow-sm space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Assign Type</span>
+                        <span className="font-medium capitalize flex items-center gap-1">
+                          {invoice.assign_type === "shop" ? "🏪" : "🏷️"}
+                          {invoice.assign_type}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Assigned To</span>
+                        <span className="font-medium text-right">
+                          {invoice.assign_name}
+                        </span>
+                      </div>
+
+                      {invoice.assign_shop_type && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Shop Type</span>
+                          <span className="font-medium text-right">
+                            {invoice.assign_shop_type}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
 
               {/* Items Table */}
+              {/* Items Section */}
               <div className="mb-6">
                 <h4 className="font-medium text-gray-700 mb-3 pb-2 border-b">
                   Items
                 </h4>
-                <div className="overflow-x-auto border rounded-lg">
+
+                {/* ✅ Desktop Table */}
+                <div className="hidden md:block overflow-x-auto border rounded-lg">
                   <table className="w-full text-sm text-center border-collapse">
                     <thead className="bg-gray-100">
                       <tr>
-                        <th className="px-3 py-3 text-left font-semibold text-gray-700 w-[25%]">
+                        <th className="px-3 py-3 text-left font-semibold w-[25%]">
                           Item
                         </th>
-                        <th className="px-3 py-3 font-semibold text-gray-700 w-[10%]">
-                          Qty
-                        </th>
-                        <th className="px-3 py-3 font-semibold text-gray-700 w-[12%]">
-                          Rate (₹)
-                        </th>
-                        <th className="px-3 py-3 font-semibold text-gray-700 w-[15%]">
-                          Service
-                        </th>
-                        <th className="px-3 py-3 font-semibold text-gray-700 w-[12%]">
-                          GST %
-                        </th>
-                        <th className="px-3 py-3 font-semibold text-gray-700 w-[15%] text-right">
+                        <th className="px-3 py-3 w-[10%]">Qty</th>
+                        <th className="px-3 py-3 w-[12%]">Rate (₹)</th>
+                        <th className="px-3 py-3 w-[15%]">Service</th>
+                        <th className="px-3 py-3 w-[12%]">GST %</th>
+                        <th className="px-3 py-3 w-[15%] text-right">
                           Amount (₹)
                         </th>
                       </tr>
                     </thead>
+
                     <tbody>
                       {invoice.items.map((item, index) => {
                         const qty = parseFloat(item.qty) || 0;
@@ -798,14 +903,12 @@ const InvoiceViewModal = ({
                                 </p>
                               )}
                             </td>
-                            <td className="px-3 py-2 text-center">{qty}</td>
-                            <td className="px-3 py-2 text-center">
-                              ₹{rate.toFixed(2)}
-                            </td>
-                            <td className="px-3 py-2 text-center">
+                            <td className="px-3 py-2">{qty}</td>
+                            <td className="px-3 py-2">₹{rate.toFixed(2)}</td>
+                            <td className="px-3 py-2">
                               {service > 0 ? `₹${service.toFixed(2)}` : "-"}
                             </td>
-                            <td className="px-3 py-2 text-center">
+                            <td className="px-3 py-2">
                               {item.gst_treatment?.replace("GST_", "")}%
                             </td>
                             <td className="px-3 py-2 text-right font-semibold">
@@ -816,6 +919,61 @@ const InvoiceViewModal = ({
                       })}
                     </tbody>
                   </table>
+                </div>
+
+                {/* ✅ Mobile Cards */}
+                <div className="md:hidden space-y-3">
+                  {invoice.items.map((item, index) => {
+                    const qty = parseFloat(item.qty) || 0;
+                    const rate = parseFloat(item.rate) || 0;
+                    const service = parseFloat(item.service_charge_amount) || 0;
+                    const amount = qty * rate + service;
+
+                    return (
+                      <div
+                        key={index}
+                        className="border rounded-lg p-3 shadow-sm bg-white"
+                      >
+                        {/* Item Name */}
+                        <p className="font-semibold text-gray-800">
+                          {item.item_name || "N/A"}
+                        </p>
+
+                        {item.description && (
+                          <p className="text-xs text-gray-500 mb-2">
+                            {item.description}
+                          </p>
+                        )}
+
+                        {/* Grid Details */}
+                        <div className="grid grid-cols-2 gap-y-2 text-sm">
+                          <p className="text-gray-500">Qty</p>
+                          <p className="text-right">{qty}</p>
+
+                          <p className="text-gray-500">Rate</p>
+                          <p className="text-right">₹{rate.toFixed(2)}</p>
+
+                          <p className="text-gray-500">Service</p>
+                          <p className="text-right">
+                            {service > 0 ? `₹${service.toFixed(2)}` : "-"}
+                          </p>
+
+                          <p className="text-gray-500">GST</p>
+                          <p className="text-right">
+                            {item.gst_treatment?.replace("GST_", "")}%
+                          </p>
+                        </div>
+
+                        {/* Total */}
+                        <div className="flex justify-between mt-3 pt-2 border-t">
+                          <p className="font-medium text-gray-600">Amount</p>
+                          <p className="font-semibold text-gray-900">
+                            ₹{amount.toFixed(2)}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -3323,9 +3481,10 @@ const Invoice = () => {
               </div>
             )}
 
-            {/* Customer Selection - Using Searchable Select */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
-              <div className="col-span-1">
+            {/* Customer Selection + Assign + Invoice Info */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6 md:mb-8">
+              {/* ✅ Customer */}
+              <div className="col-span-1 w-full">
                 <SearchableSelect
                   options={customers}
                   value={invoiceData.customer}
@@ -3338,15 +3497,19 @@ const Invoice = () => {
                   }
                   getOptionValue={(customer) => customer.id}
                   icon={User}
+                  className="w-full text-sm md:text-base"
                 />
               </div>
 
-              {/* Unified Assign Field with Search */}
-              <div className="col-span-2">
+              {/* ✅ Assign Section */}
+              <div className="col-span-1 lg:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Assign To
                 </label>
-                <div className="flex gap-2">
+
+                {/* 🔥 Mobile = stacked | Desktop = row */}
+                <div className="flex flex-col sm:flex-row gap-2">
+                  {/* Assign Type */}
                   <select
                     value={invoiceData.assign_type}
                     onChange={(e) => {
@@ -3359,7 +3522,7 @@ const Invoice = () => {
                       setAssignSearchTerm("");
                       setShowAssignDropdown(false);
                     }}
-                    className="w-36 px-3 py-2 border rounded-lg bg-gray-50"
+                    className="w-full sm:w-40 px-3 py-2 border rounded-lg bg-gray-50 text-sm"
                   >
                     {filteredAssignOptions.map((opt) => (
                       <option key={opt.value} value={opt.value}>
@@ -3368,13 +3531,12 @@ const Invoice = () => {
                     ))}
                   </select>
 
-                  {/* CUSTOM SEARCHABLE DROPDOWN */}
+                  {/* Search Dropdown */}
                   <div className="relative flex-1" ref={assignDropdownRef}>
-                    {/* Dropdown Trigger Button */}
                     <button
                       type="button"
                       onClick={() => setShowAssignDropdown(!showAssignDropdown)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-left flex items-center justify-between hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border rounded-lg bg-white text-left flex items-center justify-between text-sm"
                     >
                       <span
                         className={
@@ -3390,95 +3552,62 @@ const Invoice = () => {
                       <ChevronDown size={16} className="text-gray-400" />
                     </button>
 
-                    {/* Dropdown Menu */}
+                    {/* Dropdown */}
                     {showAssignDropdown && (
-                      <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-80 overflow-hidden">
-                        {/* Search Input */}
-                        <div className="p-2 border-b border-gray-200">
-                          <div className="relative">
-                            <Search
-                              size={14}
-                              className="absolute left-3 top-2.5 text-gray-400"
-                            />
-                            <input
-                              type="text"
-                              placeholder={`Search ${getAssignTypeLabel()}...`}
-                              value={assignSearchTerm}
-                              onChange={(e) =>
-                                setAssignSearchTerm(e.target.value)
-                              }
-                              className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                              autoFocus
-                            />
-                          </div>
+                      <div className="absolute z-50 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-72 overflow-hidden">
+                        {/* Search */}
+                        <div className="p-2 border-b">
+                          <input
+                            type="text"
+                            placeholder={`Search ${getAssignTypeLabel()}...`}
+                            value={assignSearchTerm}
+                            onChange={(e) =>
+                              setAssignSearchTerm(e.target.value)
+                            }
+                            className="w-full px-3 py-2 text-sm border rounded-md"
+                            autoFocus
+                          />
                         </div>
 
-                        {/* Options List */}
-                        <div className="overflow-y-auto max-h-64">
+                        {/* List */}
+                        <div className="overflow-y-auto max-h-60">
                           {getFilteredAssignItems().length === 0 ? (
                             <div className="px-3 py-2 text-sm text-gray-500 text-center">
                               No {getAssignTypeLabel().toLowerCase()} found
                             </div>
                           ) : (
-                            getFilteredAssignItems().map((item) => {
-                              if (invoiceData.assign_type === "shop") {
-                                const icon = getShopIcon(item.shop_type);
-                                const typeLabel = getShopTypeLabel(
-                                  item.shop_type,
-                                );
-                                return (
-                                  <button
-                                    key={item.id}
-                                    type="button"
-                                    onClick={() => {
-                                      setInvoiceData({
-                                        ...invoiceData,
-                                        assign_id: item.id,
-                                        assign_name: item.shopname,
-                                      });
-                                      setShowAssignDropdown(false);
-                                      setAssignSearchTerm("");
-                                    }}
-                                    className="w-full px-3 py-2 text-left hover:bg-blue-50 transition-colors flex items-center gap-2"
-                                  >
-                                    <span className="text-lg">{icon}</span>
-                                    <div className="flex-1">
-                                      <div className="text-sm font-medium text-gray-900">
-                                        {item.shopname}
-                                      </div>
-                                      <div className="text-xs text-gray-500">
-                                        {typeLabel}
-                                      </div>
-                                    </div>
-                                  </button>
-                                );
-                              } else {
-                                return (
-                                  <button
-                                    key={item.id}
-                                    type="button"
-                                    onClick={() => {
-                                      setInvoiceData({
-                                        ...invoiceData,
-                                        assign_id: item.id,
-                                        assign_name: item.name,
-                                      });
-                                      setShowAssignDropdown(false);
-                                      setAssignSearchTerm("");
-                                    }}
-                                    className="w-full px-3 py-2 text-left hover:bg-blue-50 transition-colors flex items-center gap-2"
-                                  >
-                                    <span className="text-lg">🏷️</span>
-                                    <div className="flex-1">
-                                      <div className="text-sm font-medium text-gray-900">
-                                        {item.name}
-                                      </div>
-                                      <div className="text-xs text-gray-500"></div>
-                                    </div>
-                                  </button>
-                                );
-                              }
-                            })
+                            getFilteredAssignItems().map((item) => (
+                              <button
+                                key={item.id}
+                                type="button"
+                                onClick={() => {
+                                  setInvoiceData({
+                                    ...invoiceData,
+                                    assign_id: item.id,
+                                    assign_name:
+                                      invoiceData.assign_type === "shop"
+                                        ? item.shopname
+                                        : item.name,
+                                  });
+                                  setShowAssignDropdown(false);
+                                  setAssignSearchTerm("");
+                                }}
+                                className="w-full px-3 py-3 text-left hover:bg-blue-50 flex items-center gap-2"
+                              >
+                                <span className="text-lg">
+                                  {invoiceData.assign_type === "shop"
+                                    ? getShopIcon(item.shop_type)
+                                    : "🏷️"}
+                                </span>
+                                <div className="flex-1">
+                                  <div className="text-sm font-medium">
+                                    {invoiceData.assign_type === "shop"
+                                      ? item.shopname
+                                      : item.name}
+                                  </div>
+                                </div>
+                              </button>
+                            ))
                           )}
                         </div>
                       </div>
@@ -3486,15 +3615,15 @@ const Invoice = () => {
                   </div>
                 </div>
 
-                {/* Show selected item info */}
+                {/* Selected Info */}
                 {invoiceData.assign_id && (
-                  <div className="mt-2 text-xs text-green-600 bg-green-50 p-2 rounded-md flex items-center gap-1">
-                    <span>✓</span>
-                    <span>Assigned to: {getSelectedDisplayText()}</span>
+                  <div className="mt-2 text-xs text-green-600 bg-green-50 p-2 rounded-md">
+                    ✓ Assigned to: {getSelectedDisplayText()}
                   </div>
                 )}
               </div>
 
+              {/* ✅ Status */}
               <div className="col-span-1">
                 <label className="block text-sm font-medium mb-1">Status</label>
                 <select
@@ -3505,7 +3634,7 @@ const Invoice = () => {
                       status: e.target.value,
                     }))
                   }
-                  className="w-full px-3 py-2 border rounded-lg"
+                  className="w-full px-3 py-2 border rounded-lg text-sm"
                 >
                   <option value="DRAFT">DRAFT</option>
                   <option value="SENT">SENT</option>
@@ -3513,21 +3642,21 @@ const Invoice = () => {
                 </select>
               </div>
 
+              {/* Invoice Number */}
               <div className="col-span-1">
                 <label className="block text-sm font-medium mb-1">
-                  Invoice Number{" "}
-                  <span className="text-green-600">(Auto-generated)</span>
+                  Invoice Number <span className="text-green-600">(Auto)</span>
                 </label>
                 <input
                   type="text"
                   value={invoiceData.invoice_number}
-                  placeholder="Will be generated by system"
                   readOnly
                   disabled
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
+                  className="w-full px-3 py-2 border rounded-lg bg-gray-100 text-sm"
                 />
               </div>
 
+              {/* Invoice Date */}
               <div className="col-span-1">
                 <label className="block text-sm font-medium mb-1">
                   Invoice Date *
@@ -3537,7 +3666,6 @@ const Invoice = () => {
                   value={invoiceData.invoice_date}
                   onChange={(e) => {
                     const newDate = e.target.value;
-
                     const dueDate = new Date(newDate);
                     dueDate.setDate(dueDate.getDate() + 7);
 
@@ -3547,10 +3675,11 @@ const Invoice = () => {
                       due_date: dueDate.toISOString().split("T")[0],
                     });
                   }}
-                  className={`w-full px-3 py-2 border rounded-lg ${errors.invoice_date ? "border-red-500" : "border-gray-300"}`}
+                  className="w-full px-3 py-2 border rounded-lg text-sm"
                 />
               </div>
 
+              {/* Due Date */}
               <div className="col-span-1">
                 <label className="block text-sm font-medium mb-1">
                   Due Date
@@ -3560,9 +3689,12 @@ const Invoice = () => {
                   value={invoiceData.due_date || ""}
                   min={invoiceData.invoice_date}
                   onChange={(e) =>
-                    setInvoiceData({ ...invoiceData, due_date: e.target.value })
+                    setInvoiceData({
+                      ...invoiceData,
+                      due_date: e.target.value,
+                    })
                   }
-                  className={`w-full px-3 py-2 border rounded-lg ${errors.due_date ? "border-red-500" : "border-gray-300"}`}
+                  className="w-full px-3 py-2 border rounded-lg text-sm"
                 />
               </div>
             </div>
